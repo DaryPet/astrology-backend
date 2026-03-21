@@ -132,13 +132,14 @@ async def create_chart(chart: NatalChartCreate, db: AsyncSession = Depends(get_d
             import pytz
             from datetime import timedelta
             
-            # Для исторических дат - используем правильный часовой пояс с учётом DST
-            # СССР использовал декретное время + летнее время
-            # До 1990: Москва = UTC+3 (декретное), летом +1 = UTC+4
+            # Для современных дат - используем pytz с автоматическим DST
+            # Для исторических дат (до 1990) - нужна специальная логика
             
             is_ukraine = 'Kyiv' in timezone_str or 'Kiev' in timezone_str
+            is_moscow = 'Moscow' in timezone_str or 'Europe/Moscow' in timezone_str
             
-            if is_ukraine and user.birth_date.year < 1990:
+            # Для старых дат в бывшем СССР - применяем историческое время
+            if (is_ukraine or is_moscow) and user.birth_date.year < 1990:
                 # Для Украины до 1990: декретно +3, летом +4
                 # Летнее время: с последнего марта по последнее октября
                 month = user.birth_date.month
