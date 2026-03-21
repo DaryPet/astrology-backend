@@ -2,6 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime
+
+# Initialize Swiss Ephemeris via helper (sets Moshier mode)
+from app import swephelper
+
 from app.db.database import get_db
 from app.models.models import User, NatalChart, ChartInterpretation, Book
 from app.schemas.schemas import (
@@ -10,10 +14,35 @@ from app.schemas.schemas import (
     QueryRequest, SynastryRequest
 )
 from app.utils.astrology import (
+    calculate_planet_positions as calc_positions_v1, calculate_aspects as calc_aspects_v1,
+    calculate_solar_return as calc_sr_v1, calculate_transits, calculate_synastry as calc_syn_v1
+)
+from app.utils.astrology_v2 import (
     calculate_planet_positions, calculate_aspects,
-    calculate_solar_return, calculate_transits, calculate_synastry
+    calculate_solar_return, calculate_synastry
 )
 import json
+
+from geopy.geocoders import Nominatim
+from geopy.exc import GeocoderTimedOut
+import json
+
+# Инициализируем геокодер (бесплатный Nominatim)
+geolocator = Nominatim(user_agent="astrology_app_v2")
+
+def get_coordinates(place: str) -> tuple:
+    """Получить координаты из названия места с помощью geocoding"""
+    try:
+        location = geolocator.geocode(place, timeout=10)
+        if location:
+            return (location.latitude, location.longitude)
+    except GeocoderTimedOut:
+        pass
+    except Exception as e:
+        print(f"Geocoding error: {e}")
+    
+    # Fallback - возвращаем Moscow
+    return (55.7558, 37.6173)
 
 router = APIRouter()
 
@@ -40,7 +69,7 @@ async def get_user(user_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
     return user
 
-# Natal Charts
+# Natal Charts - Swiss Ephemeris
 @router.post("/charts", response_model=NatalChartResponse)
 async def create_chart(chart: NatalChartCreate, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.id == chart.user_id))
@@ -48,8 +77,11 @@ async def create_chart(chart: NatalChartCreate, db: AsyncSession = Depends(get_d
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Calculate planetary positions
-    positions = calculate_planet_positions(user.birth_date, user.birth_place)
+    # Простая геокодирование - для продвинутого нужно добавить geocoding
+    lat, lon = get_coordinates(user.birth_place)
+    
+    # Calculate planetary positions (Swiss Ephemeris)
+    positions = calculate_planet_positions(user.birth_date, user.birth_place, lat, lon)
     aspects = calculate_aspects(positions['planets'])
     
     db_chart = NatalChart(
