@@ -289,6 +289,50 @@ async def get_books(db: AsyncSession = Depends(get_db)):
     books = result.scalars().all()
     return books
 
+@router.get("/geocode/search")
+async def search_locations(q: str, limit: int = 5):
+    """Поиск локаций по названию (автодополнение)"""
+    if not q or len(q) < 2:
+        return []
+    
+    try:
+        # Nominatim supports JSON view for multiple results
+        from urllib.parse import quote
+        import requests
+        
+        url = f"https://nominatim.openstreetmap.org/search?q={quote(q)}&format=json&limit={limit}&addressdetails=1&language=ru"
+        headers = {'User-Agent': 'astrology_app_v2'}
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            locations = []
+            for item in data:
+                addr = item.get('address', {})
+                locations.append({
+                    'display_name': item.get('display_name', ''),
+                    'short_name': addr.get('city') or addr.get('town') or addr.get('village') or addr.get('municipality') or q,
+                    'lat': float(item.get('lat', 0)),
+                    'lon': float(item.get('lon', 0)),
+                    'country': addr.get('country', ''),
+                    'city': addr.get('city') or addr.get('town') or addr.get('village', '')
+                })
+            return locations
+    except Exception as e:
+        print(f"Geocode search error: {e}")
+    
+    return []
+
+@router.get("/geocode/coordinates")
+async def get_coordinates(place: str):
+    """Получить координаты для места"""
+    lat, lon, tz = get_coordinates_and_tz(place)
+    return {
+        'lat': lat,
+        'lon': lon,
+        'timezone': tz
+    }
+
 @router.post("/books/{book_id}/query")
 async def query_book(book_id: int, request: QueryRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Book).where(Book.id == book_id))

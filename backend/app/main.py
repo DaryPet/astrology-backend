@@ -30,7 +30,7 @@ static_dir = os.path.join(os.path.dirname(__file__), "../../frontend/dist")
 
 # Use StaticFiles for proper static file serving
 if os.path.exists(static_dir):
-    app.mount("/assets", StaticFiles(directory=os.path.join(static_dir, "assets")), name="assets")
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
 
 # Serve index.html for root - AFTER static files
 @app.get("/")
