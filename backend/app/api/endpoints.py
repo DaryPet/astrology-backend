@@ -13,10 +13,7 @@ from app.schemas.schemas import (
     InterpretationCreate, InterpretationResponse, BookCreate, BookResponse,
     QueryRequest, SynastryRequest
 )
-from app.utils.astrology import (
-    calculate_planet_positions as calc_positions_v1, calculate_aspects as calc_aspects_v1,
-    calculate_solar_return as calc_sr_v1, calculate_transits, calculate_synastry as calc_syn_v1
-)
+# v1 removed - using Swiss Ephemeris only
 from app.utils.astrology_v2 import (
     calculate_planet_positions, calculate_aspects,
     calculate_solar_return, calculate_synastry
@@ -26,23 +23,61 @@ import json
 from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut
 import json
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 # Инициализируем геокодер (бесплатный Nominatim)
 geolocator = Nominatim(user_agent="astrology_app_v2")
 
-def get_coordinates(place: str) -> tuple:
-    """Получить координаты из названия места с помощью geocoding"""
+# Инициализируем определитель часового пояса
+try:
+    from timezonefinder import TimezoneFinder
+    tz_finder = TimezoneFinder()
+except Exception:
+    tz_finder = None
+
+def get_coordinates_and_tz(place: str) -> tuple:
+    """Получить координаты и часовой пояс из названия места"""
     try:
         location = geolocator.geocode(place, timeout=10)
         if location:
-            return (location.latitude, location.longitude)
+            lat, lon = location.latitude, location.longitude
+            
+            # Определяем часовой пояс
+            timezone_str = None
+            if tz_finder:
+                try:
+                    timezone_str = tz_finder.timezone_at(lng=lon, lat=lat)
+                except Exception:
+                    pass
+            
+            return (lat, lon, timezone_str)
     except GeocoderTimedOut:
         pass
     except Exception as e:
         print(f"Geocoding error: {e}")
     
-    # Fallback - возвращаем Moscow
-    return (55.7558, 37.6173)
+    # Fallback - Москва
+    return (55.7558, 37.6173, "Europe/Moscow")
+
+def get_timezone_offset(timezone_str: str, dt: datetime) -> float:
+    """Получить смещение часового пояса в часах от UTC"""
+    if not timezone_str:
+        return 0.0
+    try:
+        tz = ZoneInfo(timezone_str)
+        # Получаем UTC смещение для данного времени
+        local_dt = dt.replace(tzinfo=tz)
+        offset = local_dt.utcoffset().total_seconds() / 3600
+        return offset
+    except Exception:
+        return 0.0
+
+# Legacy функция для совместимости
+def get_coordinates(place: str) -> tuple:
+    """Получить координаты из названия места (старый интерфейс)"""
+    lat, lon, _ = get_coordinates_and_tz(place)
+    return (lat, lon)
 
 router = APIRouter()
 
@@ -77,12 +112,68 @@ async def create_chart(chart: NatalChartCreate, db: AsyncSession = Depends(get_d
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Простая геокодирование - для продвинутого нужно добавить geocoding
-    lat, lon = get_coordinates(user.birth_place)
+    # Геокодирование + часовой пояс
+    lat, lon, timezone_str = get_coordinates_and_tz(user.birth_place)
+    
+    # Конвертируем местное время в UTC для Swiss Ephemeris
+    # ИСПРАВЛЕНИЕ: объединяем дату и время
+    birth_dt_local = user.birth_date
+    if user.birth_time:
+        # birth_time stored as "HH:MM" string
+        time_parts = user.birth_time.split(':')
+        if len(time_parts) == 2:
+            from datetime import time as dt_time
+            birth_time_obj = dt_time(int(time_parts[0]), int(time_parts[1]))
+            birth_dt_local = datetime.combine(user.birth_date, birth_time_obj)
+    
+    birth_dt_utc = birth_dt_local
+    if timezone_str:
+        try:
+            import pytz
+            from datetime import timedelta
+            
+            # Для современных дат - используем pytz с автоматическим DST
+            # Для исторических дат (до 1990) - нужна специальная логика
+            
+            is_ukraine = 'Kyiv' in timezone_str or 'Kiev' in timezone_str
+            is_moscow = 'Moscow' in timezone_str or 'Europe/Moscow' in timezone_str
+            
+            # Для старых дат в бывшем СССР - применяем историческое время
+            if (is_ukraine or is_moscow) and user.birth_date.year < 1990:
+                # Для Украины до 1990: декретно +3, летом +4
+                # Летнее время: с последнего марта по последнее октября
+                month = user.birth_date.month
+                if month >= 4 and month <= 10:
+                    # Летнее время UTC+4
+                    moscow_tz = pytz.timezone('Europe/Moscow')
+                    # Moscow summer time was UTC+4
+                    import datetime as dt
+                    summer_time = dt.timezone(dt.timedelta(hours=4))
+                    birth_dt_utc = birth_dt_local.replace(tzinfo=summer_time).astimezone(pytz.UTC).replace(tzinfo=None)
+                else:
+                    # Зимнее время UTC+3
+                    moscow_tz = pytz.timezone('Europe/Moscow')
+                    import datetime as dt
+                    winter_time = dt.timezone(dt.timedelta(hours=3))
+                    birth_dt_utc = birth_dt_local.replace(tzinfo=winter_time).astimezone(pytz.UTC).replace(tzinfo=None)
+            else:
+                # Для других мест используем современный часовой пояс
+                tz = pytz.timezone(timezone_str)
+                localized_dt = tz.localize(user.birth_date.replace(tzinfo=None))
+                birth_dt_utc = localized_dt.astimezone(pytz.UTC).replace(tzinfo=None)
+        except Exception as e:
+            print(f"Timezone conversion error: {e}")
     
     # Calculate planetary positions (Swiss Ephemeris)
-    positions = calculate_planet_positions(user.birth_date, user.birth_place, lat, lon)
-    aspects = calculate_aspects(positions['planets'])
+    positions = calculate_planet_positions(birth_dt_utc, user.birth_place, lat, lon)
+    
+    # Calculate aspects with ASC and MC
+    aspects = calculate_aspects(
+        positions['planets'],
+        asc_longitude=positions.get('ascendant_full'),
+        mc_longitude=positions.get('mc_full'),
+        houses=positions.get('houses')
+    )
     
     db_chart = NatalChart(
         user_id=user.id,
@@ -197,6 +288,50 @@ async def get_books(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Book))
     books = result.scalars().all()
     return books
+
+@router.get("/geocode/search")
+async def search_locations(q: str, limit: int = 5):
+    """Поиск локаций по названию (автодополнение)"""
+    if not q or len(q) < 2:
+        return []
+    
+    try:
+        # Nominatim supports JSON view for multiple results
+        from urllib.parse import quote
+        import requests
+        
+        url = f"https://nominatim.openstreetmap.org/search?q={quote(q)}&format=json&limit={limit}&addressdetails=1&language=ru"
+        headers = {'User-Agent': 'astrology_app_v2'}
+        
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            locations = []
+            for item in data:
+                addr = item.get('address', {})
+                locations.append({
+                    'display_name': item.get('display_name', ''),
+                    'short_name': addr.get('city') or addr.get('town') or addr.get('village') or addr.get('municipality') or q,
+                    'lat': float(item.get('lat', 0)),
+                    'lon': float(item.get('lon', 0)),
+                    'country': addr.get('country', ''),
+                    'city': addr.get('city') or addr.get('town') or addr.get('village', '')
+                })
+            return locations
+    except Exception as e:
+        print(f"Geocode search error: {e}")
+    
+    return []
+
+@router.get("/geocode/coordinates")
+async def get_coordinates(place: str):
+    """Получить координаты для места"""
+    lat, lon, tz = get_coordinates_and_tz(place)
+    return {
+        'lat': lat,
+        'lon': lon,
+        'timezone': tz
+    }
 
 @router.post("/books/{book_id}/query")
 async def query_book(book_id: int, request: QueryRequest, db: AsyncSession = Depends(get_db)):
