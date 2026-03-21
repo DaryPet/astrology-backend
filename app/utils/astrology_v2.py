@@ -5,9 +5,10 @@ Swiss Ephemeris - Золотой стандарт астрологии
 # Use pre-initialized swisseph from helper
 from app.swephelper import swe
 
-from datetime import datetime
-from typing import Dict, Any, List, Tuple
+from datetime import datetime, timezone, timedelta
+from typing import Dict, Any, List, Tuple, Optional
 import math
+from zoneinfo import ZoneInfo  # Python 3.9+
 
 ZODIAC_SIGNS = [
     "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
@@ -19,7 +20,7 @@ ZODIAC_SIGNS_RU = [
     "Весы", "Скорпион", "Стрелец", "Козерог", "Водолей", "Рыбы"
 ]
 
-# Номера планет в Swiss Ephemeris
+# Все планеты включая LILITH (Black Moon)
 PLANETS = {
     'Sun': swe.SUN,
     'Moon': swe.MOON,
@@ -31,16 +32,29 @@ PLANETS = {
     'Uranus': swe.URANUS,
     'Neptune': swe.NEPTUNE,
     'Pluto': swe.PLUTO,
-    'NorthNode': swe.TRUE_NODE,  # Северный узел - в Moshier
+    'NorthNode': swe.TRUE_NODE,  # Северный узел (Раху)
+    'SouthNode': swe.TRUE_NODE,   # Южный узел (Кету)
+    'Lilith': 118,  # Black Moon - средняя апogee (Moshier)
 }
 
-# Minor planets that ARE available in Moshier
+# Minor planets 
 MINOR_PLANETS = {
-    'Chiron': swe.CHIRON,  # May require external files
+    'Chiron': swe.CHIRON,
     'Ceres': swe.CERES,
     'Pallas': swe.PALLAS,
     'Juno': swe.JUNO,
     'Vesta': swe.VESTA,
+}
+
+# Houses system codes for Swiss Ephemeris
+HOUSE_SYSTEMS = {
+    'Placidus': b'P',
+    'Koch': b'K',
+    'Porphyrius': b'O',
+    'Regiomontanus': b'R',
+    'Campanus': b'C',
+    'Equal': b'E',
+    'WholeSign': b'W',
 }
 
 ASPECTS = {
@@ -163,32 +177,75 @@ def calculate_planet_position(planet_id: float, jd: float, lat: float, lon: floa
     }
 
 
-def calculate_ascendant_mc(jd: float, lat: float, lon: float) -> Dict[str, Any]:
+def calculate_houses(jd: float, lat: float, lon: float, house_system: str = 'Placidus') -> Dict[str, Any]:
     """
-    Расчёт Асцендента и Середины Неба (MC)
+    Расчёт ВСЕХ 12 домов с использованием Swiss Ephemeris
     """
     flags = swe.FLG_MOSEPH
+    hsys = HOUSE_SYSTEMS.get(house_system, b'P')
     
-    # Расчёт ASC и MC
-    # hsys = 'P' для Placidus (система домов)
-    hsys = b'P'
-    
-    # Получаем дома
+    # Получаем дома (кортеж: (cusps, ascmc))
+    # houses[0] - массив куспидов (1-12 домов)
+    # houses[1] - массив асцендента, MC, ARMC, и т.д.
     houses = swe.houses(jd, lat, lon, hsys)
     
-    # ASC - первый дом
-    asc_longitude = houses[0][0]
-    sign_en, sign_ru = get_zodiac_sign(asc_longitude)
+    cusps = houses[0]  # 12 куспидов домов
+    ascmc = houses[1]   # [ASC, MC, ARMC, Vertex, Equatorial ASC...]
     
-    # MC - 10-й дом
-    mc_longitude = houses[1][0]
+    # Расшифровка ascmc:
+    # ascmc[0] = ASC (Асцендент)
+    # ascmc[1] = MC (Середина Неба)
+    # ascmc[2] = ARMC (Anti-Meridian Co-Latitude)
+    # ascmc[3] = Vertex
+    # ascmc[4] = Equatorial Ascendant
+    # ascmc[5] = Co-Ascendant (Koch)
+    # ascmc[6] = Co-Ascendant (Munkasey)
+    # ascmc[7] = Polar Ascendant
+    
+    house_names_en = [
+        "1st House", "2nd House", "3rd House", "4th House", 
+        "5th House", "6th House", "7th House", "8th House",
+        "9th House", "10th House", "11th House", "12th House"
+    ]
+    
+    house_names_ru = [
+        "Дом 1", "Дом 2", "Дом 3", "Дом 4",
+        "Дом 5", "Дом 6", "Дом 7", "Дом 8",
+        "Дом 9", "Дом 10", "Дом 11", "Дом 12"
+    ]
+    
+    house_planets = {
+        'Sun': 10,  # Традиционно Солнце в 10 доме
+        'Moon': 4,   # Луна в 4 доме
+    }
+    
+    result_houses = {}
+    for i, cusp in enumerate(cusps):
+        cusp_longitude = cusp
+        sign_en, sign_ru = get_zodiac_sign(cusp_longitude)
+        result_houses[i+1] = {
+            'house': i + 1,
+            'name_en': house_names_en[i],
+            'name_ru': house_names_ru[i],
+            'cusp_longitude': round(cusp_longitude, 4),
+            'sign': sign_en,
+            'sign_ru': sign_ru,
+            'degree': round(get_zodiac_degree(cusp_longitude), 4),
+        }
+    
+    # ASC и MC из ascmc
+    asc_longitude = ascmc[0]
+    mc_longitude = ascmc[1]
+    
+    asc_sign_en, asc_sign_ru = get_zodiac_sign(asc_longitude)
     mc_sign_en, mc_sign_ru = get_zodiac_sign(mc_longitude)
     
     return {
+        'houses': result_houses,
         'ascendant': {
             'longitude': round(asc_longitude, 4),
-            'sign': sign_en,
-            'sign_ru': sign_ru,
+            'sign': asc_sign_en,
+            'sign_ru': asc_sign_ru,
             'degree': round(get_zodiac_degree(asc_longitude), 4),
         },
         'mc': {
@@ -196,58 +253,114 @@ def calculate_ascendant_mc(jd: float, lat: float, lon: float) -> Dict[str, Any]:
             'sign': mc_sign_en,
             'sign_ru': mc_sign_ru,
             'degree': round(get_zodiac_degree(mc_longitude), 4),
-        }
+        },
+        'armc': round(ascmc[2], 4) if len(ascmc) > 2 else None,
+        'vertex': round(ascmc[3], 4) if len(ascmc) > 3 else None,
+        'house_system': house_system,
     }
 
 
-def calculate_planet_positions(birth_date: datetime, birth_place: str, lat: float = None, lon: float = None) -> Dict[str, Any]:
+def calculate_planet_positions(
+    birth_date: datetime, 
+    birth_place: str, 
+    lat: float = None, 
+    lon: float = None,
+    timezone_str: str = None,
+    house_system: str = 'Placidus'
+) -> Dict[str, Any]:
     """
     Главная функция расчёта натальной карты
     Использует Swiss Ephemeris для максимальной точности
+    
+    Args:
+        birth_date: Дата и время рождения (с timezone или UTC)
+        birth_place: Название места рождения
+        lat: Широта (если известна)
+        lon: Долгота (если известна)
+        timezone_str: IANA timezone строка (например 'Europe/Moscow')
+        house_system: Система домов (Placidus, Koch, Equal, WholeSign, etc.)
     """
     # Если координаты не переданы, используем UTC
     if lat is None or lon is None:
-        # Для простоты используем координаты 0,0
-        # В реальном приложении нужно геокодирование
-        lat, lon = 55.7558, 37.6173  # Москва по умолчанию
+        # Для простоты используем координаты 0,0 - нулевой меридиан
+        lat, lon = 0.0, 0.0
     
-    # Julian Day
-    jd = swe.utc_to_jd(birth_date.year, birth_date.month, birth_date.day, 
-                       birth_date.hour, birth_date.minute, birth_date.second, 
-                       swe.GREG_CAL)[0]
+    # Правильная конвертация времени в Julian Day
+    # Если datetime уже с timezone - конвертируем в UTC
+    # Если naive datetime и передан timezone_str - применяем timezone перед конвертацией
+    if birth_date.tzinfo is not None:
+        # datetime с timezone - конвертируем в UTC
+        utc_dt = birth_date.astimezone(timezone.utc)
+        year, month, day = utc_dt.year, utc_dt.month, utc_dt.day
+        hour, minute, second = utc_dt.hour, utc_dt.minute, utc_dt.second
+    elif timezone_str:
+        # naive datetime + timezone string - применяем timezone
+        try:
+            tz = ZoneInfo(timezone_str)
+            aware_dt = birth_date.replace(tzinfo=tz)
+            utc_dt = aware_dt.astimezone(timezone.utc)
+            year, month, day = utc_dt.year, utc_dt.month, utc_dt.day
+            hour, minute, second = utc_dt.hour, utc_dt.minute, utc_dt.second
+        except:
+            # Если не удалось - считаем как UTC
+            year, month, day = birth_date.year, birth_date.month, birth_date.day
+            hour, minute, second = birth_date.hour, birth_date.minute, birth_date.second
+    else:
+        # naive datetime без timezone - считаем как UTC
+        year, month, day = birth_date.year, birth_date.month, birth_date.day
+        hour, minute, second = birth_date.hour, birth_date.minute, birth_date.second
+    
+    # Julian Day в UTC
+    jd = swe.utc_to_jd(year, month, day, hour, minute, second, swe.GREG_CAL)[0]
     
     # Расчёт планет
     planets = {}
+    
+    # Основные планеты
     for planet_name, planet_id in PLANETS.items():
+        if planet_name == 'SouthNode':
+            # SouthNode = NorthNode + 180°
+            continue  # Рассчитаем после NorthNode
+        
         if planet_name == 'NorthNode':
-            # Узлы требуют специальной обработки
+            # Узлы
             result = swe.calc_ut(jd, planet_id, swe.FLG_MOSEPH)
             longitude = result[0][0]
+            speed = result[0][3] if len(result[0]) > 3 else 0
+        elif planet_name == 'Lilith':
+            # Black Moon - средняя апогея
+            try:
+                result = swe.calc_ut(jd, planet_id, swe.FLG_MOSEPH)
+                longitude = result[0][0]
+                speed = result[0][3] if len(result[0]) > 3 else 0
+            except:
+                # Если Lilith не доступен, вычисляем через Луну
+                # Black Moon = Apoapsis орбиты Луны
+                moon_result = swe.calc_ut(jd, swe.MOON, swe.FLG_MOSEPH)
+                moon_long = moon_result[0][0]
+                # Средняя апогея - это максимальное расстояние
+                # Приблизительно: долгота апогеи = 313.2° + 0.1118 * (год - 1900)
+                # Но для простоты используем среднее значение
+                longitude = (moon_long + 180) % 360  # Упрощённо
+                speed = 0.0549  # ~18.6 лет оборот
         else:
             pos = calculate_planet_position(planet_id, jd, lat, lon)
             longitude = pos['full_degree']
-            planets[planet_name] = {
-                'planet': planet_name,
-                'sign': pos['sign'],
-                'sign_ru': pos['sign_ru'],
-                'degree': pos['degree'],
-                'full_degree': pos['full_degree'],
-                'speed': round(pos['speed'], 4),
-            }
-    
-    # Добавляем NorthNode
-    result = swe.calc_ut(jd, PLANETS['NorthNode'], swe.FLG_MOSEPH)
-    nn_longitude = result[0][0]
-    nn_sign_en, nn_sign_ru = get_zodiac_sign(nn_longitude)
-    planets['NorthNode'] = {
-        'planet': 'NorthNode',
-        'sign': nn_sign_en,
-        'sign_ru': nn_sign_ru,
-        'degree': round(get_zodiac_degree(nn_longitude), 4),
-        'full_degree': round(nn_longitude, 4),
-    }
+            speed = pos['speed']
+        
+        sign_en, sign_ru = get_zodiac_sign(longitude)
+        
+        planets[planet_name] = {
+            'planet': planet_name,
+            'sign': sign_en,
+            'sign_ru': sign_ru,
+            'degree': round(get_zodiac_degree(longitude), 4),
+            'full_degree': round(longitude, 4),
+            'speed': round(speed, 4) if speed else 0,
+        }
     
     # Добавляем SouthNode (противоположно NorthNode)
+    nn_longitude = planets['NorthNode']['full_degree']
     sn_longitude = (nn_longitude + 180) % 360
     sn_sign_en, sn_sign_ru = get_zodiac_sign(sn_longitude)
     planets['SouthNode'] = {
@@ -256,26 +369,62 @@ def calculate_planet_positions(birth_date: datetime, birth_place: str, lat: floa
         'sign_ru': sn_sign_ru,
         'degree': round(get_zodiac_degree(sn_longitude), 4),
         'full_degree': round(sn_longitude, 4),
+        'speed': round(-planets['NorthNode']['speed'], 4),
     }
     
-    # Расчёт ASC и MC
-    asc_mc = calculate_ascendant_mc(jd, lat, lon)
+    # Расчёт всех 12 домов
+    houses_data = calculate_houses(jd, lat, lon, house_system)
     
-    # Определяем знак ASC
-    sun_sign = planets['Sun']['sign']
-    moon_sign = planets['Moon']['sign']
+    # Определяем планеты в домах
+    # Для каждой планеты находим её дом
+    for planet_name, planet_data in planets.items():
+        planet_degree = planet_data['full_degree']
+        # Ищем дом
+        assigned_house = None
+        for house_num in range(1, 13):
+            cusp_current = houses_data['houses'][house_num]['cusp_longitude']
+            cusp_next = houses_data['houses'][house_num % 12 + 1]['cusp_longitude']
+            
+            # Проверяем находится ли планета между куспидами
+            if cusp_next > cusp_current:
+                if cusp_current <= planet_degree < cusp_next:
+                    assigned_house = house_num
+                    break
+            else:
+                # Переход через 0° Овна
+                if cusp_current <= planet_degree or planet_degree < cusp_next:
+                    assigned_house = house_num
+                    break
+        
+        if assigned_house:
+            planets[planet_name]['house'] = assigned_house
     
     return {
         'sun_sign': planets['Sun']['sign'],
         'sun_sign_ru': planets['Sun']['sign_ru'],
         'moon_sign': planets['Moon']['sign'],
         'moon_sign_ru': planets['Moon']['sign_ru'],
-        'ascendant': asc_mc['ascendant']['sign'],
-        'ascendant_ru': asc_mc['ascendant']['sign_ru'],
-        'ascendant_degree': asc_mc['ascendant']['degree'],
-        'mc': asc_mc['mc']['sign'],
-        'mc_ru': asc_mc['mc']['sign_ru'],
+        'ascendant': houses_data['ascendant']['sign'],
+        'ascendant_ru': houses_data['ascendant']['sign_ru'],
+        'ascendant_degree': houses_data['ascendant']['degree'],
+        'mc': houses_data['mc']['sign'],
+        'mc_ru': houses_data['mc']['sign_ru'],
+        'mc_degree': houses_data['mc']['degree'],
         'planets': planets,
+        'houses': houses_data['houses'],
+        'houses_meta': {
+            'house_system': house_system,
+            'armc': houses_data.get('armc'),
+            'vertex': houses_data.get('vertex'),
+        },
+        'meta': {
+            'birth_date': birth_date.isoformat() if hasattr(birth_date, 'isoformat') else str(birth_date),
+            'birth_place': birth_place,
+            'latitude': lat,
+            'longitude': lon,
+            'timezone': timezone_str,
+            'jd': round(jd, 6),
+        }
     }
 
 

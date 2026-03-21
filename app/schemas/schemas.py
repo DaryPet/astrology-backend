@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, List, Any
 
 class UserCreate(BaseModel):
     name: str
@@ -69,3 +69,47 @@ class QueryRequest(BaseModel):
 class SynastryRequest(BaseModel):
     chart1_id: int
     chart2_id: int
+
+# Natal Chart Calculation Request (without DB)
+class NatalChartRequest(BaseModel):
+    """Request for direct natal chart calculation"""
+    birth_date: datetime
+    birth_time: Optional[str] = None
+    birth_place: str
+    latitude: float
+    longitude: float
+    timezone: Optional[str] = None  # IANA timezone (e.g., "Europe/Moscow")
+    house_system: Optional[str] = "Placidus"
+
+class NatalChartResponseFull(BaseModel):
+    """Full natal chart response"""
+    sun_sign: str
+    sun_sign_ru: str
+    moon_sign: str
+    moon_sign_ru: str
+    ascendant: str
+    ascendant_ru: str
+    ascendant_degree: float
+    mc: str
+    mc_ru: str
+    mc_degree: float
+    planets: Dict[str, Any]
+    houses: Dict[str, Any]
+    houses_meta: Dict[str, Any]
+    meta: Dict[str, Any]
+    aspects: List[Dict[str, Any]]
+
+class TransitRequest(BaseModel):
+    """Request for transit calculation"""
+    birth_date: datetime
+    birth_time: Optional[str] = None
+    birth_place: str
+    latitude: float
+    longitude: float
+    timezone: Optional[str] = None
+    transit_date: datetime
+
+class SynastryRequestDirect(BaseModel):
+    """Direct synastry calculation request"""
+    chart1: NatalChartRequest
+    chart2: NatalChartRequest
