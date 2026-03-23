@@ -29,7 +29,9 @@
 ```bash
 cd backend
 pip install -r requirements.txt
+source venv/bin/activate
 python -m uvicorn app.main:app --reload
+uvicorn app.main:app --reload --port 8010
 ```
 
 API будет доступно на http://localhost:8000
