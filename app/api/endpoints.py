@@ -1,53 +1,280 @@
-# from fastapi import APIRouter, Depends, HTTPException
-# from sqlalchemy.ext.asyncio import AsyncSession
-# from sqlalchemy import select
-# from datetime import datetime
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from datetime import datetime
+import json
+import time
+from typing import List, Dict, Any, Optional
 
-# # Initialize Swiss Ephemeris via helper (sets Moshier mode)
-# from app import swephelper
+# Initialize Swiss Ephemeris via helper (sets Moshier mode)
+from app import swephelper
+from app.db.database import get_db
+from app.models.models import User, NatalChart, ChartInterpretation, Book
+from app.schemas.schemas import (
+    UserCreate, UserResponse, NatalChartCreate, NatalChartResponse,
+    InterpretationCreate, InterpretationResponse, BookCreate, BookResponse,
+    QueryRequest, SynastryRequest, NatalChartRequest, NatalChartResponseFull,
+    TransitRequest, SynastryRequestDirect
+)
+from app.utils.astrology_v2 import (
+    calculate_planet_positions, calculate_aspects,
+    calculate_solar_return, calculate_synastry,
+    PLANETS, ASPECTS, ASPECTS_RU, ORBS, get_zodiac_sign, get_zodiac_degree
+)
+from app.swephelper import swe
 
-# from app.db.database import get_db
-# from app.models.models import User, NatalChart, ChartInterpretation, Book
-# from app.schemas.schemas import (
-#     UserCreate, UserResponse, NatalChartCreate, NatalChartResponse,
-#     InterpretationCreate, InterpretationResponse, BookCreate, BookResponse,
-#     QueryRequest, SynastryRequest, NatalChartRequest, NatalChartResponseFull,
-#     TransitRequest, SynastryRequestDirect
-# )
-# # from app.utils.astrology import (
-# #     calculate_planet_positions as calc_positions_v1, calculate_aspects as calc_aspects_v1,
-# #     calculate_solar_return as calc_sr_v1, calculate_transits, calculate_synastry as calc_syn_v1
-# # )
-# from app.utils.astrology_v2 import (
-#     calculate_planet_positions, calculate_aspects,
-#     calculate_solar_return, calculate_synastry,
-#     PLANETS, ASPECTS, ASPECTS_RU, ORBS, get_zodiac_sign, get_zodiac_degree
-# )
-# from app.swephelper import swe
-# import json
+# Геокодинг и определение таймзон
+from geopy.geocoders import Nominatim
+from geopy.exc import GeocoderTimedOut, GeocoderUnavailable
+from timezonefinder import TimezoneFinder
+import pytz
 
-# from geopy.geocoders import Nominatim
-# from geopy.exc import GeocoderTimedOut
-# import json
+# Инициализируем геокодер (бесплатный Nominatim)
+geolocator = Nominatim(user_agent="astrology_app_v3", timeout=10)
 
-# # Инициализируем геокодер (бесплатный Nominatim)
-# geolocator = Nominatim(user_agent="astrology_app_v2")
+# Инициализируем определитель таймзон
+tf = TimezoneFinder()
 
-# def get_coordinates(place: str) -> tuple:
-#     """Получить координаты из названия места с помощью geocoding"""
-#     try:
-#         location = geolocator.geocode(place, timeout=10)
-#         if location:
-#             return (location.latitude, location.longitude)
-#     except GeocoderTimedOut:
-#         pass
-#     except Exception as e:
-#         print(f"Geocoding error: {e}")
+# Кэш для геокодинга (упрощенный in-memory кэш)
+_geocode_cache = {}
+_reverse_geocode_cache = {}
+_cache_ttl = 3600  # 1 час
+
+def get_coordinates(place: str) -> tuple:
+    """
+    Получить точные координаты из названия места для астрологических расчетов
     
-#     # Fallback - возвращаем Moscow
-#     return (55.7558, 37.6173)
+    Для астрологии критически важна точность координат.
+    Возвращает точные координаты или вызывает исключение.
+    """
+    cache_key = f"geocode:{place.lower().strip()}"
+    
+    # Проверяем кэш
+    if cache_key in _geocode_cache:
+        cached_data, timestamp = _geocode_cache[cache_key]
+        if time.time() - timestamp < _cache_ttl:
+            return cached_data
+    
+    # Список провайдеров геокодинга (резервные на случай недоступности)
+    providers = [
+        # Основной - Nominatim (OpenStreetMap)
+        lambda p: geolocator.geocode(p, timeout=8, language='ru', exactly_one=True),
+        # Резервный поиск на английском
+        lambda p: geolocator.geocode(p, timeout=8, language='en', exactly_one=True),
+        # Поиск с viewbox для улучшения точности (Европа)
+        lambda p: geolocator.geocode(p, timeout=8, viewbox=[-10, 35, 40, 70], bounded=False),
+        # Поиск с viewbox (Азия)
+        lambda p: geolocator.geocode(p, timeout=8, viewbox=[60, 10, 150, 60], bounded=False),
+        # Поиск с viewbox (Америка)
+        lambda p: geolocator.geocode(p, timeout=8, viewbox=[-130, 10, -60, 60], bounded=False),
+    ]
+    
+    last_error = None
+    
+    for i, geocode_func in enumerate(providers):
+        try:
+            location = geocode_func(place)
+            if location:
+                # Проверяем качество результата
+                lat, lon = location.latitude, location.longitude
+                
+                # Валидация координат
+                if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+                    raise ValueError(f"Invalid coordinates: ({lat}, {lon})")
+                
+                # Проверяем, что это не океан/пустыня (минимальная населенность)
+                # Для астрологии все равно, но для UX лучше
+                
+                result = (lat, lon)
+                # Сохраняем в кэш
+                _geocode_cache[cache_key] = (result, time.time())
+                
+                print(f"Geocode success for '{place}': ({lat:.6f}, {lon:.6f}) via provider {i}")
+                return result
+                
+        except (GeocoderTimedOut, GeocoderUnavailable) as e:
+            last_error = f"Provider {i} timeout: {e}"
+            print(f"Geocoding provider {i} failed for '{place}': {e}")
+            continue
+        except Exception as e:
+            last_error = f"Provider {i} error: {e}"
+            print(f"Geocoding provider {i} error for '{place}': {e}")
+            continue
+    
+    # Если все провайдеры не сработали - ВОЗВРАЩАЕМ ОШИБКУ, а не Moscow!
+    # Для астрологии лучше ошибка, чем неправильные координаты
+    error_msg = f"Cannot geocode location: '{place}'. Last error: {last_error}"
+    print(f"❌ CRITICAL: {error_msg}")
+    
+    # Вызываем исключение вместо возврата Moscow
+    raise ValueError(error_msg)
 
-# router = APIRouter()
+def reverse_geocode(lat: float, lon: float) -> Dict[str, Any]:
+    """Обратное геокодирование: координаты -> информация о месте"""
+    cache_key = f"reverse:{lat:.4f}:{lon:.4f}"
+    
+    # Проверяем кэш
+    if cache_key in _reverse_geocode_cache:
+        cached_data, timestamp = _reverse_geocode_cache[cache_key]
+        if time.time() - timestamp < _cache_ttl:
+            return cached_data
+    
+    try:
+        location = geolocator.reverse(f"{lat}, {lon}", timeout=10, language='ru')
+        if location:
+            address = location.address
+            
+            # Парсим адрес для получения компонентов
+            address_parts = address.split(', ')
+            city = address_parts[0] if len(address_parts) > 0 else ""
+            region = address_parts[1] if len(address_parts) > 1 else ""
+            country = address_parts[-1] if len(address_parts) > 1 else ""
+            
+            # Определяем таймзону
+            timezone_str = get_timezone(lat, lon)
+            
+            result = {
+                "address": address,
+                "city": city,
+                "region": region,
+                "country": country,
+                "timezone": timezone_str,
+                "latitude": lat,
+                "longitude": lon
+            }
+            
+            # Сохраняем в кэш
+            _reverse_geocode_cache[cache_key] = (result, time.time())
+            return result
+    except (GeocoderTimedOut, GeocoderUnavailable) as e:
+        print(f"Reverse geocoding timeout/unavailable for ({lat}, {lon}): {e}")
+    except Exception as e:
+        print(f"Reverse geocoding error for ({lat}, {lon}): {e}")
+    
+    # Fallback
+    return {
+        "address": f"{lat}, {lon}",
+        "city": "",
+        "region": "",
+        "country": "",
+        "timezone": get_timezone(lat, lon) or "UTC",
+        "latitude": lat,
+        "longitude": lon
+    }
+
+def get_timezone(lat: float, lon: float) -> Optional[str]:
+    """Определить таймзону по координатам"""
+    try:
+        timezone_str = tf.timezone_at(lat=lat, lng=lon)
+        if timezone_str:
+            return timezone_str
+        
+        # Если не нашли точную, пробуем nearby
+        timezone_str = tf.closest_timezone_at(lat=lat, lng=lon)
+        return timezone_str or "UTC"
+    except Exception as e:
+        print(f"Timezone detection error for ({lat}, {lon}): {e}")
+        return "UTC"
+
+def autocomplete_place(query: str) -> List[Dict[str, Any]]:
+    """Возвращает список мест для автодополнения с улучшенным форматированием и поиском"""
+    if len(query) < 2:
+        return []
+    
+    try:
+        # Пробуем поиск на русском
+        locations_ru = geolocator.geocode(query, exactly_one=False, limit=8, language='ru')
+        
+        # Пробуем поиск на английском (для международных городов)
+        locations_en = []
+        if len(query) > 2:  # Только для достаточно длинных запросов
+            try:
+                locations_en = geolocator.geocode(query, exactly_one=False, limit=4, language='en')
+            except:
+                pass
+        
+        # Объединяем результаты, убирая дубликаты
+        all_locations = []
+        seen_coords = set()
+        
+        if locations_ru:
+            for loc in locations_ru:
+                coord_key = f"{loc.latitude:.4f},{loc.longitude:.4f}"
+                if coord_key not in seen_coords:
+                    seen_coords.add(coord_key)
+                    all_locations.append(('ru', loc))
+        
+        if locations_en:
+            for loc in locations_en:
+                coord_key = f"{loc.latitude:.4f},{loc.longitude:.4f}"
+                if coord_key not in seen_coords:
+                    seen_coords.add(coord_key)
+                    all_locations.append(('en', loc))
+        
+        if not all_locations:
+            return []
+        
+        # Сортируем по релевантности (крупные города сначала)
+        def location_score(loc):
+            """Оценка релевантности локации"""
+            address = loc[1].address.lower()
+            query_lower = query.lower()
+            
+            # Бонус за точное совпадение в начале названия
+            if address.startswith(query_lower):
+                return 10
+            # Бонус за столицы и крупные города
+            if any(city in address for city in ['москва', 'санкт-петербург', 'киев', 'минск', 'нью-йорк', 'лондон', 'париж', 'берлин']):
+                return 5
+            return 1
+        
+        all_locations.sort(key=location_score, reverse=True)
+        
+        results = []
+        for lang, loc in all_locations[:10]:  # Ограничиваем 10 результатами
+            address = loc.address
+            address_parts = address.split(', ')
+            
+            # Форматируем отображаемое имя
+            if len(address_parts) >= 2:
+                # Город, регион/страна
+                display_name = f"{address_parts[0]}, {address_parts[1]}"
+            else:
+                display_name = address_parts[0]
+            
+            # Определяем таймзону для этого места
+            timezone_str = get_timezone(loc.latitude, loc.longitude)
+            
+            # Определяем тип места (город, деревня и т.д.)
+            place_type = "city"
+            address_lower = address.lower()
+            if any(word in address_lower for word in ['деревня', 'село', 'поселок', 'village', 'town']):
+                place_type = "village"
+            elif any(word in address_lower for word in ['область', 'регион', 'район', 'region', 'district']):
+                place_type = "region"
+            
+            results.append({
+                "name": address,  # Полный адрес
+                "display_name": display_name,  # Краткое отображаемое имя
+                "address": address,  # Полный адрес (для обратной совместимости)
+                "lat": loc.latitude,
+                "lon": loc.longitude,
+                "latitude": loc.latitude,  # Дублирование для совместимости
+                "longitude": loc.longitude,  # Дублирование для совместимости
+                "timezone": timezone_str,  # Добавляем таймзону
+                "type": place_type,  # Тип места
+                "country": address_parts[-1] if address_parts else ""  # Страна
+            })
+        
+        return results
+    except (GeocoderTimedOut, GeocoderUnavailable) as e:
+        print(f"Autocomplete timeout/unavailable for '{query}': {e}")
+        return []
+    except Exception as e:
+        print(f"Autocomplete error for '{query}': {e}")
+        return []
+
+router = APIRouter()
 
 # # Users
 # @router.post("/users", response_model=UserResponse)
@@ -497,44 +724,6 @@ from app.utils.astrology_v2 import (
 from app.swephelper import swe
 import json
 
-from geopy.geocoders import Nominatim
-from geopy.exc import GeocoderTimedOut
-
-# Инициализируем геокодер (бесплатный Nominatim)
-geolocator = Nominatim(user_agent="astrology_app_v2")
-
-def get_coordinates(place: str) -> tuple:
-    """Получить координаты из названия места с помощью geocoding"""
-    try:
-        location = geolocator.geocode(place, timeout=10)
-        if location:
-            return (location.latitude, location.longitude)
-    except GeocoderTimedOut:
-        pass
-    except Exception as e:
-        print(f"Geocoding error: {e}")
-    
-    # Fallback - возвращаем Moscow
-    return (55.7558, 37.6173)
-
-def autocomplete_place(query: str) -> list:
-    """Возвращает список мест для автодополнения"""
-    try:
-        locations = geolocator.geocode(query, exactly_one=False, limit=5, language='ru')
-        if locations:
-            return [
-                {
-                    "name": loc.address,
-                    "lat": loc.latitude,
-                    "lon": loc.longitude,
-                    "display_name": loc.address.split(',')[0]
-                }
-                for loc in locations
-            ]
-    except Exception as e:
-        print(f"Autocomplete error: {e}")
-    return []
-
 router = APIRouter()
 
 # Users
@@ -568,8 +757,15 @@ async def create_chart(chart: NatalChartCreate, db: AsyncSession = Depends(get_d
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Простая геокодирование - для продвинутого нужно добавить geocoding
-    lat, lon = get_coordinates(user.birth_place)
+    # ТОЧНОЕ геокодирование для астрологических расчетов
+    try:
+        lat, lon = get_coordinates(user.birth_place)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot determine coordinates for user location: '{user.birth_place}'. "
+                   f"Please update user profile with valid city name. Error: {str(e)}"
+        )
     
     # Calculate planetary positions (Swiss Ephemeris)
     positions = calculate_planet_positions(user.birth_date, user.birth_place, lat, lon)
@@ -712,8 +908,18 @@ async def query_book(book_id: int, request: QueryRequest, db: AsyncSession = Dep
 
 
 # ============================================
-# GEOCODE AUTOCOMPLETE
+# GEOCODE SERVICES
 # ============================================
+
+@router.get("/geocode/coordinates")
+async def geocode_coordinates(lat: float, lon: float):
+    """
+    Получить информацию о месте по координатам
+    
+    Возвращает адрес, город, страну и таймзону для заданных координат
+    """
+    result = reverse_geocode(lat, lon)
+    return result
 
 @router.get("/geocode/autocomplete")
 async def geocode_autocomplete(q: str):
@@ -737,12 +943,21 @@ async def calculate_natal_chart(request: NatalChartRequest) -> NatalChartRespons
     
     Требует:
     - birth_date: Дата и время рождения
-    - birth_place: Название места
+    - birth_place: Название места (точное название города/места)
     - timezone: Временная зона (IANA, например "Europe/Moscow")
     - house_system: Система домов (Placidus, Equal, WholeSign, etc.)
     """
-    # Получаем координаты из названия места
-    lat, lon = get_coordinates(request.birth_place)
+    # Получаем ТОЧНЫЕ координаты из названия места
+    # Для астрологии критически важна точность - нет fallback на Москву!
+    try:
+        lat, lon = get_coordinates(request.birth_place)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot determine coordinates for location: '{request.birth_place}'. "
+                   f"Please enter a valid city name (e.g., 'Moscow, Russia', 'New York, USA'). "
+                   f"Error: {str(e)}"
+        )
     
     # Parse birth time if provided
     birth_datetime = request.birth_date
@@ -815,8 +1030,15 @@ async def calculate_transits_direct(request: TransitRequest):
     - birth_date, birth_place, timezone - данные натальной карты
     - transit_date - дата транзитов
     """
-    # Получаем координаты из названия места
-    lat, lon = get_coordinates(request.birth_place)
+    # Получаем ТОЧНЫЕ координаты из названия места
+    try:
+        lat, lon = get_coordinates(request.birth_place)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot determine coordinates for location: '{request.birth_place}'. "
+                   f"Please enter a valid city name. Error: {str(e)}"
+        )
     
     # Get natal chart
     natal = calculate_planet_positions(
@@ -910,8 +1132,15 @@ async def calculate_synastry_direct(request: SynastryRequestDirect):
     """
     Прямой расчёт синастрии между двумя картами
     """
-    # Получаем координаты для первой карты
-    lat1, lon1 = get_coordinates(request.chart1.birth_place)
+    # Получаем ТОЧНЫЕ координаты для первой карты
+    try:
+        lat1, lon1 = get_coordinates(request.chart1.birth_place)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot determine coordinates for first location: '{request.chart1.birth_place}'. "
+                   f"Please enter a valid city name. Error: {str(e)}"
+        )
     
     # Calculate first chart
     chart1 = calculate_planet_positions(
@@ -922,8 +1151,15 @@ async def calculate_synastry_direct(request: SynastryRequestDirect):
         timezone_str=request.chart1.timezone,
     )
     
-    # Получаем координаты для второй карты
-    lat2, lon2 = get_coordinates(request.chart2.birth_place)
+    # Получаем ТОЧНЫЕ координаты для второй карты
+    try:
+        lat2, lon2 = get_coordinates(request.chart2.birth_place)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot determine coordinates for second location: '{request.chart2.birth_place}'. "
+                   f"Please enter a valid city name. Error: {str(e)}"
+        )
     
     # Calculate second chart
     chart2 = calculate_planet_positions(
