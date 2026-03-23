@@ -949,15 +949,19 @@ async def calculate_natal_chart(request: NatalChartRequest) -> NatalChartRespons
     """
     # Получаем ТОЧНЫЕ координаты из названия места
     # Для астрологии критически важна точность - нет fallback на Москву!
-    try:
-        lat, lon = get_coordinates(request.birth_place)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot determine coordinates for location: '{request.birth_place}'. "
-                   f"Please enter a valid city name (e.g., 'Moscow, Russia', 'New York, USA'). "
-                   f"Error: {str(e)}"
-        )
+    # Используем переданные координаты или определяем сами
+    if request.latitude is not None and request.longitude is not None:
+        lat, lon = request.latitude, request.longitude
+    else:
+        try:
+            lat, lon = get_coordinates(request.birth_place)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot determine coordinates for location: '{request.birth_place}'. "
+                       f"Please enter a valid city name (e.g., 'Moscow, Russia', 'New York, USA'). "
+                       f"Error: {str(e)}"
+            )
     
     # Parse birth time if provided
     birth_datetime = request.birth_date
@@ -1031,14 +1035,18 @@ async def calculate_transits_direct(request: TransitRequest):
     - transit_date - дата транзитов
     """
     # Получаем ТОЧНЫЕ координаты из названия места
-    try:
-        lat, lon = get_coordinates(request.birth_place)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot determine coordinates for location: '{request.birth_place}'. "
-                   f"Please enter a valid city name. Error: {str(e)}"
-        )
+    # Используем переданные координаты или определяем сами
+    if request.latitude is not None and request.longitude is not None:
+        lat, lon = request.latitude, request.longitude
+    else:
+        try:
+            lat, lon = get_coordinates(request.birth_place)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot determine coordinates for location: '{request.birth_place}'. "
+                       f"Please enter a valid city name. Error: {str(e)}"
+            )
     
     # Get natal chart
     natal = calculate_planet_positions(
@@ -1133,14 +1141,18 @@ async def calculate_synastry_direct(request: SynastryRequestDirect):
     Прямой расчёт синастрии между двумя картами
     """
     # Получаем ТОЧНЫЕ координаты для первой карты
-    try:
-        lat1, lon1 = get_coordinates(request.chart1.birth_place)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot determine coordinates for first location: '{request.chart1.birth_place}'. "
-                   f"Please enter a valid city name. Error: {str(e)}"
-        )
+    # Используем переданные координаты или определяем сами
+    if request.chart1.latitude is not None and request.chart1.longitude is not None:
+        lat1, lon1 = request.chart1.latitude, request.chart1.longitude
+    else:
+        try:
+            lat1, lon1 = get_coordinates(request.chart1.birth_place)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot determine coordinates for first location: '{request.chart1.birth_place}'. "
+                       f"Please enter a valid city name. Error: {str(e)}"
+            )
     
     # Calculate first chart
     chart1 = calculate_planet_positions(
@@ -1152,14 +1164,18 @@ async def calculate_synastry_direct(request: SynastryRequestDirect):
     )
     
     # Получаем ТОЧНЫЕ координаты для второй карты
-    try:
-        lat2, lon2 = get_coordinates(request.chart2.birth_place)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot determine coordinates for second location: '{request.chart2.birth_place}'. "
-                   f"Please enter a valid city name. Error: {str(e)}"
-        )
+    # Используем переданные координаты или определяем сами
+    if request.chart2.latitude is not None and request.chart2.longitude is not None:
+        lat2, lon2 = request.chart2.latitude, request.chart2.longitude
+    else:
+        try:
+            lat2, lon2 = get_coordinates(request.chart2.birth_place)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot determine coordinates for second location: '{request.chart2.birth_place}'. "
+                       f"Please enter a valid city name. Error: {str(e)}"
+            )
     
     # Calculate second chart
     chart2 = calculate_planet_positions(
