@@ -76,8 +76,8 @@ class NatalChartRequest(BaseModel):
     birth_date: datetime
     birth_time: Optional[str] = None
     birth_place: str
-    latitude: float
-    longitude: float
+    latitude: Optional[float] = None  # Optional - backend can determine from birth_place
+    longitude: Optional[float] = None  # Optional - backend can determine from birth_place
     timezone: Optional[str] = None  # IANA timezone (e.g., "Europe/Moscow")
     house_system: Optional[str] = "Placidus"
 
@@ -104,8 +104,8 @@ class TransitRequest(BaseModel):
     birth_date: datetime
     birth_time: Optional[str] = None
     birth_place: str
-    latitude: float
-    longitude: float
+    latitude: Optional[float] = None  # Optional - backend can determine from birth_place
+    longitude: Optional[float] = None  # Optional - backend can determine from birth_place
     timezone: Optional[str] = None
     transit_date: datetime
 
