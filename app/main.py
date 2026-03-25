@@ -2,8 +2,11 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
-from app.api.endpoints import router as api_router
+from app.api.public import router as public_router
+from app.api.auth import router as auth_router
+from app.api.dashboard import router as dashboard_router
 from app.db.database import init_db
+from app.core.config import settings
 import os
 import mimetypes
 
@@ -16,14 +19,21 @@ app = FastAPI(title="Astrology API", description="Fullstack Astrology Applicatio
 # CORS - must be before static files
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.BACKEND_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Include routers BEFORE static files
-app.include_router(api_router, prefix="/api")
+# Публичные API (не требуют аутентификации)
+app.include_router(public_router, prefix="/api")
+
+# API аутентификации (без дополнительного префикса, так как уже есть в роутере)
+app.include_router(auth_router, prefix="/api")
+
+# Защищенные API (требуют аутентификации)
+app.include_router(dashboard_router, prefix="/api")
 
 # Serve static files from frontend build - AFTER API routes
 static_dir = os.path.join(os.path.dirname(__file__), "../../frontend/dist")

@@ -1,40 +1,77 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, validator
 from datetime import datetime
 from typing import Optional, Dict, List, Any
+import re
+
+# ============================================================================
+# АУТЕНТИФИКАЦИЯ
+# ============================================================================
 
 class UserRegister(BaseModel):
+    """Схема для регистрации пользователя"""
     email: EmailStr
-    password: str
-    name: str
-    birth_date: datetime
-    birth_time: Optional[str] = None
-    birth_place: str
+    password: str = Field(..., min_length=8, max_length=72)  # Bcrypt ограничение 72 байта
+    name: Optional[str] = Field(None, max_length=100)
+    
+    @validator('password')
+    def validate_password(cls, v):
+        """Валидация пароля: минимум 8 символов, буквы и цифры"""
+        if len(v) < 8:
+            raise ValueError('Пароль должен содержать минимум 8 символов')
+        if len(v) > 72:
+            raise ValueError('Пароль не должен превышать 72 символа')
+        if not re.search(r'[A-Za-z]', v):
+            raise ValueError('Пароль должен содержать буквы')
+        if not re.search(r'\d', v):
+            raise ValueError('Пароль должен содержать цифры')
+        return v
 
 class UserLogin(BaseModel):
+    """Схема для входа пользователя"""
     email: EmailStr
     password: str
 
-class UserCreate(BaseModel):
-    name: str
-    birth_date: datetime
+class UserUpdate(BaseModel):
+    """Схема для обновления данных пользователя"""
+    name: Optional[str] = Field(None, max_length=100)
+    birth_date: Optional[datetime] = None
     birth_time: Optional[str] = None
-    birth_place: str
+    birth_place: Optional[str] = None
 
-class UserResponse(UserCreate):
+class UserResponse(BaseModel):
+    """Схема для ответа с данными пользователя"""
     id: int
     email: str
+    name: Optional[str] = None
+    birth_date: Optional[datetime] = None
+    birth_time: Optional[str] = None
+    birth_place: Optional[str] = None
     created_at: datetime
+    updated_at: datetime
     
     class Config:
         from_attributes = True
 
 class Token(BaseModel):
+    """Схема для JWT токенов"""
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
     user: UserResponse
 
-class TokenData(BaseModel):
-    email: Optional[str] = None
+class TokenPayload(BaseModel):
+    """Схема для payload JWT токена"""
+    sub: str  # email пользователя
+    exp: int  # expiration timestamp
+    type: str  # token type: "access" or "refresh"
+
+class RefreshTokenRequest(BaseModel):
+    """Схема для запроса обновления токена"""
+    refresh_token: str
+
+# ============================================================================
+# АСТРОЛОГИЧЕСКИЕ СХЕМЫ (оставляем как есть)
+# ============================================================================
 
 class PlanetPosition(BaseModel):
     planet: str

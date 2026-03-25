@@ -8,11 +8,12 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     password = Column(String, nullable=False)
-    name = Column(String, nullable=False)
-    birth_date = Column(DateTime, nullable=False)
-    birth_time = Column(String, nullable=True)
-    birth_place = Column(String, nullable=False)
+    name = Column(String, nullable=True)  # Опционально
+    birth_date = Column(DateTime, nullable=True)  # Опционально - данные астрокарты
+    birth_time = Column(String, nullable=True)  # Опционально - данные астрокарты
+    birth_place = Column(String, nullable=True)  # Опционально - данные астрокарты
     created_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, nullable=False)
     
     charts = relationship("NatalChart", back_populates="user")
 
