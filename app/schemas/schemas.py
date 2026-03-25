@@ -1,6 +1,18 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from datetime import datetime
 from typing import Optional, Dict, List, Any
+
+class UserRegister(BaseModel):
+    email: EmailStr
+    password: str
+    name: str
+    birth_date: datetime
+    birth_time: Optional[str] = None
+    birth_place: str
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
 
 class UserCreate(BaseModel):
     name: str
@@ -10,10 +22,19 @@ class UserCreate(BaseModel):
 
 class UserResponse(UserCreate):
     id: int
+    email: str
     created_at: datetime
     
     class Config:
         from_attributes = True
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse
+
+class TokenData(BaseModel):
+    email: Optional[str] = None
 
 class PlanetPosition(BaseModel):
     planet: str

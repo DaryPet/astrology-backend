@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime
@@ -14,7 +14,11 @@ from app.schemas.schemas import (
     UserCreate, UserResponse, NatalChartCreate, NatalChartResponse,
     InterpretationCreate, InterpretationResponse, BookCreate, BookResponse,
     QueryRequest, SynastryRequest, NatalChartRequest, NatalChartResponseFull,
-    TransitRequest, SynastryRequestDirect
+    TransitRequest, SynastryRequestDirect, UserRegister, UserLogin, Token
+)
+from app.auth import (
+    get_password_hash, verify_password, create_access_token,
+    get_current_user, get_current_active_user
 )
 from app.utils.astrology_v2 import (
     calculate_planet_positions, calculate_aspects,
@@ -1233,3 +1237,109 @@ async def calculate_synastry_direct(request: SynastryRequestDirect):
         'aspects': aspects,
         'total_aspects': len(aspects),
     }
+
+# ============================================================================
+# АУТЕНТИФИКАЦИЯ И ПОЛЬЗОВАТЕЛИ
+# ============================================================================
+
+@router.post("/register", response_model=Token)
+async def register(
+    user_data: UserRegister,
+    db: AsyncSession = Depends(get_db)
+):
+    """Регистрация нового пользователя"""
+    # Проверяем существует ли пользователь с таким email
+    result = await db.execute(select(User).where(User.email == user_data.email))
+    existing_user = result.scalar_one_or_none()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Пользователь с таким email уже существует"
+        )
+    
+    # Создаем нового пользователя
+    hashed_password = get_password_hash(user_data.password)
+    db_user = User(
+        email=user_data.email,
+        password=hashed_password,
+        name=user_data.name,
+        birth_date=user_data.birth_date,
+        birth_time=user_data.birth_time,
+        birth_place=user_data.birth_place,
+        created_at=datetime.utcnow()
+    )
+    
+    db.add(db_user)
+    await db.commit()
+    await db.refresh(db_user)
+    
+    # Создаем токен
+    access_token = create_access_token(data={"sub": db_user.email})
+    
+    return Token(
+        access_token=access_token,
+        token_type="bearer",
+        user=UserResponse(
+            id=db_user.id,
+            email=db_user.email,
+            name=db_user.name,
+            birth_date=db_user.birth_date,
+            birth_time=db_user.birth_time,
+            birth_place=db_user.birth_place,
+            created_at=db_user.created_at
+        )
+    )
+
+@router.post("/login", response_model=Token)
+async def login(
+    user_data: UserLogin,
+    db: AsyncSession = Depends(get_db)
+):
+    """Вход пользователя"""
+    # Ищем пользователя по email
+    result = await db.execute(select(User).where(User.email == user_data.email))
+    user = result.scalar_one_or_none()
+    
+    if not user or not verify_password(user_data.password, user.password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Неверный email или пароль",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Создаем токен
+    access_token = create_access_token(data={"sub": user.email})
+    
+    return Token(
+        access_token=access_token,
+        token_type="bearer",
+        user=UserResponse(
+            id=user.id,
+            email=user.email,
+            name=user.name,
+            birth_date=user.birth_date,
+            birth_time=user.birth_time,
+            birth_place=user.birth_place,
+            created_at=user.created_at
+        )
+    )
+
+@router.get("/me", response_model=UserResponse)
+async def read_users_me(
+    current_user: User = Depends(get_current_active_user)
+):
+    """Получение информации о текущем пользователе"""
+    return UserResponse(
+        id=current_user.id,
+        email=current_user.email,
+        name=current_user.name,
+        birth_date=current_user.birth_date,
+        birth_time=current_user.birth_time,
+        birth_place=current_user.birth_place,
+        created_at=current_user.created_at
+    )
+
+@router.post("/logout")
+async def logout():
+    """Выход пользователя (на клиенте просто удаляем токен)"""
+    return {"message": "Successfully logged out"}
