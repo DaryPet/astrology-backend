@@ -1,11 +1,23 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.db.database import Base
-
+import uuid
+# class User(Base):
+#     __tablename__ = "users"
+    
+#     id = Column(Integer, primary_key=True, index=True)
+#     name = Column(String, nullable=False)
+#     birth_date = Column(DateTime, nullable=False)
+#     birth_time = Column(String, nullable=True)
+#     birth_place = Column(String, nullable=False)
+#     created_at = Column(DateTime, nullable=False)
+    
+#     charts = relationship("NatalChart", back_populates="user")
 class User(Base):
     __tablename__ = "users"
     
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False)
     birth_date = Column(DateTime, nullable=False)
     birth_time = Column(String, nullable=True)

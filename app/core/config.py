@@ -5,6 +5,10 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Astrology API"
     DATABASE_URL: str = "sqlite+aiosqlite:///./astrology.db"
     OPENAI_API_KEY: Optional[str] = None
+
+    # Supabase settings
+    SUPABASE_URL: str = ""
+    SUPABASE_JWT_SECRET: str = ""
     
     # Authentication settings (optional - for future use)
     SECRET_KEY: Optional[str] = None
@@ -15,5 +19,6 @@ class Settings(BaseSettings):
     
     class Config:
         env_file = ".env"
+        extra = "ignore" 
 
 settings = Settings()
