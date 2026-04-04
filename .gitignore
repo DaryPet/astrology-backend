@@ -34,3 +34,6 @@ Thumbs.db
 *.log
 
 .kilo/
+
+# Ephemeris files (downloaded separately)
+ephe/
