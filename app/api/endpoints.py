@@ -176,76 +176,46 @@ def get_timezone(lat: float, lon: float) -> Optional[str]:
         print(f"Timezone detection error for ({lat}, {lon}): {e}")
         return "UTC"
 
-def autocomplete_place(query: str) -> List[Dict[str, Any]]:
+def autocomplete_place(query: str, lang: Optional[str] = None) -> List[Dict[str, Any]]:
     """Возвращает список мест для автодополнения с улучшенным форматированием и поиском"""
     if len(query) < 2:
         return []
     
+    # Определить язык если не передан
+    if lang is None:
+        if any('\u0400' <= c <= '\u04FF' for c in query):
+            lang = 'ru'
+        else:
+            lang = 'en'
+    
     try:
-        # Пробуем поиск на русском
-        locations_ru = geolocator.geocode(query, exactly_one=False, limit=8, language='ru')
+        locations = geolocator.geocode(query, exactly_one=False, limit=10, language=lang)
         
-        # Пробуем поиск на английском (для международных городов)
-        locations_en = []
-        if len(query) > 2:  # Только для достаточно длинных запросов
-            try:
-                locations_en = geolocator.geocode(query, exactly_one=False, limit=4, language='en')
-            except:
-                pass
-        
-        # Объединяем результаты, убирая дубликаты
-        all_locations = []
-        seen_coords = set()
-        
-        if locations_ru:
-            for loc in locations_ru:
-                coord_key = f"{loc.latitude:.4f},{loc.longitude:.4f}"
-                if coord_key not in seen_coords:
-                    seen_coords.add(coord_key)
-                    all_locations.append(('ru', loc))
-        
-        if locations_en:
-            for loc in locations_en:
-                coord_key = f"{loc.latitude:.4f},{loc.longitude:.4f}"
-                if coord_key not in seen_coords:
-                    seen_coords.add(coord_key)
-                    all_locations.append(('en', loc))
-        
-        if not all_locations:
+        if not locations:
             return []
         
         # Сортируем по релевантности (крупные города сначала)
         def location_score(loc):
-            """Оценка релевантности локации"""
-            address = loc[1].address.lower()
+            address = loc.address.lower()
             query_lower = query.lower()
-            
-            # Бонус за точное совпадение в начале названия
             if address.startswith(query_lower):
                 return 10
-            # Бонус за столицы и крупные города
-            if any(city in address for city in ['москва', 'санкт-петербург', 'киев', 'минск', 'нью-йорк', 'лондон', 'париж', 'берлин']):
-                return 5
             return 1
         
-        all_locations.sort(key=location_score, reverse=True)
+        sorted_locations = sorted(locations, key=location_score, reverse=True)
         
         results = []
-        for lang, loc in all_locations[:10]:  # Ограничиваем 10 результатами
+        for loc in sorted_locations[:10]:
             address = loc.address
             address_parts = address.split(', ')
             
-            # Форматируем отображаемое имя
             if len(address_parts) >= 2:
-                # Город, регион/страна
                 display_name = f"{address_parts[0]}, {address_parts[1]}"
             else:
                 display_name = address_parts[0]
             
-            # Определяем таймзону для этого места
             timezone_str = get_timezone(loc.latitude, loc.longitude)
             
-            # Определяем тип места (город, деревня и т.д.)
             place_type = "city"
             address_lower = address.lower()
             if any(word in address_lower for word in ['деревня', 'село', 'поселок', 'village', 'town']):
@@ -254,16 +224,16 @@ def autocomplete_place(query: str) -> List[Dict[str, Any]]:
                 place_type = "region"
             
             results.append({
-                "name": address,  # Полный адрес
-                "display_name": display_name,  # Краткое отображаемое имя
-                "address": address,  # Полный адрес (для обратной совместимости)
+                "name": address,
+                "display_name": display_name,
+                "address": address,
                 "lat": loc.latitude,
                 "lon": loc.longitude,
-                "latitude": loc.latitude,  # Дублирование для совместимости
-                "longitude": loc.longitude,  # Дублирование для совместимости
-                "timezone": timezone_str,  # Добавляем таймзону
-                "type": place_type,  # Тип места
-                "country": address_parts[-1] if address_parts else ""  # Страна
+                "latitude": loc.latitude,
+                "longitude": loc.longitude,
+                "timezone": timezone_str,
+                "type": place_type,
+                "country": address_parts[-1] if address_parts else ""
             })
         
         return results
@@ -922,13 +892,15 @@ async def geocode_coordinates(lat: float, lon: float):
     return result
 
 @router.get("/geocode/autocomplete")
-async def geocode_autocomplete(q: str):
+async def geocode_autocomplete(q: str, lang: Optional[str] = None):
     """
     Автодополнение для ввода города
     
     Возвращает список возможных городов по введённому тексту
+    Поддерживает параметр lang для принудительного указания языка ('ru', 'en')
+    Если язык не указан - определяется автоматически по входному тексту
     """
-    results = autocomplete_place(q)
+    results = autocomplete_place(q, lang)
     return results
 
 
