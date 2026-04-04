@@ -361,21 +361,19 @@ def calculate_planet_positions(
     }
     
     # Расчёт Chiron (малая планета/астероид)
-    for planet_name, planet_id in MINOR_PLANETS.items():
-        if planet_name != 'Chiron':
-            continue
-        
+    chiron_id = MINOR_PLANETS.get('Chiron')
+    if chiron_id is not None:
         try:
-            result = swe.calc_ut(jd, planet_id, swe.FLG_MOSEPH | swe.FLG_SPEED)
-            if result and len(result[0]) > 0 and result[0][0] > 0:
+            result = swe.calc_ut(jd, chiron_id, swe.FLG_MOSEPH | swe.FLG_SPEED)
+            if result and len(result[0]) > 0 and result[0][0] >= 0:
                 longitude = result[0][0]
                 speed = result[0][3] if len(result[0]) > 3 else 0
                 
                 sign_en, sign_ru = get_zodiac_sign(longitude)
                 is_retrograde = speed < 0
                 
-                planets[planet_name] = {
-                    'planet': planet_name,
+                planets['Chiron'] = {
+                    'planet': 'Chiron',
                     'sign': sign_en,
                     'sign_ru': sign_ru,
                     'degree': round(get_zodiac_degree(longitude), 4),
@@ -383,11 +381,31 @@ def calculate_planet_positions(
                     'speed': round(speed, 4) if speed else 0,
                     'is_retrograde': is_retrograde,
                 }
-                print(f"Chiron calculated: lon={longitude}, speed={speed}, retrograde={is_retrograde}")
+                print(f"Chiron calculated successfully: {sign_en} {get_zodiac_degree(longitude):.2f}°")
             else:
-                print(f"Chiron: no result (requires external ephemeris files)")
+                print(f"Chiron: invalid result from Swiss Ephemeris")
+                planets['Chiron'] = {
+                    'planet': 'Chiron',
+                    'sign': 'Unknown',
+                    'sign_ru': 'Неизвестно',
+                    'degree': 0,
+                    'full_degree': 0,
+                    'speed': 0,
+                    'is_retrograde': False,
+                    'error': 'Invalid ephemeris data'
+                }
         except Exception as e:
             print(f"Chiron calculation error: {e}")
+            planets['Chiron'] = {
+                'planet': 'Chiron',
+                'sign': 'Unknown',
+                'sign_ru': 'Неизвестно',
+                'degree': 0,
+                'full_degree': 0,
+                'speed': 0,
+                'is_retrograde': False,
+                'error': str(e)
+            }
     
     # Расчёт всех 12 домов
     houses_data = calculate_houses(jd, lat, lon, house_system)
