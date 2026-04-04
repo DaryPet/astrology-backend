@@ -32,3 +32,5 @@ build/
 Thumbs.db
 
 *.log
+
+.kilo/
