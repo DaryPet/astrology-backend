@@ -34,10 +34,10 @@ PLANETS = {
     'Pluto': swe.PLUTO,
     'NorthNode': swe.TRUE_NODE,  # Северный узел (Раху)
     'SouthNode': swe.TRUE_NODE,   # Южный узел (Кету)
-    'Lilith': 118,  # Black Moon - средняя апogee (Moshier)
+    'Lilith': swe.MEAN_APOG,  # Black Moon - средняя апогея (работает в Moshier)
 }
 
-# Minor planets 
+# Minor planets (asteroids) - требуют внешних эфемерид
 MINOR_PLANETS = {
     'Chiron': swe.CHIRON,
     'Ceres': swe.CERES,
@@ -131,15 +131,13 @@ def calculate_planet_position(planet_id: float, jd: float, lat: float, lon: floa
     Использует Swiss Ephemeris (Moshier algorithm) - встроенные таблицы
     Точность: ~1 угловая секунда
     """
-    # Используем Moshier ephemeris (встроенный, без внешних файлов)
-    # Без FLG_SPEED чтобы не требовать внешние файлы
-    flags = swe.FLG_MOSEPH
+    # Используем Moshier ephemeris + FLG_SPEED для получения скорости
+    flags = swe.FLG_MOSEPH | swe.FLG_SPEED
     
     # Get coordinates
     try:
         result = swe.calc_ut(jd, planet_id, flags)
     except Exception as e:
-        # Minor planets might not be available in Moshier
         return {
             'longitude': 0,
             'latitude': 0,
@@ -159,7 +157,6 @@ def calculate_planet_position(planet_id: float, jd: float, lat: float, lon: floa
     
     longitude = result[0][0]
     latitude = result[0][1]
-    # speed may be 0 without FLG_SPEED flag
     speed = result[0][3] if len(result[0]) > 3 else 0
     
     # Знак зодиака
@@ -319,36 +316,25 @@ def calculate_planet_positions(
     # Основные планеты
     for planet_name, planet_id in PLANETS.items():
         if planet_name == 'SouthNode':
-            # SouthNode = NorthNode + 180°
             continue  # Рассчитаем после NorthNode
         
         if planet_name == 'NorthNode':
-            # Узлы
             result = swe.calc_ut(jd, planet_id, swe.FLG_MOSEPH)
             longitude = result[0][0]
             speed = result[0][3] if len(result[0]) > 3 else 0
         elif planet_name == 'Lilith':
-            # Black Moon - средняя апогея
-            try:
-                result = swe.calc_ut(jd, planet_id, swe.FLG_MOSEPH)
-                longitude = result[0][0]
-                speed = result[0][3] if len(result[0]) > 3 else 0
-            except:
-                # Если Lilith не доступен, вычисляем через Луну
-                # Black Moon = Apoapsis орбиты Луны
-                moon_result = swe.calc_ut(jd, swe.MOON, swe.FLG_MOSEPH)
-                moon_long = moon_result[0][0]
-                # Средняя апогея - это максимальное расстояние
-                # Приблизительно: долгота апогеи = 313.2° + 0.1118 * (год - 1900)
-                # Но для простоты используем среднее значение
-                longitude = (moon_long + 180) % 360  # Упрощённо
-                speed = 0.0549  # ~18.6 лет оборот
+            # Black Moon - средняя апогея (MEAN_APOG)
+            # Рассчитывается через Swiss Ephemeris как обычная планета
+            pos = calculate_planet_position(planet_id, jd, lat, lon)
+            longitude = pos['full_degree']
+            speed = pos['speed']
         else:
             pos = calculate_planet_position(planet_id, jd, lat, lon)
             longitude = pos['full_degree']
             speed = pos['speed']
         
         sign_en, sign_ru = get_zodiac_sign(longitude)
+        is_retrograde = speed < 0
         
         planets[planet_name] = {
             'planet': planet_name,
@@ -357,6 +343,7 @@ def calculate_planet_positions(
             'degree': round(get_zodiac_degree(longitude), 4),
             'full_degree': round(longitude, 4),
             'speed': round(speed, 4) if speed else 0,
+            'is_retrograde': is_retrograde,
         }
     
     # Добавляем SouthNode (противоположно NorthNode)
@@ -370,7 +357,37 @@ def calculate_planet_positions(
         'degree': round(get_zodiac_degree(sn_longitude), 4),
         'full_degree': round(sn_longitude, 4),
         'speed': round(-planets['NorthNode']['speed'], 4),
+        'is_retrograde': planets['NorthNode']['is_retrograde'],
     }
+    
+    # Расчёт Chiron (малая планета/астероид)
+    for planet_name, planet_id in MINOR_PLANETS.items():
+        if planet_name != 'Chiron':
+            continue
+        
+        try:
+            result = swe.calc_ut(jd, planet_id, swe.FLG_MOSEPH | swe.FLG_SPEED)
+            if result and len(result[0]) > 0 and result[0][0] > 0:
+                longitude = result[0][0]
+                speed = result[0][3] if len(result[0]) > 3 else 0
+                
+                sign_en, sign_ru = get_zodiac_sign(longitude)
+                is_retrograde = speed < 0
+                
+                planets[planet_name] = {
+                    'planet': planet_name,
+                    'sign': sign_en,
+                    'sign_ru': sign_ru,
+                    'degree': round(get_zodiac_degree(longitude), 4),
+                    'full_degree': round(longitude, 4),
+                    'speed': round(speed, 4) if speed else 0,
+                    'is_retrograde': is_retrograde,
+                }
+                print(f"Chiron calculated: lon={longitude}, speed={speed}, retrograde={is_retrograde}")
+            else:
+                print(f"Chiron: no result (requires external ephemeris files)")
+        except Exception as e:
+            print(f"Chiron calculation error: {e}")
     
     # Расчёт всех 12 домов
     houses_data = calculate_houses(jd, lat, lon, house_system)
