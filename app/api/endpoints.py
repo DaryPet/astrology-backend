@@ -684,7 +684,8 @@ from app.schemas.schemas import (
     UserCreate, UserResponse, NatalChartCreate, NatalChartResponse,
     InterpretationCreate, InterpretationResponse, BookCreate, BookResponse,
     QueryRequest, SynastryRequest, NatalChartRequest, NatalChartResponseFull,
-    TransitRequest, SynastryRequestDirect
+    TransitRequest, SynastryRequestDirect, AnalysisRequest, AnalysisResponse,
+    ParsedQuery, RelevantChunk
 )
 from app.utils.astrology_v2 import (
     calculate_planet_positions, calculate_aspects,
@@ -1268,4 +1269,133 @@ async def calculate_synastry_direct(request: SynastryRequestDirect):
         },
         'aspects': aspects,
         'total_aspects': len(aspects),
+    }
+
+
+@router.post("/analysis/query")
+async def analyze_query(request: AnalysisRequest) -> AnalysisResponse:
+    """
+    Поиск и анализ астрологического запроса
+    
+    Основной endpoint для:
+    1. Поиска релевантных кусков из книг по запросу
+    2. Построения натальной карты (если переданы данные)
+    3. Анализа через LLM с использованием контекста карты
+    
+    Request:
+    - query: str (например "Сатурн 7 дом" или "Saturn 7th house")
+    - chart_data: Optional[NatalChartRequest] - данные для построения карты
+    - top_k: int = 5 - количество чанков для анализа
+    
+    Response:
+    - query: исходный запрос
+    - query_language: определённый язык
+    - parsed_query: извлечённые астрологические сущности
+    - chart_data: рассчитанная натальная карта (если передана)
+    - relevant_chunks: найденные куски с similarity score
+    - analysis: результат анализа от LLM
+    """
+    from app.services.search_service import parse_astrology_query
+    from app.services.analysis_service import analyze_astrology_query
+    
+    result = await analyze_astrology_query(
+        query=request.query,
+        chart_data=None,
+        top_k=request.top_k
+    )
+    
+    return {
+        'query': result['query'],
+        'query_language': result['query_language'],
+        'parsed_query': result['parsed_query'],
+        'chart_data': result.get('chart_data'),
+        'relevant_chunks': result['relevant_chunks'],
+        'analysis': result['analysis'],
+    }
+
+
+@router.post("/analysis/query-with-chart")
+async def analyze_query_with_chart(request: AnalysisRequest) -> AnalysisResponse:
+    """
+    Поиск и анализ астрологического запроса С натальной картой
+    
+    То же что /analysis/query, но с расчётом натальной карты
+    на основе переданных данных рождения
+    """
+    from app.services.analysis_service import analyze_astrology_query
+    
+    chart_data = None
+    
+    if request.chart_data:
+        birth_request = request.chart_data
+        
+        if birth_request.latitude is not None and birth_request.longitude is not None:
+            lat, lon = birth_request.latitude, birth_request.longitude
+        else:
+            try:
+                lat, lon = get_coordinates(birth_request.birth_place)
+            except ValueError as e:
+                lat, lon = None, None
+        
+        if lat and lon:
+            birth_datetime = birth_request.birth_date
+            if birth_request.birth_time:
+                try:
+                    time_parts = birth_request.birth_time.split(':')
+                    hour = int(time_parts[0])
+                    minute = int(time_parts[1]) if len(time_parts) > 1 else 0
+                    from datetime import time
+                    birth_datetime = birth_datetime.replace(hour=hour, minute=minute)
+                except:
+                    pass
+            
+            if birth_request.timezone:
+                try:
+                    from zoneinfo import ZoneInfo
+                    tz = ZoneInfo(birth_request.timezone)
+                    if birth_datetime.tzinfo is None:
+                        birth_datetime = birth_datetime.replace(tzinfo=tz)
+                except:
+                    pass
+            
+            chart = calculate_planet_positions(
+                birth_date=birth_datetime,
+                birth_place=birth_request.birth_place,
+                lat=lat,
+                lon=lon,
+                timezone_str=birth_request.timezone,
+                house_system=birth_request.house_system or 'Placidus'
+            )
+            
+            aspects = calculate_aspects(chart['planets'])
+            
+            chart_data = {
+                'sun_sign': chart['sun_sign'],
+                'sun_sign_ru': chart['sun_sign_ru'],
+                'moon_sign': chart['moon_sign'],
+                'moon_sign_ru': chart['moon_sign_ru'],
+                'ascendant': chart['ascendant'],
+                'ascendant_ru': chart['ascendant_ru'],
+                'mc': chart['mc'],
+                'mc_ru': chart['mc_ru'],
+                'planets': chart['planets'],
+                'houses': {str(k): v for k, v in chart['houses'].items()},
+                'houses_meta': chart.get('houses_meta', {}),
+                'meta': chart.get('meta', {}),
+                'aspects': aspects,
+            }
+    
+    result = await analyze_astrology_query(
+        query=request.query,
+        chart_data=chart_data,
+        top_k=request.top_k
+    )
+    
+    return {
+        'query': result['query'],
+        'query_language': result['query_language'],
+        'parsed_query': result['parsed_query'],
+        'chart_data': result.get('chart_data'),
+        'relevant_chunks': result['relevant_chunks'],
+        'analysis': result['analysis'],
     }

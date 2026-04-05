@@ -10,6 +10,12 @@ class Settings(BaseSettings):
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""
     
+    # LLM Provider settings (swappable - change via .env)
+    LLM_PROVIDER: str = "openai"  # openai, claude, ollama, gemini
+    ANTHROPIC_API_KEY: Optional[str] = None
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    GEMINI_API_KEY: Optional[str] = None
+    
     # Authentication settings (optional - for future use)
     SECRET_KEY: Optional[str] = None
     ALGORITHM: Optional[str] = None

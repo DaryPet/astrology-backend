@@ -131,3 +131,39 @@ class SynastryRequestDirect(BaseModel):
     """Direct synastry calculation request"""
     chart1: NatalChartRequest
     chart2: NatalChartRequest
+
+
+class AnalysisRequest(BaseModel):
+    """Запрос на поиск и анализ астрологического запроса"""
+    query: str
+    chart_data: Optional[NatalChartRequest] = None
+    top_k: int = 5
+
+
+class ParsedQuery(BaseModel):
+    """Результат парсинга астрологического запроса"""
+    language: str = "en"
+    planets: List[str] = []
+    houses: List[int] = []
+    signs: List[str] = []
+    aspects: List[str] = []
+
+
+class RelevantChunk(BaseModel):
+    """Найденный чанк из книги"""
+    id: int
+    book_id: int
+    text: str
+    chunk_index: Optional[int] = None
+    word_count: Optional[int] = None
+    similarity_score: float = 0.0
+
+
+class AnalysisResponse(BaseModel):
+    """Ответ с результатами анализа"""
+    query: str
+    query_language: str
+    parsed_query: ParsedQuery
+    chart_data: Optional[Dict[str, Any]] = None
+    relevant_chunks: List[Dict[str, Any]] = []
+    analysis: str
