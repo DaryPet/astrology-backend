@@ -8,7 +8,7 @@ class Settings(BaseSettings):
 
     # Supabase settings
     SUPABASE_URL: str = ""
-    SUPABASE_JWT_SECRET: str = ""
+    SUPABASE_KEY: str = ""
     
     # Authentication settings (optional - for future use)
     SECRET_KEY: Optional[str] = None

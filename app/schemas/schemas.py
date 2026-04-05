@@ -55,10 +55,28 @@ class InterpretationResponse(BaseModel):
 class BookCreate(BaseModel):
     title: str
     content: str
+    language: Optional[str] = None
+    format: Optional[str] = None
+
 
 class BookResponse(BookCreate):
     id: int
     created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class BookChunkCreate(BaseModel):
+    book_id: int
+    chunk_index: Optional[int] = None
+    text: str
+    page_number: Optional[int] = None
+    word_count: Optional[int] = None
+
+
+class BookChunkResponse(BookChunkCreate):
+    id: int
     
     class Config:
         from_attributes = True

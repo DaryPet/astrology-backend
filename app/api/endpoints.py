@@ -9,12 +9,12 @@ from typing import List, Dict, Any, Optional
 # Initialize Swiss Ephemeris via helper (sets Moshier mode)
 from app import swephelper
 from app.db.database import get_db
-from app.models.models import User, NatalChart, ChartInterpretation, Book
+from app.models.models import User, NatalChart, ChartInterpretation, Book, BookChunk
 from app.schemas.schemas import (
     UserCreate, UserResponse, NatalChartCreate, NatalChartResponse,
     InterpretationCreate, InterpretationResponse, BookCreate, BookResponse,
     QueryRequest, SynastryRequest, NatalChartRequest, NatalChartResponseFull,
-    TransitRequest, SynastryRequestDirect
+    TransitRequest, SynastryRequestDirect, BookChunkResponse
 )
 from app.utils.astrology_v2 import (
     calculate_planet_positions, calculate_aspects,
@@ -854,6 +854,61 @@ async def get_books(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Book))
     books = result.scalars().all()
     return books
+
+
+@router.post("/books/import")
+async def import_book(
+    file_path: str,
+    title: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Import a book from file system.
+    Parses PDF/EPUB/DOCX/TXT, chunks into 500-word pieces with 50-word overlap,
+    and saves to database.
+    """
+    from app.services.book_parser import parse_file
+    from app.services.chunker import chunk_text
+    
+    parsed = parse_file(file_path)
+    
+    book = Book(
+        title=title,
+        content=parsed["text"],
+        language=parsed["language"],
+        format=parsed["format"],
+        created_at=datetime.utcnow()
+    )
+    db.add(book)
+    await db.flush()
+    
+    chunks = chunk_text(parsed["text"], chunk_size=500, overlap=50)
+    
+    for idx, chunk in enumerate(chunks):
+        book_chunk = BookChunk(
+            book_id=book.id,
+            chunk_index=idx,
+            text=chunk["text"],
+            word_count=chunk["word_count"]
+        )
+        db.add(book_chunk)
+    
+    await db.commit()
+    await db.refresh(book)
+    
+    return {"id": book.id, "title": book.title, "chunks_count": len(chunks)}
+
+
+@router.post("/books/process")
+async def process_book_api(
+    filename: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Обработать книгу: скачать из Supabase -> парсить -> нарезать на чанки -> сохранить в БД"""
+    from app.services.book_processor import process_book_async
+    result = await process_book_async(filename)
+    return result
+
 
 @router.post("/books/{book_id}/query")
 async def query_book(book_id: int, request: QueryRequest, db: AsyncSession = Depends(get_db)):
