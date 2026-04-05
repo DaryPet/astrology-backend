@@ -687,6 +687,7 @@ from app.schemas.schemas import (
     TransitRequest, SynastryRequestDirect, AnalysisRequest, AnalysisResponse,
     ParsedQuery, RelevantChunk
 )
+from app.schemas.analysis import PlanetAnalysisRequest, PlanetAnalysisResponse
 from app.utils.astrology_v2 import (
     calculate_planet_positions, calculate_aspects,
     calculate_solar_return, calculate_synastry,
@@ -1399,3 +1400,40 @@ async def analyze_query_with_chart(request: AnalysisRequest) -> AnalysisResponse
         'relevant_chunks': result['relevant_chunks'],
         'analysis': result['analysis'],
     }
+
+
+@router.post("/analysis/planet")
+async def analyze_planet_endpoint(
+    request: PlanetAnalysisRequest
+) -> PlanetAnalysisResponse:
+    """
+    Анализ одной планеты по клику/hover
+    
+    Request:
+    - planet: Название планеты (Sun, Moon, Mars, etc.)
+    - sign: Знак (Leo, Cancer, etc.)
+    - degree: Градус в знаке
+    - house: Номер дома (1-12)
+    - house_sign: Знак на куспиде дома
+    - aspects: Список аспектов планеты (опционально)
+    
+    Response:
+    - planet: Название планеты
+    - sign: Знак
+    - house: Номер дома
+    - analysis: Текст анализа от LLM
+    - relevant_chunks: Найденные чанки из книг
+    """
+    from app.services.analysis_service import analyze_planet
+    
+    result = await analyze_planet(
+        planet=request.planet,
+        sign=request.sign,
+        degree=request.degree,
+        house=request.house or 1,
+        house_sign=request.house_sign,
+        aspects=request.aspects,
+        language=request.language
+    )
+    
+    return result
