@@ -919,6 +919,15 @@ async def calculate_natal_chart(request: NatalChartRequest) -> NatalChartRespons
     - timezone: Временная зона (IANA, например "Europe/Moscow")
     - house_system: Система домов (Placidus, Equal, WholeSign, etc.)
     """
+    # Validate input before processing
+    if not request.birth_place or request.birth_place.strip() == '':
+        if request.latitude is None or request.longitude is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Either 'birth_place' or both 'latitude' and 'longitude' must be provided. "
+                       "Please enter a valid birth location."
+            )
+    
     # Получаем ТОЧНЫЕ координаты из названия места
     # Для астрологии критически важна точность - нет fallback на Москву!
     # Используем переданные координаты или определяем сами
