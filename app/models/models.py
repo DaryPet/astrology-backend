@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
 from sqlalchemy.orm import relationship
 from app.db.database import Base
 import uuid
@@ -60,3 +60,22 @@ class Book(Base):
     title = Column(String, nullable=False)
     content = Column(Text, nullable=False)
     created_at = Column(DateTime, nullable=False)
+    language = Column(String, nullable=True)
+    format = Column(String, nullable=True)
+    
+    chunks = relationship("BookChunk", back_populates="book")
+
+
+class BookChunk(Base):
+    __tablename__ = "book_chunks"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    book_id = Column(Integer, ForeignKey("books.id"))
+    text = Column(Text, nullable=False)
+    page_number = Column(Integer, nullable=True)
+    embedding = Column(JSONB, nullable=True)
+    created_at = Column(DateTime, nullable=False)
+    chunk_index = Column(Integer, nullable=True)
+    word_count = Column(Integer, nullable=True)
+    
+    book = relationship("Book", back_populates="chunks")
