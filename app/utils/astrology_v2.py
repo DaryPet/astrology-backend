@@ -434,6 +434,69 @@ def calculate_planet_positions(
         if assigned_house:
             planets[planet_name]['house'] = assigned_house
     
+# Calculate Pars Fortuna - correct formula based on day/night chart
+    # All values in degrees (0-360)
+    sun_full = planets['Sun']['full_degree']
+    moon_full = planets['Moon']['full_degree']
+    
+    # Get full degrees
+    asc_sign_idx = ZODIAC_SIGNS.index(houses_data['ascendant']['sign'])
+    asc_full = asc_sign_idx * 30 + houses_data['ascendant']['degree']
+    mc_sign_idx = ZODIAC_SIGNS.index(houses_data['mc']['sign'])
+    mc_full = mc_sign_idx * 30 + houses_data['mc']['degree']
+    
+    # Determine if day chart (Sun above horizon, in houses 7-12)
+    # Houses 7-12 = upper hemisphere (between DESC and IC)
+    # From ASC: upper hemisphere is 90-270 degrees (wrapping through DESC)
+    sun_from_asc = (sun_full - asc_full) % 360
+    # Day = Sun in houses 7-12 (above horizon) = between 90 and 270 degrees from ASC
+    is_day_chart = 90 <= sun_from_asc < 270
+    
+    # Calculate Pars Fortuna using FULL longitude for ASC
+    if is_day_chart:
+        # Day chart: ASC + Moon - Sun
+        pars_fortuna = (asc_full + moon_full - sun_full) % 360
+    else:
+        # Night chart: ASC + Sun - Moon
+        pars_fortuna = (asc_full + sun_full - moon_full) % 360
+    
+    # Get zodiac sign for Pars Fortuna
+    pf_sign_en, pf_sign_ru = get_zodiac_sign(pars_fortuna)
+    pf_degree = get_zodiac_degree(pars_fortuna)
+    
+    # Determine which house Pars Fortuna falls into
+    houses_dict = houses_data['houses']
+    pf_house = None
+    for house_num in range(1, 13):
+        cusp_current = houses_dict[house_num]['cusp_longitude']
+        cusp_next = houses_dict[house_num % 12 + 1]['cusp_longitude']
+        
+        if cusp_next > cusp_current:
+            if cusp_current <= pars_fortuna < cusp_next:
+                pf_house = house_num
+                break
+        else:
+            if cusp_current <= pars_fortuna or pars_fortuna < cusp_next:
+                pf_house = house_num
+                break
+    
+    # Determine which house Vertex falls into
+    vertex_long = houses_data.get('vertex')
+    vertex_house = None
+    if vertex_long is not None:
+        for house_num in range(1, 13):
+            cusp_current = houses_dict[house_num]['cusp_longitude']
+            cusp_next = houses_dict[house_num % 12 + 1]['cusp_longitude']
+            
+            if cusp_next > cusp_current:
+                if cusp_current <= vertex_long < cusp_next:
+                    vertex_house = house_num
+                    break
+            else:
+                if cusp_current <= vertex_long or vertex_long < cusp_next:
+                    vertex_house = house_num
+                    break
+    
     return {
         'sun_sign': planets['Sun']['sign'],
         'sun_sign_ru': planets['Sun']['sign_ru'],
@@ -450,7 +513,17 @@ def calculate_planet_positions(
         'houses_meta': {
             'house_system': house_system,
             'armc': houses_data.get('armc'),
-            'vertex': houses_data.get('vertex'),
+            'vertex': {
+                'longitude': round(vertex_long, 4) if vertex_long else None,
+                'house': vertex_house,
+            },
+            'pars_fortuna': {
+                'longitude': round(pars_fortuna, 4),
+                'sign': pf_sign_en,
+                'sign_ru': pf_sign_ru,
+                'degree': round(pf_degree, 4),
+                'house': pf_house,
+            },
         },
         'meta': {
             'birth_date': birth_date.isoformat() if hasattr(birth_date, 'isoformat') else str(birth_date),
