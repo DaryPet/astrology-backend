@@ -5,6 +5,9 @@ from docx import Document
 from bs4 import BeautifulSoup
 from langdetect import detect, LangDetectException
 import os
+import subprocess
+import pytesseract
+from PIL import Image
 
 
 def parse_file(file_path: str) -> dict:
@@ -37,15 +40,56 @@ def parse_file(file_path: str) -> dict:
     }
 
 
+# def parse_pdf(path: str) -> str:
+#     doc = fitz.open(path)
+#     pages_text = []
+#     for page in doc:
+#         text = page.get_text()
+#         if text.strip():
+#             pages_text.append(text)
+#     doc.close()
+#     return "\n".join(pages_text)
+
+# def parse_pdf(path: str) -> str:
+#     doc = fitz.open(path)
+#     pages_text = []
+#     print(f"Всего страниц в PDF: {len(doc)}")
+#     for page_num in range(len(doc)):
+#         page = doc.load_page(page_num)
+#         text = page.get_text()
+#         print(f"Страница {page_num+1}: {len(text)} символов")
+#         if text.strip():
+#             pages_text.append(text)
+#     doc.close()
+#     total = len("\n".join(pages_text))
+#     print(f"ВСЕГО символов: {total}")
+#     return "\n".join(pages_text)
+
+
+# def parse_pdf(path: str) -> str:
+#     result = subprocess.run(
+#         ["pdftotext", path, "-"],
+#         capture_output=True,
+#         text=True
+#     )
+#     text = result.stdout
+#     print(f"Первые 500 символов:\n{text[:500]}")
+#     return text
+
 def parse_pdf(path: str) -> str:
     doc = fitz.open(path)
-    pages_text = []
-    for page in doc:
-        text = page.get_text()
-        if text.strip():
-            pages_text.append(text)
+    text = ""
+    print(f"Всего страниц: {len(doc)}")
+    for page_num in range(len(doc)):
+        page = doc.load_page(page_num)
+        pix = page.get_pixmap(dpi=300)
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        page_text = pytesseract.image_to_string(img, lang="eng")
+        text += page_text
+        print(f"Страница {page_num+1}: {len(page_text)} символов")
     doc.close()
-    return "\n".join(pages_text)
+    print(f"ВСЕГО символов: {len(text)}")
+    return text
 
 
 def parse_epub(path: str) -> str:
