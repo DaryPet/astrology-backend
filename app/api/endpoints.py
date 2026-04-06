@@ -1415,7 +1415,9 @@ async def analyze_planet_endpoint(
     - degree: Градус в знаке
     - house: Номер дома (1-12)
     - house_sign: Знак на куспиде дома
+    - is_retrograde: Ретроградность (опционально, можно получить из chart_data)
     - aspects: Список аспектов планеты (опционально)
+    - chart_data: Данные натальной карты для извлечения is_retrograde (опционально)
     
     Response:
     - planet: Название планеты
@@ -1426,14 +1428,22 @@ async def analyze_planet_endpoint(
     """
     from app.services.analysis_service import analyze_planet
     
+    is_retrograde = request.is_retrograde
+    if not is_retrograde and request.chart_data:
+        planets_data = request.chart_data.get('planets', {})
+        planet_data = planets_data.get(request.planet, {})
+        is_retrograde = planet_data.get('is_retrograde', False)
+    
     result = await analyze_planet(
         planet=request.planet,
         sign=request.sign,
         degree=request.degree,
         house=request.house or 1,
         house_sign=request.house_sign,
+        is_retrograde=is_retrograde or False,
         aspects=request.aspects,
-        language=request.language
+        language=request.language,
+        top_k=20
     )
     
     return result

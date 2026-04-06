@@ -7,6 +7,18 @@ from app.services.search_service import (
 )
 from app.services.llm_adapter import generate_analysis, get_llm_adapter
 
+# Маппинг планет на book_id для приоритетного поиска
+# Если планета указана - ищем сначала в этой книге, потом во всех остальных
+# Все остальные планеты → book_id = 21
+PLANET_TO_BOOK_ID = {
+    # Специфические книги для определенных планет
+    "Pluto": 8,
+    "Saturn": 20,
+    "Neptune": 7,
+    "North Node": 6,
+    "South Node": 6,
+}
+
 
 ANALYSIS_PROMPTS = {
     'ru': """Вы эксперт по астрологии с глубокими знаниями классических и современных астрологических традиций. 
@@ -14,8 +26,8 @@ ANALYSIS_PROMPTS = {
 Дайте подробный, персонализированный анализ на русском языке.
 
 Используйте:
-- Натальную карту для определения положения планет в домах
-- Найденные фрагменты из книг как справочный материал
+- Натальную карту для определения положения планет в домах, использщовать данные полученные при расчетах! не выдумывать!
+- Найденные фрагменты из книг как справочный материал и основной материал! 
 - Запрос пользователя как основу для анализа
 
 Ваш анализ должен быть:
@@ -23,8 +35,10 @@ ANALYSIS_PROMPTS = {
 - Основанным на фактах из натальной карты
 - Связным и логичным
 - Полезным для пользователя
+ - содержать конкретные детали из натальной карты и найденных фрагментов, чтобы поддержать ваши выводы
+ - писать на основе каких книг найденных фрагментов вы делаете выводы."
 
-Если в найденных фрагментах нет релевантной информации, используйте свои знания, но сделайте это аккуратно.""",
+Если в найденных фрагментах нет релевантной информации - написать что информация не найдена""",
     
     'en': """You are an expert in astrology with deep knowledge of classical and modern astrological traditions.
 Analyze the found fragments from astrology books in the context of the natal chart and user query.
@@ -41,19 +55,8 @@ Your analysis should be:
 - Coherent and logical
 - Useful for the user
 
-If there is no relevant information in the found fragments, use your knowledge carefully.""",
-    
-    'es': """Eres experto en astrología con conocimiento profundo de tradiciones astrológicas clásica y modernas.
-Analiza los fragmentos encontrados de libros de astrología en el contexto de la carta natal y la consulta del usuario.
-Proporciona un análisis detallado y personalizado en español.""",
-    
-    'de': """Sie sind Experte für Astrologie mit tiefem Wissen über klassische und moderne astrologische Traditionen.
-Analysieren Sie die gefundenen Fragmente aus Astrologiebüchern im Kontext des Geburtshoroskops und der Anfrage des Benutzers.
-Geben Sie eine detaillierte, personalisierte Analyse auf Deutsch.""",
-    
-    'fr': """Vous êtes expert en astrologie avec une connaissance profonde des traditions astrologiques classiques et modernes.
-Analysez les fragments trouvés dans les livres d'astrologie dans le contexte de la carte natale et laquery de l'utilisateur.
-Fournissez une analyse détaillée et personnalisée en français.""",
+If there is no relevant information in the found fragments, write that the information was not found.""",
+ 
 }
 
 
@@ -185,8 +188,18 @@ PLANET_PROMPTS = {
 - Основанным на положении в знаке и доме
 - Связным и логичным (3-5 абзацев)
 - Полезным для понимания влияния этой планеты
+- Используй ТОЛЬКО информацию из найденных чанков
 
-Если в найденных фрагментах нет релевантной информации, используйте свои знания, но сделайте это аккуратно.""",
+В АНАЛИЗЕ ОБЯЗАТЕЛЬНО УЧТИ:
+- Если планета ретроградная (Rx) - объясни как это влияет на её проявление (обращённость внутрь, задержка, переосмысление)
+- Если планета директная (D) - объясни её прямое, активное проявление
+
+ВАЖНО:
+- НЕ придумывай названия книг, авторов или источников
+- НЕ ссылайся на книги, которых нет в предоставленных фрагментах
+- Если в чанках недостаточно информации - честно напиши "Информация не найдена"
+
+При цитировании указывай ТОЛЬКО те книги, которые реально есть в предоставленных фрагментах.""",
     
     'en': """You are an expert in astrology with deep knowledge of classical and modern astrological traditions.
 Analyze the position of a planet in the natal chart and provide detailed personalized analysis in English.
@@ -196,151 +209,20 @@ Your analysis should be:
 - Based on position in sign and house
 - Coherent and logical (3-5 paragraphs)
 - Useful for understanding the influence of this planet
+- Use ONLY information from the found chunks
 
-If there is no relevant information in the found fragments, use your knowledge carefully.""",
-    
-    'zh': """你是具有古典和现代占星学传统深厚知识的占星学专家。
-分析星盘中行星的位置，并提供详细个性化的中文分析。
+IN YOUR ANALYSIS YOU MUST CONSIDER:
+- If the planet is retrograde (Rx) - explain how this affects its manifestation (introspection, delay, reconsideration)
+- If the planet is direct (D) - explain its direct, active manifestation
 
-你的分析应该:
-- 针对这个行星具体且个性化
-- 基于星座和宫位的位置
-- 连贯且有逻辑（3-5段）
-- 有助于理解这颗行星的影响
+IMPORTANT:
+- Do NOT make up book titles, authors or sources
+- Do NOT cite books that are not in the provided fragments
+- If there is not enough information in chunks - honestly say "Information not found"
 
-如果找到的片段没有相关信息，请谨慎使用你的知识。""",
+When citing, mention ONLY the books that are actually in the provided fragments.""",
+      
 
-    'es': """Eres experto en astrología con conocimiento profundo de tradiciones astrológicas clásica y modernas.
-Analiza la posición de un planeta en el carta natal y proporciona análisis personalizado detallado en español.
-
-Tu análisis debe ser:
-- Específico y personalizado para este planeta
-- Basado en la posición en signo y casa
-- Coherente y lógico (3-5 párrafos)
-- Útil para entender la influencia de este planeta
-
-Si no hay información relevante en los fragmentos encontrados, usa tu conocimiento cuidadosamente.""",
-
-    'fr': """Vous êtes expert en astrologie avec une connaissance profonde des traditions astrologiques classiques et modernes.
-Analysez la position d'une planète dans la carte natale et fournissez une analyse détaillée et personnalisée en français.
-
-Votre analyse devrait être:
-- Spécifique et personnalisée pour cette planète
-- Basée sur la position en signe et maison
-- Cohérente et logique (3-5 paragraphes)
-- Utile pour comprendre l'influence de cette planète
-
-S'il n'y a pas d'information pertinente dans les fragments trouvés, utilisez vos connaissances avec précaution.""",
-
-    'de': """Sie sind Experte für Astrologie mit tiefem Wissen über klassische und moderne astrologische Traditionen.
-Analysieren Sie die Position eines Planeten im Geburtshoroskop und geben Sie eine detaillierte personalisierte Analyse auf Deutsch.
-
-Ihre Analyse sollte sein:
-- Spezifisch und personalisiert für diesen Planeten
-- Basierend auf Position in Zeichen und Haus
-- Kohärent und logisch (3-5 Absätze)
-- Nützlich um den Einfluss dieses Planeten zu verstehen
-
-Wenn es keine relevante Information in den gefundenen Fragmenten gibt, nutzen Sie Ihr Wissen sorgfältig.""",
-
-    'it': """Sei un esperto di astrologia con profonda conoscenza delle tradizioni astrologiche classiche e moderne.
-Analizza la posizione di un pianeta nella carta natale e fornisci un'analisi dettagliata e personalizzata in italiano.
-
-La tua analisi dovrebbe essere:
-- Specifica e personalizzata per questo pianeta
-- Basata sulla posizione in segno e casa
-- Coerente e logica (3-5 paragrafi)
-- Utile per comprendere l'influenza di questo pianeta
-
-Se non c'è informazione rilevante nei frammenti trovati, usa le tue conoscenze con cautela.""",
-
-    'pt': """Você é especialista em astrologia com profundo conhecimento das tradições astrológicas clássicas e modernas.
-Analise a posição de um planeta no mapa natal e forneça análise detalhada e personalizada em português.
-
-Sua análise deve ser:
-- Específica e personalizada para este planeta
-- Baseada na posição em signo e casa
-- Coerente e lógica (3-5 parágrafos)
-- Útil para entender a influência deste planeta
-
-Se não houver informação relevante nos fragmentos encontrados, use seu conhecimento com cuidado.""",
-
-    'ja': """あなたは古典および現代の占星術の伝統について深い知識を持つ占星術の専門家です。
- natal chartにおける惑星の位置を分析し、詳細なパーソナライズされた日本語分析を提供してください。
-
-あなたの分析は以下を満たす必要があります:
-- この惑星に特化 且つパーソナライズされたもの
-- 星座とハウスにおける位置に基づくもの
-- 首尾一貫しており論理的（3-5段落）
-- この惑星の影響を理解するのに役立つもの
-
-関連する情報が断片に見つからない場合は、注意してあなたの知識を使用してください。""",
-
-    'ko': """당신은 고전적이고 현대적인 점성술 전통에 대한 깊은 지식을 가진 점성술 전문가입니다.
-natal chart에서 행성의 위치를 분석하고詳細な 맞춤형 한국어 분석을 제공하세요.
-
-당신의 분석은 다음과 같아야 합니다:
-- 이 행성에 특화되고 맞춤화된 것
--Signs와 House의 위치에 기반한 것
-- 일관되고 논리적인 (3-5단락)
-- 이 행성의 영향을 이해하는 데 유용한 것
-
-발견된 관련 정보가 없는 경우 신중하게 지식을 사용하세요.""",
-
-    'ar': """أنت خبير في علم التنجيم مع معرفة عميقة بالتقاليد الفلكية الكلاسيكية والحديثة.
-حلل موقع كوكب في خريطة الميلاد وقدم تحليلاً مفصلاً ومخصصاً بالعربية.
-
-يجب أن يكون تحليلك:
-- محدداً ومخصصاً لهذا الكوكب
-- يعتمد على الموقع في البيت والzeichen
-- متماسك ومنطقي (3-5 فقرات)
-- مفيداً لفهم تأثير هذا الكوكب
-
-إذا لم تجد معلومات ذات صلة في المقاطع المكتشفة، استخدم معرفتك بحذر.""",
-
-    'hi': """आप क्लासिक और आधुनिक ज्योतिषीय परंपराओं की गहरी जानकारी वाले ज्योतिषी हैं।
-natal chart में ग्रह की स्थिति का विश्लेषण करें और विस्तृत व्यक्तिगत हिंदी विश्लेषण प्रदान करें।
-
-आपका विश्लेषण होना चाहिए:
-- इस ग्रह के लिए विशिष्ट और व्यक्तिगत
-- राशि और भाव में स्थिति पर आधारित
-- सुसंगत और तार्किक (3-5 अनुच्छेद)
-- इस ग्रह के प्रभाव को समझने में उपयोगी
-
-यदि खोजे गए अंशों में कोई प्रासंगिक जानकारी नहीं है, तो अपने ज्ञान का सावधानी से उपयोग करें।""",
-
-    'nl': """U bent een astrologie-expert met diepgaande kennis van klassieke en moderne astrologische tradities.
-Analyseer de positie van een planeet in het geboortehoroscoop en geef een gedetailleerde gepersonaliseerde analyse in het Nederlands.
-
-Uw analyse moet zijn:
-- Specifiek en gepersonaliseerd voor deze planeet
-- Gebaseerd op positie in teken en huis
-- Samenhangend en logisch (3-5 alinea's)
-- Nuttig voor het begrijpen van de invloed van deze planeet
-
-Als er geen relevante informatie is in de gevonden fragmenten, gebruik dan voorzichtig uw kennis.""",
-
-    'pl': """Jesteś ekspertem w dziedzinie astrologii z głęboką wiedzą o klasycznych i nowoczesnych tradycjach astrologicznych.
-Przeanalizuj pozycję planety w mapie urodzeniowej i podaj szczegółową spersonalizowaną analizę w języku polskim.
-
-Twoja analiza powinna być:
-- Konkretna i spersonalizowana dla tej planety
-- Oparta na pozycji w znaku i domu
-- Spójna i logiczna (3-5 akapitów)
-- Przydatna do zrozumienia wpływu tej planety
-
-Jeśli w znalezionych fragmentach nie ma istotnych informacji, użyj swojej wiedzy ostrożnie.""",
-
-    'tr': """Klasik ve modern astroloji geleneklerinde derin bilgiye sahip bir astroloji uzmanısınız.
-Doğum haritasında bir gezegenin konumunu analiz edin ve ayrıntılı kişiselleştirilmiş Türkçe analiz sağlayın.
-
-Analiziniz şu şekilde olmalı:
-- Bu gezegen için özel ve kişiselleştirilmiş
-- Burç ve ev konumuna dayalı
-- Tutarlı ve mantıklı (3-5 paragraf)
-- Bu gezegenin etkisini anlamak için yararlı
-
-Bulunan parçalarda ilgili bilgi yoksa, bilginizi dikkatli kullanın.""",
 }
 
 
@@ -352,7 +234,8 @@ def build_planet_analysis_prompt(
     house_sign: Optional[str],
     aspects: List[Dict[str, Any]],
     chunks: List[Dict[str, Any]],
-    language: str = "en"
+    language: str = "en",
+    is_retrograde: bool = False
 ) -> str:
     """Построить промпт для анализа конкретной планеты"""
     
@@ -368,6 +251,7 @@ def build_planet_analysis_prompt(
     prompt_parts.append(f"Градус / Degree: {degree}°")
     prompt_parts.append(f"Дом / House: {house}")
     prompt_parts.append(f"Знак на куспиде дома / House sign: {house_sign}")
+    prompt_parts.append(f"Движение / Motion: {'Ретроградная (Rx)' if is_retrograde else 'Директная (D)'} / {'Retrograde (Rx)' if is_retrograde else 'Direct (D)'}")
     
     if aspects:
         prompt_parts.append("\nАспекты планеты / Planet aspects:")
@@ -394,9 +278,10 @@ async def analyze_planet(
     degree: float,
     house: int,
     house_sign: Optional[str] = None,
+    is_retrograde: bool = False,
     aspects: Optional[List[Dict[str, Any]]] = None,
     language: str = "en",
-    top_k: int = 5
+    top_k: int = 20
 ) -> Dict[str, Any]:
     """
     Анализ одной планеты
@@ -407,6 +292,7 @@ async def analyze_planet(
         degree: Градус в знаке
         house: Номер дома (1-12)
         house_sign: Знак на куспиде дома (опционально)
+        is_retrograde: Ретроградная ли планета (True = ретроградная, False = директная)
         aspects: Список аспектов планеты
         language: Код языка (ru, en, zh, es, fr, de, etc.)
         top_k: Количество чанков для поиска
@@ -415,9 +301,46 @@ async def analyze_planet(
         Dict с анализом планеты и найденными чанками
     """
     
-    query = f"{planet} {house} дом"
+    PLANET_TO_RU = {
+        'pluto': 'плутон', 'saturn': 'сатурн', 'venus': 'венера',
+        'mars': 'марс', 'mercury': 'меркурий', 'jupiter': 'юпитер',
+        'sun': 'солнце', 'moon': 'луна', 'uranus': 'уран',
+        'neptune': 'нептун', 'north node': 'раху', 'south node': 'кету',
+        'lilith': 'лилит', 'chiron': 'хирон', 'nnode': 'раху', 'snode': 'кету'
+    }
     
-    chunks = await search_chunks_by_query(query, top_k=top_k)
+    SIGN_TO_RU = {
+        'aries': 'овен', 'taurus': 'телец', 'gemini': 'близнецы',
+        'cancer': 'рак', 'leo': 'лев', 'virgo': 'дева',
+        'libra': 'весы', 'scorpio': 'скорпион', 'sagittarius': 'стрелец',
+        'capricorn': 'козерог', 'aquarius': 'водолей', 'pisces': 'рыбы'
+    }
+    
+    planet_ru = PLANET_TO_RU.get(planet.lower(), planet)
+    sign_ru = SIGN_TO_RU.get(sign.lower(), '') if sign else ''
+    
+    # Определяем book_id по планете
+    book_id = PLANET_TO_BOOK_ID.get(planet.capitalize())
+    # Если планеты нет в словаре - ищем по всем книгам (book_id = None)
+    if not book_id:
+        book_id = None
+    
+    # Формируем запрос для гибридного поиска (BM25 + Vector)
+    # Ключевые слова для BM25: планета + дом + знак
+    house_words = {
+        1: 'first', 2: 'second', 3: 'third', 4: 'fourth', 5: 'fifth', 
+        6: 'sixth', 7: 'seventh', 8: 'eighth', 9: 'ninth', 
+        10: 'tenth', 11: 'eleventh', 12: 'twelfth'
+    }
+    house_word = house_words.get(house, str(house))
+    
+    # Формат: "pluto seventh house libra" - для лучшего BM25 совпадения
+    if sign:
+        query = f"{planet.lower()} {house_word} house {sign.lower()}"
+    else:
+        query = f"{planet.lower()} {house_word} house"
+    
+    chunks = await search_chunks_by_query(query, top_k=top_k, book_id=book_id)
     
     if not chunks:
         chunks = await search_chunks_simple(query, top_k=top_k)
@@ -430,7 +353,8 @@ async def analyze_planet(
         house_sign=house_sign,
         aspects=aspects or [],
         chunks=chunks,
-        language=language
+        language=language,
+        is_retrograde=is_retrograde
     )
     
     adapter = get_llm_adapter()
@@ -440,6 +364,7 @@ async def analyze_planet(
         "planet": planet,
         "sign": sign,
         "house": house,
+        "is_retrograde": is_retrograde,
         "analysis": analysis,
         "relevant_chunks": chunks
     }
