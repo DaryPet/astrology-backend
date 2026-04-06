@@ -368,3 +368,223 @@ async def analyze_planet(
         "analysis": analysis,
         "relevant_chunks": chunks
     }
+
+
+SYNTHESIS_PROMPTS = {
+    'ru': """Ты эксперт по эволюционной астрологии (Джефф Грин, кармические узлы, трансформация души). Создай ГЛУБОКИЙ, ПОДРОБНЫЙ, ВСЕОБХЕМЛЮЩИЙ анализ натальной карты - как для лучшего друга, который хочет понять себя по-настоящему.
+
+**ГЛАВНЫЕ ПРАВИЛА:**
+
+1. ПИШИ ГЛУБОКО - раскрой КАЖДУЮ планету полностью, не поверхностно
+2. ПИШИ ПОДРОБНО - минимум 10000 слов в итоге
+3. ПИШИ ПОНЯТНО - простыми словами, без астрологического сленга
+4. НЕ используй технические термины, градусы, орбы - только: планета, знак, дом
+5. Используй ТОЛЬКО РЕАЛЬНЫЕ аспекты из списка. Если аспекта нет - НЕ выдумывай!
+6. НЕ называй книги и авторов
+7. НЕ пиши сколько слов в анализе
+8. КНИГА ПО УЗЛАМ И ПЛУТОНУ - это ключевая книга! Используй её информацию максимально подробно для Плутона, Южного и Северного узлов!
+
+**СТРУКТУРА (пиши одним связным текстом, но эти темы должны быть раскрыты):**
+
+1. **Плутон и Кармические узлы** - начни с этого! Душа, судьба, трансформация, что пришло из прошлого
+2. **Сатурн** - уроки жизни, страхи, ответственность, что мешает
+3. **Хирон и Лилит** - главные раны, скрытые желания, темная сторона
+4. **Солнце** - кто ты по жизни, твоя суть, как тебя видят
+5. **Луна** - чего тебе нужно для счастья, эмоции, внутренний ребенок
+6. **Асцендент** - как ты себя показываешь миру, первое впечатление
+7. **Меркурий** - как ты думаешь и общаешься
+8. **Венера** - любовь, красота, деньги, что ты ценишь
+9. **Марс** - как ты добиваешься целей, сексуальность, гнев
+10. **Юпитер** - удача, вера, расширение, философия
+11. **Уран и Нептун** - неожиданности, духовность, мечты
+12. **Все дома** - все сферы жизни кратко
+13. **Что делать** - практические шаги для роста
+
+**ДЛЯ КАЖДОЙ ПЛАНЕТЫ:**
+- Напиши подробно (минимум 300-500 слов на планету, для Плутона и Узлов - минимум 800 слов!)
+- Укажи знак и дом
+- Укажи ретроградность сразу в тексте если есть
+- Объясни ПРОСТО - как это влияет на жизнь
+
+**АСПЕКТЫ - используй ТОЛЬКО эти:**
+{aspects_list}
+Если аспекта нет в списке - НЕ выдумывай его!
+
+**КНИГИ (используй их для анализа):**
+{books_content}
+
+Пиши на русском. Глубоко, подробно, понятно.""",
+
+    'en': """You are an expert in EVOLUTIONARY ASTROLOGY (Jeff Green, karmic nodes, soul transformation). Create a DEEP, DETAILED, COMPREHENSIVE natal chart analysis - like for a best friend who really wants to understand themselves.
+
+**MAIN RULES:**
+
+1. WRITE DEEP - reveal EACH planet fully, not superficially
+2. WRITE DETAILED - minimum 10000 words in total
+3. WRITE SIMPLY - in plain language, no astrological slang
+4. NO technical terms, degrees, orbs - only: planet, sign, house
+5. Use ONLY REAL aspects from the list. If an aspect is NOT in the list - DON'T make it up!
+6. DON'T mention book names or authors
+7. DON'T write word count
+8. THE BOOK ABOUT NODES AND PLUTO - this is a KEY book! Use its information very detailed for Pluto, South Node and North Node!
+
+**STRUCTURE (write as one coherent text, but these topics must be covered):**
+
+1. **Pluto and Karmic Nodes** - start here! Soul, destiny, transformation, what came from the past
+2. **Saturn** - life lessons, fears, responsibility, what holds you back
+3. **Chiron and Lilith** - main wounds, hidden desires, dark side
+4. **Sun** - who you are in life, your essence, how people see you
+5. **Moon** - what you need for happiness, emotions, inner child
+6. **Ascendant** - how you show yourself to the world, first impression
+7. **Mercury** - how you think and communicate
+8. **Venus** - love, beauty, money, what you value
+9. **Mars** - how you achieve goals, sexuality, anger
+10. **Jupiter** - luck, faith, expansion, philosophy
+11. **Uranus and Neptune** - surprises, spirituality, dreams
+12. **All houses** - all life areas briefly
+13. **What to do** - practical steps for growth
+
+**FOR EACH PLANET:**
+- Write in detail (minimum 300-500 words per planet, for Pluto and Nodes - minimum 800 words!)
+- Specify sign and house
+- Include retrograde right in the text if present
+- Explain SIMPLY - how it affects life
+
+**ASPECTS - use ONLY these:**
+{aspects_list}
+If an aspect is NOT in the list - DON'T make it up!
+
+**BOOKS (use them for analysis):**
+{books_content}
+
+Write in English. Deep, detailed, simple.""",
+}
+
+
+async def get_top_books(top_k: int = 5) -> List[Dict[str, Any]]:
+    """Получить топ-K книг из БД через Supabase (по дате создания)"""
+    from supabase import create_client
+    from app.core.config import settings
+    
+    try:
+        supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+        response = supabase.table("books").select("id,title,content,language").order("created_at", desc=True).limit(top_k).execute()
+        
+        if response.data:
+            return [
+                {
+                    "id": book["id"],
+                    "title": book["title"],
+                    "content": book["content"],
+                    "language": book.get("language")
+                }
+                for book in response.data
+            ]
+        return []
+    except Exception as e:
+        print(f"Error getting books: {e}")
+        return []
+
+
+async def full_chart_analysis(
+    chart_data: Dict[str, Any],
+    language: str = "ru",
+    top_books: int = 5
+) -> Dict[str, Any]:
+    """
+    Полный анализ натальной карты - ОДИН промпт, ОДИН вызов LLM
+    """
+    from app.services.llm_adapter import get_llm_adapter
+    
+    adapter = get_llm_adapter()
+    
+    books = await get_top_books(top_books)
+    
+    if not books:
+        return {
+            "analysis": "Книги не найдены в базе данных.",
+            "book_analyses": [],
+            "chart_summary": {}
+        }
+    
+    # Формируем список аспектов (без градусов и орбов)
+    aspects = chart_data.get('aspects', [])
+    aspects_list = []
+    for asp in aspects:
+        p1 = asp.get('planet1', '?')
+        p2 = asp.get('planet2', '?')
+        asp_ru = asp.get('aspect_ru', '?')
+        aspects_list.append(f"{p1} {asp_ru} {p2}")
+    aspects_str = "\n".join(aspects_list) if aspects_list else "Нет аспектов"
+    
+    # Формируем содержание книг (книга об узлах - первая!)
+    books_content = ""
+    
+    # Сначала книга с узлами (id 22), потом остальные
+    nodes_book = None
+    other_books = []
+    for book in books:
+        if book.get('id') == 22:
+            nodes_book = book
+        else:
+            other_books.append(book)
+    
+    # Добавляем сначала книгу об узлах
+    if nodes_book:
+        content = nodes_book.get('content', '')[:12000]
+        books_content += f"\n\n--- КНИГА ОБ УЗЛАХ И ПЛУТОНЕ ---\n{content}"
+    
+    # Потом остальные книги
+    for i, book in enumerate(other_books, 1):
+        content = book.get('content', '')[:10000]
+        books_content += f"\n\n--- Другие книги ---\n{content}"
+    
+    # Используем синтез-промпт с placeholder'ами
+    prompt = SYNTHESIS_PROMPTS.get(language, SYNTHESIS_PROMPTS['ru'])
+    prompt = prompt.replace("{aspects_list}", aspects_str)
+    prompt = prompt.replace("{books_content}", books_content)
+    
+    # Добавляем данные карты (просто: планета, знак, дом - без градусов)
+    prompt += "\n\n=== НАТАЛЬНАЯ КАРТА ==="
+    prompt += f"\nСолнце: {chart_data.get('sun_sign_ru', '?')} в {chart_data.get('sun_sign', '?')}"
+    prompt += f"\nЛуна: {chart_data.get('moon_sign_ru', '?')} в {chart_data.get('moon_sign', '?')}"
+    prompt += f"\nАсцендент: {chart_data.get('ascendant_ru', '?')} в {chart_data.get('ascendant', '?')}"
+    
+    planets = chart_data.get('planets', {})
+    prompt += "\n=== ПЛАНЕТЫ ==="
+    for planet_name, planet_data in sorted(planets.items()):
+        sign = planet_data.get('sign', '?')
+        sign_ru = planet_data.get('sign_ru', sign)
+        house = planet_data.get('house', '?')
+        is_retro = planet_data.get('is_retrograde', False)
+        rx_str = " (ретроградная)" if is_retro else ""
+        prompt += f"\n{planet_name}: в {sign_ru}, дом {house}{rx_str}"
+    
+    houses = chart_data.get('houses', {})
+    prompt += "\n=== ДОМА ==="
+    for house_num in range(1, 13):
+        if str(house_num) in houses:
+            h = houses[str(house_num)]
+            prompt += f"\nДом {house_num}: {h.get('sign_ru', '?')}"
+    
+    try:
+        full_analysis = await adapter.generate(prompt, language)
+    except Exception as e:
+        full_analysis = f"Ошибка анализа: {str(e)}"
+    
+    chart_summary = {
+        "sun_sign": chart_data.get('sun_sign', '?'),
+        "sun_sign_ru": chart_data.get('sun_sign_ru', '?'),
+        "moon_sign": chart_data.get('moon_sign', '?'),
+        "moon_sign_ru": chart_data.get('moon_sign_ru', '?'),
+        "ascendant": chart_data.get('ascendant', '?'),
+        "ascendant_ru": chart_data.get('ascendant_ru', '?'),
+        "planets_count": len(chart_data.get('planets', {})),
+    }
+    
+    return {
+        "analysis": full_analysis,
+        "book_analyses": [{"title": b["title"], "analysis": "Использован в общем анализе"} for b in books],
+        "chart_summary": chart_summary,
+        "language": language
+    }

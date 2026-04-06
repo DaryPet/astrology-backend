@@ -75,18 +75,12 @@ def get_coordinates(place: str) -> tuple:
         try:
             location = geocode_func(place)
             if location:
-                # Проверяем качество результата
                 lat, lon = location.latitude, location.longitude
                 
-                # Валидация координат
                 if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
                     raise ValueError(f"Invalid coordinates: ({lat}, {lon})")
                 
-                # Проверяем, что это не океан/пустыня (минимальная населенность)
-                # Для астрологии все равно, но для UX лучше
-                
                 result = (lat, lon)
-                # Сохраняем в кэш
                 _geocode_cache[cache_key] = (result, time.time())
                 
                 print(f"Geocode success for '{place}': ({lat:.6f}, {lon:.6f}) via provider {i}")
@@ -101,13 +95,10 @@ def get_coordinates(place: str) -> tuple:
             print(f"Geocoding provider {i} error for '{place}': {e}")
             continue
     
-    # Если все провайдеры не сработали - ВОЗВРАЩАЕМ ОШИБКУ, а не Moscow!
-    # Для астрологии лучше ошибка, чем неправильные координаты
     error_msg = f"Cannot geocode location: '{place}'. Last error: {last_error}"
     print(f"❌ CRITICAL: {error_msg}")
-    
-    # Вызываем исключение вместо возврата Moscow
     raise ValueError(error_msg)
+
 
 def reverse_geocode(lat: float, lon: float) -> Dict[str, Any]:
     """Обратное геокодирование: координаты -> информация о месте"""
@@ -687,7 +678,7 @@ from app.schemas.schemas import (
     TransitRequest, SynastryRequestDirect, AnalysisRequest, AnalysisResponse,
     ParsedQuery, RelevantChunk
 )
-from app.schemas.analysis import PlanetAnalysisRequest, PlanetAnalysisResponse
+from app.schemas.analysis import PlanetAnalysisRequest, PlanetAnalysisResponse, FullAnalysisRequest
 from app.utils.astrology_v2 import (
     calculate_planet_positions, calculate_aspects,
     calculate_solar_return, calculate_synastry,
@@ -1447,3 +1438,84 @@ async def analyze_planet_endpoint(
     )
     
     return result
+
+
+@router.post("/analysis/full")
+async def full_chart_analysis_endpoint(request: FullAnalysisRequest):
+    """
+    Полный анализ натальной карты на основе всех книг (10+ страниц)
+    """
+    from app.services.analysis_service import full_chart_analysis as do_full_analysis
+    from datetime import datetime
+    
+    chart_data = None
+    
+    if request.chart_data:
+        chart_data = request.chart_data
+    elif request.birth_date:
+        if request.latitude is not None and request.longitude is not None:
+            lat, lon = request.latitude, request.longitude
+        else:
+            try:
+                lat, lon = get_coordinates(request.birth_place)
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=f"Cannot determine coordinates: {str(e)}")
+        
+        birth_datetime = request.birth_date
+        if request.birth_time:
+            try:
+                time_parts = request.birth_time.split(':')
+                hour = int(time_parts[0])
+                minute = int(time_parts[1]) if len(time_parts) > 1 else 0
+                birth_datetime = birth_datetime.replace(hour=hour, minute=minute)
+            except:
+                pass
+        
+        if request.timezone:
+            try:
+                from zoneinfo import ZoneInfo
+                tz = ZoneInfo(request.timezone)
+                if birth_datetime.tzinfo is None:
+                    birth_datetime = birth_datetime.replace(tzinfo=tz)
+            except:
+                pass
+        
+        chart = calculate_planet_positions(
+            birth_date=birth_datetime,
+            birth_place=request.birth_place,
+            lat=lat,
+            lon=lon,
+            timezone_str=request.timezone,
+            house_system=request.house_system or 'Placidus'
+        )
+        
+        aspects = calculate_aspects(chart['planets'])
+        
+        chart_data = {
+            'sun_sign': chart['sun_sign'],
+            'sun_sign_ru': chart['sun_sign_ru'],
+            'moon_sign': chart['moon_sign'],
+            'moon_sign_ru': chart['moon_sign_ru'],
+            'ascendant': chart['ascendant'],
+            'ascendant_ru': chart['ascendant_ru'],
+            'mc': chart['mc'],
+            'mc_ru': chart['mc_ru'],
+            'planets': chart['planets'],
+            'houses': {str(k): v for k, v in chart['houses'].items()},
+            'houses_meta': chart.get('houses_meta', {}),
+            'meta': chart.get('meta', {}),
+            'aspects': aspects,
+        }
+    
+    if not chart_data:
+        raise HTTPException(status_code=400, detail="Either chart_data or birth_date must be provided")
+    
+    result = await do_full_analysis(chart_data=chart_data, language=request.language, top_books=request.top_books)
+    
+    return {
+        'analysis': result['analysis'],
+        'book_analyses': result['book_analyses'],
+        'chart_summary': result['chart_summary'],
+        'language': result['language'],
+        'created_at': datetime.utcnow().isoformat()
+    }

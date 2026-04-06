@@ -79,3 +79,18 @@ class BookChunk(Base):
     word_count = Column(Integer, nullable=True)
     
     book = relationship("Book", back_populates="chunks")
+
+
+class FullChartAnalysis(Base):
+    __tablename__ = "full_chart_analyses"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    
+    full_analysis = Column(Text)
+    book_analyses = Column(JSONB)
+    
+    chart_data = Column(Text)
+    
+    language = Column(String, default="ru")
+    created_at = Column(DateTime, nullable=False)

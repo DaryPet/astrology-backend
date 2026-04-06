@@ -135,7 +135,7 @@ async def process_book_async(filename: str) -> Dict:
     # Сохраняем книгу в Supabase
     book_result = supabase.table("books").insert({
         "title": os.path.basename(filename).rsplit(".", 1)[0],
-        "content": text[:500],
+        "content": text,
         "format": parsed["format"],
         "language": parsed["language"]
     }).execute()

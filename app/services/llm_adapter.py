@@ -37,10 +37,11 @@ class OpenAIAdapter(LLMAdapter):
         
         try:
             response = await client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4.1-nano",
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.7,
-                max_tokens=2000,
+                temperature=0.1,
+                max_tokens=32768,
+                timeout=300,
             )
             return response.choices[0].message.content
         except Exception as e:
@@ -51,14 +52,25 @@ class OpenAIAdapter(LLMAdapter):
         if not client:
             return "LLM not configured"
         
+        # Добавляем язык в последнее сообщение если не en
+        if language and language != "en":
+            messages = messages.copy()
+            last_msg = messages[-1].copy()
+            if language == "ru":
+                last_msg["content"] = "ОТВЕТЬ НА РУССКОМ ЯЗЫКЕ.\n\n" + last_msg.get("content", "")
+            else:
+                last_msg["content"] = f"ОТВЕТЬ НА ЯЗЫКЕ: {language.upper()}.\n\n" + last_msg.get("content", "")
+            messages[-1] = last_msg
+        
         try:
             response = await client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4.1-nano",
                 messages=messages,
-                temperature=0.7,
-                max_tokens=2000,
+                temperature=0.9,
+                max_tokens=32768,
+                timeout=300,
             )
-            return response.choices[0].message.content
+            return response.choices[0].message.content or ""
         except Exception as e:
             return f"Error: {str(e)}"
 
@@ -84,10 +96,16 @@ class ClaudeAdapter(LLMAdapter):
         if not anthropic:
             return "Claude not configured or anthropic package not installed"
         
+        if language and language != "en":
+            if language == "ru":
+                prompt = "ОТВЕТЬ НА РУССКОМ ЯЗЫКЕ.\n\n" + prompt
+            else:
+                prompt = f"ОТВЕТЬ НА ЯЗЫКЕ: {language.upper()}.\n\n" + prompt
+        
         try:
             response = await anthropic.messages.create(
                 model="claude-3-haiku-20240307",
-                max_tokens=2000,
+                max_tokens=33000,
                 messages=[{"role": "user", "content": prompt}]
             )
             return response.content[0].text
