@@ -40,6 +40,11 @@ _geocode_cache = {}
 _reverse_geocode_cache = {}
 _cache_ttl = 3600  # 1 час
 
+# Кэш для анализа натальной карты (защита от повторных LLM вызовов)
+_analysis_cache = {}  # key: "birth_date|birth_place" -> (result_dict, timestamp)
+_ANALYSIS_CACHE_TTL = 300  # 5 минут
+_ANALYSIS_CACHE_MAX_SIZE = 1000  # макс 1000 записей
+
 def get_coordinates(place: str) -> tuple:
     """
     Получить точные координаты из названия места для астрологических расчетов
@@ -1444,9 +1449,30 @@ async def analyze_planet_endpoint(
 async def full_chart_analysis_endpoint(request: FullAnalysisRequest):
     """
     Полный анализ натальной карты на основе всех книг (10+ страниц)
+    
+    Защита от повторных LLM вызовов:
+    - Ключ = birth_date + birth_place
+    - Кэш действует 5 минут
     """
     from app.services.analysis_service import full_chart_analysis as do_full_analysis
     from datetime import datetime
+    
+    # === ПРОВЕРКА КЭША ===
+    cache_key = f"{request.birth_date}|{request.birth_place}"
+    
+    if cache_key in _analysis_cache:
+        cached_result, timestamp = _analysis_cache[cache_key]
+        if time.time() - timestamp < _ANALYSIS_CACHE_TTL:
+            # Кэш свежий! Возвращаем БЕЗ LLM вызова!
+            print(f"[CACHE] Returning cached analysis for {cache_key}")
+            return {
+                **cached_result,
+                "from_cache": True,
+                "cached_at": datetime.fromtimestamp(timestamp).isoformat()
+            }
+        else:
+            # Кэш истёк - удаляем
+            del _analysis_cache[cache_key]
     
     chart_data = None
     
@@ -1511,6 +1537,15 @@ async def full_chart_analysis_endpoint(request: FullAnalysisRequest):
         raise HTTPException(status_code=400, detail="Either chart_data or birth_date must be provided")
     
     result = await do_full_analysis(chart_data=chart_data, language=request.language, top_books=request.top_books)
+    
+    # === СОХРАНЯЕМ В КЭШ ===
+    # Очищаем старые записи если кэш полный
+    if len(_analysis_cache) >= _ANALYSIS_CACHE_MAX_SIZE:
+        oldest_key = next(iter(_analysis_cache))
+        del _analysis_cache[oldest_key]
+    
+    _analysis_cache[cache_key] = (result, time.time())
+    print(f"[CACHE] Saved analysis to cache: {cache_key}")
     
     return {
         'analysis': result['analysis'],
