@@ -65,12 +65,12 @@ class OpenAIAdapter(LLMAdapter):
         try:
             response = await client.chat.completions.create(
                 model="gpt-4.1-nano",
-                messages=messages,
-                temperature=0.9,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
                 max_tokens=32768,
                 timeout=300,
             )
-            return response.choices[0].message.content or ""
+            return response.choices[0].message.content
         except Exception as e:
             return f"Error: {str(e)}"
 

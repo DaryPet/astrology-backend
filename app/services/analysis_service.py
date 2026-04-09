@@ -373,10 +373,18 @@ async def analyze_planet(
 SYNTHESIS_PROMPTS = {
     'ru': """Ты эксперт по эволюционной астрологии (Джефф Грин, кармические узлы, трансформация души). Создай ГЛУБОКИЙ, ПОДРОБНЫЙ, ВСЕОБХЕМЛЮЩИЙ анализ натальной карты - как для лучшего друга, который хочет понять себя по-настоящему.
 
+**КРИТИЧЕСКИЕ ТРЕБОВАНИЯ - ЭТО НЕ ШУТКА:**
+
+1. ТЫ ДОЛЖЕН НАПИСАТЬ МИНИМУМ 10000 СЛОВ всего
+2. ДЛЯ КАЖДОЙ ПЛАНЕТЫ ты ДОЛЖЕН написать минимум 300-500 слов (для Плутона и Узлов - минимум 800 слов!)
+3. НЕ ОСТАНАВЛИВАЙСЯ пока не раскроешь ВСЕ 13 тем
+4. Думай глубоко о каждой планете - что это значит для жизни этого человека?
+5. Пиши как объясняешь другу, который ничего не знает об астрологии
+
 **ГЛАВНЫЕ ПРАВИЛА:**
 
 1. ПИШИ ГЛУБОКО - раскрой КАЖДУЮ планету полностью, не поверхностно
-2. ПИШИ ПОДРОБНО - минимум 10000 слов в итоге
+2. ПИШИ ПОДРОБНО - минимум 10000 слов в итоге - ЭТО ОБЯЗАТЕЛЬНО!
 3. ПИШИ ПОНЯТНО - простыми словами, без астрологического сленга
 4. НЕ используй технические термины, градусы, орбы - только: планета, знак, дом
 5. Используй ТОЛЬКО РЕАЛЬНЫЕ аспекты из списка. Если аспекта нет - НЕ выдумывай!
@@ -397,7 +405,7 @@ SYNTHESIS_PROMPTS = {
 9. **Марс** - как ты добиваешься целей, сексуальность, гнев
 10. **Юпитер** - удача, вера, расширение, философия
 11. **Уран и Нептун** - неожиданности, духовность, мечты
-12. **Все дома** - все сферы жизни кратко
+12. **Все дома** - для каждого дома укажи: какая сфера жизни акцентирована (1-дом: личность, 2-деньги, 3-общение, 4-дом/семья, 5-творчество, 6-работа, 7-партнёрство, 8-трансформация, 9-путешествия, 10-карьера, 11-мечты, 12-тайное). Если в доме есть планеты - напиши про них, если пустой - просто кратко о сфере. НЕ повторяй то что уже написал про планеты!
 13. **Что делать** - практические шаги для роста
 
 **ДЛЯ КАЖДОЙ ПЛАНЕТЫ:**
@@ -417,10 +425,18 @@ SYNTHESIS_PROMPTS = {
 
     'en': """You are an expert in EVOLUTIONARY ASTROLOGY (Jeff Green, karmic nodes, soul transformation). Create a DEEP, DETAILED, COMPREHENSIVE natal chart analysis - like for a best friend who really wants to understand themselves.
 
+**CRITICAL REQUIREMENTS - THIS IS NOT A JOKE:**
+
+1. YOU MUST WRITE AT LEAST 10000 WORDS total
+2. FOR EACH PLANET you MUST write minimum 300-500 words (for Pluto and Nodes - minimum 800 words!)
+3. DO NOT STOP until you have covered ALL 13 topics
+4. Think deeply about each planet - what does it mean for this person's life?
+5. Write like you're explaining to a friend who knows nothing about astrology
+
 **MAIN RULES:**
 
 1. WRITE DEEP - reveal EACH planet fully, not superficially
-2. WRITE DETAILED - minimum 10000 words in total
+2. WRITE DETAILED - minimum 10000 words in total - THIS IS MANDATORY!
 3. WRITE SIMPLY - in plain language, no astrological slang
 4. NO technical terms, degrees, orbs - only: planet, sign, house
 5. Use ONLY REAL aspects from the list. If an aspect is NOT in the list - DON'T make it up!
@@ -441,7 +457,7 @@ SYNTHESIS_PROMPTS = {
 9. **Mars** - how you achieve goals, sexuality, anger
 10. **Jupiter** - luck, faith, expansion, philosophy
 11. **Uranus and Neptune** - surprises, spirituality, dreams
-12. **All houses** - all life areas briefly
+12. **All houses** - for each house specify: which life area is emphasized (1st-house: personality, 2nd-money, 3rd-communication, 4th-home/family, 5th-creativity, 6th-work, 7th-partnership, 8th-transformation, 9th-travel, 10th-career, 11th-dreams, 12th-hidden). If a house has planets - write about them, if empty - just briefly about the area. DO NOT repeat what you already wrote about planets!
 13. **What to do** - practical steps for growth
 
 **FOR EACH PLANET:**
