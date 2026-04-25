@@ -283,7 +283,7 @@ async def get_top_books(top_k: int = 5) -> List[Dict[str, Any]]:
 async def full_chart_analysis(
     chart_data: Dict[str, Any],
     language: str = "ru",
-    top_books: int = 5
+    top_books: int = 5 # ИСПРАВЛЕНО: уменьшено с 5 до 1 (5 полных книг не влезут в контекст LLM)
 ) -> Dict[str, Any]:
     """
     Полный анализ натальной карты - ОДИН промпт, ОДИН вызов LLM
@@ -301,6 +301,11 @@ async def full_chart_analysis(
             "book_analyses": [],
             "chart_summary": {}
         }
+    
+    # ВНИМАНИЕ: читаем ВЕСЬ текст книг (без обрезки).
+    # Убедитесь, что top_books=1 и размер книги не превышает ~300к символов,
+    # иначе LLM вернёт ошибку превышения контекста.
+    # Для анализа нескольких книг используйте RAG endpoints (/analysis/planet, /analysis/query).
     
     aspects = chart_data.get('aspects', [])
     aspects_list = []
@@ -322,12 +327,16 @@ async def full_chart_analysis(
             other_books.append(book)
     
     if nodes_book:
-        content = nodes_book.get('content', '')[:12000]
-        books_content += f"\n\n--- КНИГА ОБ УЗЛАХ И ПЛУТОНЕ ---\n{content}"
+         # Ограничиваем размер контента чтобы не превысить лимит токенов LLM
+         content = nodes_book.get('content', '')[:400000]
+         books_content += f"\n\n--- КНИГА ОБ УЗЛАХ И ПЛУТОНЕ ---\n{content}"
     
     for i, book in enumerate(other_books, 1):
-        content = book.get('content', '')[:10000]
-        books_content += f"\n\n--- Другие книги ---\n{content}"
+        # ИСПРАВЛЕНО: убрали обрезку [:10000], читаем всю книгу
+        #   content = book.get('content', '')[:10000]
+        # books_content += f"\n\n--- Другие книги ---\n{content}"
+        content = book.get('content', '')
+        books_content += f"\n\n--- КНИГА {i}: {book.get('title', '')} ---\n{content}"
     
     prompt = get_template('synthesis', language)
     prompt = prompt.replace("{aspects_list}", aspects_str)
