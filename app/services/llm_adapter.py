@@ -37,10 +37,12 @@ class OpenAIAdapter(LLMAdapter):
         
         try:
             response = await client.chat.completions.create(
+                # model="gpt-5.5",
                 model="gpt-4.1-nano",
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.1,
-                max_tokens=32768,
+                    temperature=1,
+                    # temperature=0.1,
+                    # max_tokens=1000000,
                 timeout=300,
             )
             return response.choices[0].message.content
@@ -65,6 +67,7 @@ class OpenAIAdapter(LLMAdapter):
         try:
             response = await client.chat.completions.create(
                 model="gpt-4.1-nano",
+                # model="gpt-5.5",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
                 max_tokens=32768,
