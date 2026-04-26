@@ -59,7 +59,39 @@ class BookAnalysisResult(BaseModel):
 class FullAnalysisResponse(BaseModel):
     """Ответ с полным анализом натальной карты"""
     analysis: str
+    summary: Optional[str] = None
     book_analyses: List[BookAnalysisResult]
     chart_summary: Dict[str, Any]
     language: str
     created_at: datetime
+
+
+class SummaryRequest(BaseModel):
+    """Запрос на генерацию краткого резюме"""
+    text: str
+    language: str = "en"
+
+
+class SummaryResponse(BaseModel):
+    """Ответ с кратким резюме"""
+    summary: str
+
+class ChatMessage(BaseModel):
+    """Одно сообщение в истории чата"""
+    role: str  # "user" или "assistant"
+    content: str
+
+
+class ChatRequest(BaseModel):
+    """Запрос к астрологу-агенту"""
+    question: str
+    chart_data: Dict[str, Any]
+    full_analysis: str
+    chat_history: List[ChatMessage] = []
+    language: str = "ru"
+
+
+class ChatResponse(BaseModel):
+    """Ответ астролога-агента"""
+    answer: str
+    relevant_chunks: List[Dict[str, Any]] = []

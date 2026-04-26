@@ -700,6 +700,34 @@ async def search_chunks_all_books(
         return []
 
 
+async def generate_summary(text: str, language: str = "ru") -> str:
+    """
+    Generate a short summary (~500 characters) from the given text using LLM.
+    Falls back to truncated text if LLM fails.
+    """
+    from app.services.llm_adapter import get_llm_adapter
+
+    adapter = get_llm_adapter()
+    # Truncate input to avoid excessive token usage
+    max_input = 100000
+    truncated = text[:max_input]
+
+    if language == "ru":
+        prompt = f"Сделай краткое резюме этого анализа на 500 символов:\n{truncated}"
+    else:
+        prompt = f"Summarize this analysis in about 500 characters:\n{truncated}"
+
+    try:
+        summary = await adapter.generate(prompt, language)
+        # Cap summary length
+        if len(summary) > 600:
+            summary = summary[:600].rsplit('. ', 1)[0]
+        return summary
+    except Exception as e:
+        print(f"Error generating summary: {e}")
+        return truncated[:500]
+
+
 async def full_chart_analysis_v2(
     chart_data: Dict[str, Any],
     language: str = "ru",
@@ -843,8 +871,12 @@ async def full_chart_analysis_v2(
     except Exception as e:
         full_analysis = f"Ошибка анализа: {str(e)}"
 
+    # --- Шаг 5: Генерация краткого резюме (summary) ---
+    summary = await generate_summary(full_analysis, language)
+
     return {
         "analysis": full_analysis,
+        "summary": summary,
         "book_analyses": [],
         "chart_summary": {
             "sun_sign": chart_data.get("sun_sign", "?"),
@@ -994,4 +1026,178 @@ async def full_chart_analysis(
         "book_analyses": [{"title": b["title"], "analysis": "Использован в общем анализе"} for b in books],
         "chart_summary": chart_summary,
         "language": language
+    }
+    
+
+
+# ТУТ КОНЕЦ full_chart_analysis ↑
+
+async def chat_with_astrologer(
+    question: str,
+    chart_data: Dict[str, Any],
+    full_analysis: str,
+    chat_history: List[Dict[str, str]],
+    language: str = "ru"
+) -> Dict[str, Any]:
+    """
+    Чат с астрологом-агентом — ГИБРИДНЫЙ подход
+    """
+    import asyncio
+
+    adapter = get_llm_adapter()
+    planets = chart_data.get("planets", {})
+
+    async def search_question():
+        return await search_chunks_by_query(question, top_k=10, chart_data=chart_data)
+
+    async def search_planet(planet_name: str, planet_data: Dict) -> tuple:
+        sign = planet_data.get("sign", "")
+        house = planet_data.get("house", "")
+        query = f"{planet_name.lower()} house {house} {sign.lower()}"
+        chunks = await search_chunks_all_books(query, top_k_per_book=2)
+        return planet_name, chunks
+
+    planet_tasks = [search_planet(name, data) for name, data in planets.items()]
+    question_chunks, *planet_results = await asyncio.gather(
+        search_question(),
+        *planet_tasks,
+        return_exceptions=True
+    )
+
+    question_context = ""
+    if question_chunks and not isinstance(question_chunks, Exception):
+        question_context = "\n=== ФРАГМЕНТЫ ПО ВОПРОСУ ===\n"
+        for i, chunk in enumerate(question_chunks, 1):
+            text = chunk.get("text", "")
+            book_title = chunk.get("book_title", "")
+            question_context += f"[{i}] ({book_title}):\n{text}\n"
+
+    planet_context = ""
+    for result in planet_results:
+        if isinstance(result, Exception):
+            continue
+        planet_name, chunks = result
+        if chunks:
+            planet_context += f"\n【{planet_name.upper()}】\n"
+            for i, chunk in enumerate(chunks, 1):
+                text = chunk.get("text", "")
+                book_title = chunk.get("book_title", "")
+                planet_context += f"[{i}] ({book_title}):\n{text}\n"
+
+    books_context = f"{question_context}\n=== ФРАГМЕНТЫ ПО ПЛАНЕТАМ ===\n{planet_context}"
+
+    planets_summary = ""
+    for planet_name, planet_data in planets.items():
+        sign = planet_data.get("sign", "?")
+        sign_ru = planet_data.get("sign_ru", sign)
+        house = planet_data.get("house", "?")
+        degree = round(planet_data.get("degree", 0), 1)
+        retro = " (Rx)" if planet_data.get("is_retrograde") else ""
+        planets_summary += f"  {planet_name}: {sign_ru} {degree}° дом {house}{retro}\n"
+
+    system_prompt = f"""You are a personal astrologer. You have already done a full analysis of this person's natal chart and now answer their questions.
+
+=== NATAL CHART ===
+Sun: {chart_data.get('sun_sign_ru', chart_data.get('sun_sign', '?'))}
+Moon: {chart_data.get('moon_sign_ru', chart_data.get('moon_sign', '?'))}
+Ascendant: {chart_data.get('ascendant_ru', chart_data.get('ascendant', '?'))}
+MC: {chart_data.get('mc_ru', chart_data.get('mc', '?'))}
+
+PLANETS:
+{planets_summary}
+
+=== FULL CHART ANALYSIS ===
+{full_analysis}
+
+=== KNOWLEDGE FROM ASTROLOGY BOOKS ===
+{books_context}
+
+RULES:
+- Answer personally — you know this chart
+- Use book fragments as knowledge source
+- Answer in the language of the user's question
+- Be specific, not general
+- Remember the full conversation history
+- Do NOT make up book titles or authors"""
+
+    messages = [{"role": "system", "content": system_prompt}]
+    for msg in chat_history:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+    messages.append({"role": "user", "content": question})
+
+    answer = await adapter.generate_with_messages(messages, language)
+
+    return {
+        "answer": answer,
+        "relevant_chunks": question_chunks if not isinstance(question_chunks, Exception) else []
+    }
+
+
+async def chat_with_astrologer_optimized(
+    question: str,
+    chart_data: Dict[str, Any],
+    language: str = "ru",
+    top_k: int = 5
+) -> Dict[str, Any]:
+    """
+    Оптимизированный чат с астрологом — только вопрос и карта,
+    без full_analysis и chat_history. Быстрый RAG-ответ.
+    """
+    from app.services.llm_adapter import get_llm_adapter
+    from app.services.prompt_labels import get_labels
+    from app.services.prompt_templates import get_template
+
+    adapter = get_llm_adapter()
+    labels = get_labels(language)
+
+    # 1. Краткая сводка карты (только ключевые позиции)
+    chart_summary = f"""{labels.get('natal_chart_label', 'НАТАЛЬНАЯ КАРТА')}
+Солнце: {chart_data.get('sun_sign_ru', chart_data.get('sun_sign', '?'))}
+Луна: {chart_data.get('moon_sign_ru', chart_data.get('moon_sign', '?'))}
+Асцендент: {chart_data.get('ascendant_ru', chart_data.get('ascendant', '?'))}"""
+
+    planets = chart_data.get("planets", {})
+    if planets:
+        chart_summary += f"\n{labels.get('planets', 'ПЛАНЕТЫ')}:"
+        for planet_name, planet_data in sorted(planets.items()):
+            sign = planet_data.get("sign", "?")
+            sign_ru = planet_data.get("sign_ru", sign)
+            house = planet_data.get("house", "?")
+            retro = " (Rx)" if planet_data.get("is_retrograde") else ""
+            chart_summary += f"\n  {planet_name}: {sign_ru} дом {house}{retro}"
+
+    # 2. Поиск релевантных чанков по вопросу
+    chunks = await search_chunks_by_query(question, top_k=top_k, chart_data=chart_data)
+
+    # 3. Сборка промпта
+    prompt_parts = []
+    system_prompt = get_template('analysis', language)
+    prompt_parts.append(system_prompt)
+
+    prompt_parts.append(f"\n\n{labels['query']}")
+    prompt_parts.append(question)
+
+    prompt_parts.append(f"\n\n{chart_summary}")
+
+    if chunks:
+        prompt_parts.append(f"\n\n{labels['found_fragments']}")
+        for i, chunk in enumerate(chunks, 1):
+            text = chunk.get('text', '')
+            if len(text) > 600:
+                text = text[:600] + "..."
+            book_title = chunk.get('book_title', '')
+            book_info = f" ({book_title})" if book_title else ""
+            prompt_parts.append(f"\n[{labels['fragment']} {i}]{book_info}:\n{text}")
+
+    prompt_parts.append(f"\n\n{labels['analysis']}")
+    prompt_parts.append(labels.get('please_analyze', 'Answer the question based on the chart and book fragments.'))
+
+    prompt = "".join(prompt_parts)
+
+    # 4. Генерация ответа
+    answer = await adapter.generate(prompt, language)
+
+    return {
+        "answer": answer,
+        "relevant_chunks": chunks
     }

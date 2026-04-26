@@ -246,7 +246,7 @@ class DeepSeekAdapter(LLMAdapter):
         try:
             response = await client.chat.completions.create(
                 # model="deepseek-chat",  # это DeepSeek V3
-                model="deepseek-v4-pro",  # это DeepSeek V4
+                model="deepseek-v4-flash",  # это DeepSeek V4
                 messages=[{"role": "user", "content": prompt}],
                 temperature=1,
                 # max_tokens=8000,
@@ -261,7 +261,7 @@ class DeepSeekAdapter(LLMAdapter):
         client = self._get_client()
         try:
             response = await client.chat.completions.create(
-                model="deepseek-v4-pro",
+                model="deepseek-v4-flash",  # это DeepSeek V4 Flash
                 messages=messages,
                 temperature=1,
                 # max_tokens=32768,
