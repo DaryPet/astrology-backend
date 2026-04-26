@@ -1454,7 +1454,7 @@ async def full_chart_analysis_endpoint(request: FullAnalysisRequest):
     - Ключ = birth_date + birth_place
     - Кэш действует 5 минут
     """
-    from app.services.analysis_service import full_chart_analysis as do_full_analysis
+    from app.services.analysis_service import full_chart_analysis_v2 as do_full_analysis
     from datetime import datetime
     
     # === ПРОВЕРКА КЭША ===
@@ -1536,7 +1536,8 @@ async def full_chart_analysis_endpoint(request: FullAnalysisRequest):
     if not chart_data:
         raise HTTPException(status_code=400, detail="Either chart_data or birth_date must be provided")
     
-    result = await do_full_analysis(chart_data=chart_data, language=request.language, top_books=request.top_books)
+    # result = await do_full_analysis(chart_data=chart_data, language=request.language, top_books=request.top_books)
+    result = await do_full_analysis(chart_data=chart_data, language=request.language)
     
     # === СОХРАНЯЕМ В КЭШ ===
     # Очищаем старые записи если кэш полный
