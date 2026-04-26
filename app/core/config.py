@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: Optional[str] = None
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     GEMINI_API_KEY: Optional[str] = None
+    DEEPSEEK_API_KEY: Optional[str] = None
     
     # Authentication settings (optional - for future use)
     SECRET_KEY: Optional[str] = None

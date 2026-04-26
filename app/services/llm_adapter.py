@@ -18,7 +18,7 @@ class LLMAdapter(ABC):
         pass
 
 
-class OpenAIAdapter(LLMAdapter):
+# class OpenAIAdapter(LLMAdapter):
     """Адаптер для OpenAI GPT"""
     
     def __init__(self):
@@ -42,7 +42,7 @@ class OpenAIAdapter(LLMAdapter):
                 messages=[{"role": "user", "content": prompt}],
                     temperature=1,
                     # temperature=0.1,
-                    # max_tokens=1000000,
+                    max_tokens=32768,
                 timeout=300,
             )
             return response.choices[0].message.content
@@ -226,9 +226,53 @@ class FallbackAdapter(LLMAdapter):
     async def generate_with_messages(self, messages: List[Dict[str, str]], language: str = "en") -> str:
         return "LLM not configured. Please set LLM_PROVIDER in .env file."
 
+class DeepSeekAdapter(LLMAdapter):
+    """Адаптер для DeepSeek"""
+    
+    def __init__(self):
+        self.client = None
+    
+    def _get_client(self):
+        if self.client is None:
+            from openai import AsyncOpenAI
+            self.client = AsyncOpenAI(
+                api_key=settings.DEEPSEEK_API_KEY,
+                base_url="https://api.deepseek.com"
+            )
+        return self.client
+    
+    async def generate(self, prompt: str, language: str = "en") -> str:
+        client = self._get_client()
+        try:
+            response = await client.chat.completions.create(
+                # model="deepseek-chat",  # это DeepSeek V3
+                model="deepseek-v4-pro",  # это DeepSeek V4
+                messages=[{"role": "user", "content": prompt}],
+                temperature=1,
+                # max_tokens=8000,
+                # max_tokens=32768,
+                timeout=300,
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            return f"Error: {str(e)}"
+    
+    async def generate_with_messages(self, messages, language: str = "en") -> str:
+        client = self._get_client()
+        try:
+            response = await client.chat.completions.create(
+                model="deepseek-v4-pro",
+                messages=messages,
+                temperature=1,
+                # max_tokens=32768,
+                timeout=300,
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            return f"Error: {str(e)}"
 
 _adapters = {
-    'openai': OpenAIAdapter,
+    'deepseek': DeepSeekAdapter,
     'claude': ClaudeAdapter,
     'ollama': OllamaAdapter,
     'gemini': GeminiAdapter,

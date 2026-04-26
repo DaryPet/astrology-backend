@@ -700,7 +700,7 @@ if __name__ == "__main__":
     print()
     print("=== Аспекты ===")
     aspects = calculate_aspects(chart['planets'])
-    for asp in aspects[:10]:
+    for asp in aspects:
         print(f"{asp['planet1']} {asp['aspect_ru']} {asp['planet2']} (orb: {asp['orb']}°)")
     
     print()
