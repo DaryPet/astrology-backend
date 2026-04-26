@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Optional
 # Initialize Swiss Ephemeris via helper (sets Moshier mode)
 from app import swephelper
 from app.db.database import get_db
-from app.models.models import User, NatalChart, ChartInterpretation, Book, BookChunk
+from app.models.models import User, NatalChart, ChartInterpretation, Book, BookChunk, FullChartAnalysis
 from app.schemas.schemas import (
     UserCreate, UserResponse, NatalChartCreate, NatalChartResponse,
     InterpretationCreate, InterpretationResponse, BookCreate, BookResponse,
@@ -675,7 +675,7 @@ from datetime import datetime
 from app import swephelper
 
 from app.db.database import get_db
-from app.models.models import User, NatalChart, ChartInterpretation, Book
+from app.models.models import User, NatalChart, ChartInterpretation, Book, FullChartAnalysis
 from app.schemas.schemas import (
     UserCreate, UserResponse, NatalChartCreate, NatalChartResponse,
     InterpretationCreate, InterpretationResponse, BookCreate, BookResponse,
@@ -683,7 +683,7 @@ from app.schemas.schemas import (
     TransitRequest, SynastryRequestDirect, AnalysisRequest, AnalysisResponse,
     ParsedQuery, RelevantChunk
 )
-from app.schemas.analysis import PlanetAnalysisRequest, PlanetAnalysisResponse, FullAnalysisRequest
+from app.schemas.analysis import PlanetAnalysisRequest, PlanetAnalysisResponse, FullAnalysisRequest, ChatRequest, ChatResponse, SummaryRequest, SummaryResponse
 from app.utils.astrology_v2 import (
     calculate_planet_positions, calculate_aspects,
     calculate_solar_return, calculate_synastry,
@@ -1446,7 +1446,7 @@ async def analyze_planet_endpoint(
 
 
 @router.post("/analysis/full")
-async def full_chart_analysis_endpoint(request: FullAnalysisRequest):
+async def full_chart_analysis_endpoint(request: FullAnalysisRequest, db: AsyncSession = Depends(get_db)):
     """
     Полный анализ натальной карты на основе всех книг (10+ страниц)
     
@@ -1536,8 +1536,24 @@ async def full_chart_analysis_endpoint(request: FullAnalysisRequest):
     if not chart_data:
         raise HTTPException(status_code=400, detail="Either chart_data or birth_date must be provided")
     
-    # result = await do_full_analysis(chart_data=chart_data, language=request.language, top_books=request.top_books)
     result = await do_full_analysis(chart_data=chart_data, language=request.language)
+    
+    # === СОХРАНЯЕМ В БД ===
+    try:
+        db_analysis = FullChartAnalysis(
+            user_id=None,  # TODO: получить из аутентификации
+            full_analysis=result['analysis'],
+            summary=result.get('summary', ''),
+            book_analyses=result.get('book_analyses', []),
+            chart_data=json.dumps(chart_data),
+            language=result.get('language', 'ru'),
+            created_at=datetime.utcnow()
+        )
+        db.add(db_analysis)
+        await db.commit()
+        await db.refresh(db_analysis)
+    except Exception as e:
+        print(f"Error saving analysis to DB: {e}")
     
     # === СОХРАНЯЕМ В КЭШ ===
     # Очищаем старые записи если кэш полный
@@ -1550,8 +1566,46 @@ async def full_chart_analysis_endpoint(request: FullAnalysisRequest):
     
     return {
         'analysis': result['analysis'],
+        'summary': result.get('summary', ''),
         'book_analyses': result['book_analyses'],
         'chart_summary': result['chart_summary'],
         'language': result['language'],
         'created_at': datetime.utcnow().isoformat()
     }
+
+
+@router.post("/generate-summary", response_model=SummaryResponse)
+async def generate_summary_endpoint(request: SummaryRequest):
+    """
+    Generate a short summary from the provided text.
+    This endpoint is used by the frontend to create summaries of analysis.
+    """
+    from app.services.analysis_service import generate_summary
+    
+    summary = await generate_summary(request.text, request.language)
+    
+    return {"summary": summary}
+
+
+@router.post("/analysis/chat")
+async def chat_with_astrologer_endpoint(request: ChatRequest) -> ChatResponse:
+    """
+    Чат с персональным астрологом-агентом.
+    - Гибридный RAG: поиск по книгам по вопросу + по планетам
+    - Учитывает историю диалога
+    - Отвечает в контексте натальной карты и полного анализа
+    """
+    from app.services.analysis_service import chat_with_astrologer
+
+    result = await chat_with_astrologer(
+        question=request.question,
+        chart_data=request.chart_data,
+        full_analysis=request.full_analysis,
+        chat_history=[msg.dict() for msg in request.chat_history],
+        language=request.language
+    )
+
+    return ChatResponse(
+        answer=result["answer"],
+        relevant_chunks=result["relevant_chunks"]
+    )
