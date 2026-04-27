@@ -1035,7 +1035,7 @@ async def full_chart_analysis(
 async def chat_with_astrologer(
     question: str,
     chart_data: Dict[str, Any],
-    full_analysis: str,
+    summary: str,
     chat_history: List[Dict[str, str]],
     language: str = "ru"
 ) -> Dict[str, Any]:
@@ -1106,8 +1106,8 @@ MC: {chart_data.get('mc_ru', chart_data.get('mc', '?'))}
 PLANETS:
 {planets_summary}
 
-=== FULL CHART ANALYSIS ===
-{full_analysis}
+=== SUMMARY ===
+{summary}
 
 === KNOWLEDGE FROM ASTROLOGY BOOKS ===
 {books_context}

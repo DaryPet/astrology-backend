@@ -1600,7 +1600,7 @@ async def chat_with_astrologer_endpoint(request: ChatRequest) -> ChatResponse:
     result = await chat_with_astrologer(
         question=request.question,
         chart_data=request.chart_data,
-        full_analysis=request.full_analysis,
+        summary=request.summary,
         chat_history=[msg.dict() for msg in request.chat_history],
         language=request.language
     )
