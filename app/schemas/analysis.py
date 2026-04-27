@@ -86,7 +86,7 @@ class ChatRequest(BaseModel):
     """Запрос к астрологу-агенту"""
     question: str
     chart_data: Dict[str, Any]
-    full_analysis: str
+    summary: str
     chat_history: List[ChatMessage] = []
     language: str = "ru"
 
