@@ -584,7 +584,9 @@ async def analyze_planet(
         'mars': 'марс', 'mercury': 'меркурий', 'jupiter': 'юпитер',
         'sun': 'солнце', 'moon': 'луна', 'uranus': 'уран',
         'neptune': 'нептун', 'north node': 'раху', 'south node': 'кету',
-        'lilith': 'лилит', 'chiron': 'хирон', 'nnode': 'раху', 'snode': 'кету'
+        'lilith': 'лилит', 'chiron': 'хирон', 'nnode': 'раху', 'snode': 'кету',
+        'ft': 'pars fortuna', 'fortuna': 'pars fortuna', 'pars fortuna': 'pars fortuna',
+        'part of fortune': 'pars fortuna', 'парс фортуны': 'pars fortuna'
     }
     
     SIGN_TO_RU = {
@@ -596,30 +598,39 @@ async def analyze_planet(
     
     planet_ru = PLANET_TO_RU.get(planet.lower(), planet)
     sign_ru = SIGN_TO_RU.get(sign.lower(), '') if sign else ''
+
+    # Use proper name for display and search
+    pars_fortuna_names = ['ft', 'fortuna', 'pars fortuna', 'part of fortune', 'парс фортуны']
+    if planet.lower() in pars_fortuna_names:
+        display_planet = "Pars Fortuna (Парс Фортуны)"
+        search_planet = "pars fortuna"
+    else:
+        display_planet = planet
+        search_planet = planet.lower()
     
     book_id = PLANET_TO_BOOK_ID.get(planet.capitalize())
     if not book_id:
         book_id = None
     
     house_words = {
-        1: 'first', 2: 'second', 3: 'third', 4: 'fourth', 5: 'fifth', 
-        6: 'sixth', 7: 'seventh', 8: 'eighth', 9: 'ninth', 
-        10: 'tenth', 11: 'eleventh', 12: 'twelfth'
+        1: 'first', 2: 'second', 3: 'third', 4: 'fourth', 
+        5: 'fifth', 6: 'sixth', 7: 'seventh', 8: 'eighth', 
+        9: 'ninth', 10: 'tenth', 11: 'eleventh', 12: 'twelfth'
     }
     house_word = house_words.get(house, str(house))
     
     if sign:
-        query = f"{planet.lower()} {house_word} house {sign.lower()}"
+        query = f"{search_planet} {house_word} house {sign.lower()}"
     else:
-        query = f"{planet.lower()} {house_word} house"
+        query = f"{search_planet} {house_word} house"
     
     chunks = await search_chunks_by_query(query, top_k=top_k, book_id=book_id)
-    
+
     if not chunks:
         chunks = await search_chunks_simple(query, top_k=top_k)
-    
+
     prompt = build_planet_analysis_prompt(
-        planet=planet,
+        planet=display_planet,
         sign=sign,
         degree=degree,
         house=house,
@@ -755,6 +766,7 @@ async def full_chart_analysis_v2(
     planets = chart_data.get("planets", {})
     aspects = chart_data.get("aspects", [])
     houses = chart_data.get("houses", {})
+    houses_meta = chart_data.get("houses_meta", {})
 
     HOUSE_WORDS = {
         1: "first", 2: "second", 3: "third", 4: "fourth",
@@ -767,7 +779,9 @@ async def full_chart_analysis_v2(
         sign = planet_data.get("sign", "")
         house = planet_data.get("house", "")
         house_word = HOUSE_WORDS.get(house, str(house))
-        query = f"{planet_name.lower()} {house_word} house {sign.lower()}"
+        # Handle Pars Fortuna
+        search_name = "pars fortuna" if planet_name.lower() in ["ft", "pars fortuna", "part of fortune", "fortuna", "парс фортуны"] else planet_name.lower()
+        query = f"{search_name} {house_word} house {sign.lower()}"
         chunks = await search_chunks_all_books(query, top_k_per_book=top_k_per_book)
         return planet_name, chunks
 
@@ -784,6 +798,15 @@ async def full_chart_analysis_v2(
 
     planet_tasks = [search_planet(name, data) for name, data in planets.items()]
     aspect_tasks = [search_aspect(asp) for asp in aspects]  # Топ-10 аспектов
+
+    # Add Pars Fortuna search task
+    pf = houses_meta.get('pars_fortuna', {})
+    if pf:
+        async def search_pars_fortuna():
+            query = "pars fortuna (парс фортуны) дом"
+            chunks = await search_chunks_all_books(query, top_k_per_book=top_k_per_book)
+            return "Pars Fortuna", chunks
+        planet_tasks.append(search_pars_fortuna())
 
     planet_results = await asyncio.gather(*planet_tasks, return_exceptions=True)
     aspect_results = await asyncio.gather(*aspect_tasks, return_exceptions=True)
@@ -855,6 +878,14 @@ async def full_chart_analysis_v2(
         is_retro = planet_data.get("is_retrograde", False)
         rx_str = " (ретроградная)" if is_retro else ""
         prompt += f"\n{planet_name}: в {sign_ru}, {labels.get('house', 'дом')} {house}{rx_str}"
+
+    # Add Pars Fortuna
+    pf = houses_meta.get('pars_fortuna', {})
+    if pf:
+        pf_sign = pf.get('sign', '?')
+        pf_sign_ru = pf.get('sign_ru', pf_sign)
+        pf_house = pf.get('house', '?')
+        prompt += f"\nPars Fortuna (Парс Фортуны): в {pf_sign_ru}, дом {pf_house}"
 
     prompt += f"\n=== {labels.get('houses', 'ДОМА')} ==="
     for house_num in range(1, 13):
