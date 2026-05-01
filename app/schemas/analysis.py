@@ -95,3 +95,49 @@ class ChatResponse(BaseModel):
     """Ответ астролога-агента"""
     answer: str
     relevant_chunks: List[Dict[str, Any]] = []
+class ChartRequest(BaseModel):
+    """Запрос на данные одной карты (для синастрии)"""
+    birth_date: datetime
+    birth_time: Optional[str] = None
+    birth_place: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    timezone: Optional[str] = None
+    house_system: Optional[str] = "Placidus"
+
+
+class SynastryAnalysisRequest(BaseModel):
+    """Запрос на полный анализ синастрии"""
+    chart1: ChartRequest
+    chart2: ChartRequest
+    language: Optional[str] = None
+    top_k_per_book: int = 3
+
+
+class SynastryAnalysisResponse(BaseModel):
+    """Ответ с анализом синастрии"""
+    chart1_summary: Dict[str, Any]
+    chart2_summary: Dict[str, Any]
+    aspects: List[Dict[str, Any]]
+    analysis: str
+    summary: Optional[str] = None
+    relevant_chunks: List[Dict[str, Any]] = []
+    language: str
+    created_at: datetime
+
+
+class SynastryChatRequest(BaseModel):
+    """Запрос к астрологу-агенту по синастрии"""
+    question: str
+    chart1_data: Dict[str, Any]
+    chart2_data: Dict[str, Any]
+    synastry_aspects: List[Dict[str, Any]]
+    full_analysis: Optional[str] = None
+    chat_history: List[ChatMessage] = []
+    language: Optional[str] = None
+
+
+class SynastryChatResponse(BaseModel):
+    """Ответ астролога-агента по синастрии"""
+    answer: str
+    relevant_chunks: List[Dict[str, Any]] = []

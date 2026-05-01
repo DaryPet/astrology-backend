@@ -178,6 +178,78 @@ If an aspect is NOT in the list - DON'T make it up!
 Write in English. Deep, detailed, simple.""",
 }
 
+SYNASTRY_PROMPTS = {
+    'ru': """Ты эксперт по эволюционной астрологии и синастрии (Джефф Грин, Плутон, кармические узлы).
+Создай ГЛУБОКИЙ анализ синастрии (совместимости) двух людей.
+
+**КРИТИЧЕСКИЕ ТРЕБОВАНИЯ:**
+1. Используй книгу Джеффа Грина о Плутоне и эволюционной астрологии как ОСНОВНУЮ
+2. Анализируй кармические связи, душевные контракты, эволюционный потенциал
+3. Пиши подробно, минимум 3000 слов
+4. Простым языком, без сложного сленга
+
+**СТРУКТУРА АНАЛИЗА:**
+
+1. **ОБЩАЯ КАРМИЧЕСКАЯ СВЯЗЬ** - зачем эти души встретились?
+2. **ПЛУТОН В СИНАСТРИИ** - главные трансформации, глубинные паттерны (минимум 800 слов!)
+3. **УЗЛЫ В СИНАСТРИИ** - прошлые жизни, душевный контракт
+4. **СОЛНЦЕ-ЛУНА** - эмоциональный фундамент отношений
+5. **АСЦЕНДЕНТЫ** - как партнеры видят друг друга
+6. **ВЕНЕРА И МАРС** - любовь, страсть, сексуальность
+7. **САТУРН** - стабильность, уроки, ограничения
+8. **КАРМИЧЕСКИЕ АСПЕКТЫ** - соединения, оппозиции, квадратуры между тяжелыми планетами
+9. **ЧТО ДЕЛАТЬ** - практические рекомендации для пары
+
+**АСПЕКТЫ СИНАСТРИИ:**
+{aspects_list}
+
+**ИНФОРМАЦИЯ ИЗ КНИГ ДЖЕФФА ГРИНА:**
+{books_content}
+
+**ДАННЫЕ ПЕРВОЙ КАРТЫ:**
+{sun_sign_1} {moon_sign_1} {ascendant_1}
+
+**ДАННЫЕ ВТОРОЙ КАРТЫ:**
+{sun_sign_2} {moon_sign_2} {ascendant_2}
+
+Пиши на русском. Глубоко, подробно, понятно.""",
+
+    'en': """You are an expert in evolutionary astrology and synastry (Jeff Green, Pluto, karmic nodes).
+Create a DEEP analysis of synastry (compatibility) between two people.
+
+**CRITICAL REQUIREMENTS:**
+1. Use Jeff Green's book on Pluto and evolutionary astrology as PRIMARY source
+2. Analyze karmic connections, soul contracts, evolutionary potential
+3. Write detailed, minimum 3000 words
+4. In simple language, no complex slang
+
+**ANALYSIS STRUCTURE:**
+
+1. **OVERALL KARMIC CONNECTION** - why did these souls meet?
+2. **PLUTO IN SYNASTRY** - main transformations, deep patterns (minimum 800 words!)
+3. **NODES IN SYNASTRY** - past lives, soul contract
+4. **SUN-MOON** - emotional foundation of relationship
+5. **ASCENDANTS** - how partners see each other
+6. **VENUS AND MARS** - love, passion, sexuality
+7. **SATURN** - stability, lessons, limitations
+8. **KARMIC ASPECTS** - conjunctions, oppositions, squares between heavy planets
+9. **WHAT TO DO** - practical recommendations for the couple
+
+**SYNASTRY ASPECTS:**
+{aspects_list}
+
+**FROM JEFF GREEN'S BOOKS:**
+{books_content}
+
+**CHART 1 DATA:**
+{sun_sign_1} {moon_sign_1} {ascendant_1}
+
+**CHART 2 DATA:**
+{sun_sign_2} {moon_sign_2} {ascendant_2}
+
+Write in English. Deep, detailed, simple.""",
+}
+
 
 def get_template(name: str, language: str) -> str:
     """Получить промпт по имени с fallback"""
@@ -185,6 +257,7 @@ def get_template(name: str, language: str) -> str:
         'analysis': ANALYSIS_PROMPTS,
         'planet': PLANET_PROMPTS,
         'synthesis': SYNTHESIS_PROMPTS,
+        'synastry': SYNASTRY_PROMPTS,
     }
     prompts = templates.get(name, ANALYSIS_PROMPTS)
     return prompts.get(language, prompts['en'])
