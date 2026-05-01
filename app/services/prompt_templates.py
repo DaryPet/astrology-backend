@@ -178,6 +178,48 @@ If an aspect is NOT in the list - DON'T make it up!
 Write in English. Deep, detailed, simple.""",
 }
 
+SYNASTRY_ASPECT_PROMPTS = {
+    'ru': """Проанализируйте аспект между планетами Партнера 1 и Партнера 2, используя ТОЛЬКО найденные фрагменты.
+
+Требования:
+- Пиши сразу анализ, БЕЗ вступлений
+- НЕ ссылайся на номера фрагментов
+- Используй только факты из чанков
+- Если информации нет - напиши "Информация не найдена"
+
+Структура анализа:
+1. **Партнер 1** - как этот аспект влияет на него лично, его уроки
+2. **Партнер 2** - как этот аспект влияет на него лично, его уроки
+3. **Пара в целом** - как аспект проявляется в динамике отношений
+
+Учти:
+- Тип аспекта и орбис
+- Кармический смысл встречи
+- Потенциал роста каждого
+
+Используй книгу Джеффа Грина как приоритетный источник.""",
+
+    'en': """Analyze the aspect between Partner 1 and Partner 2 planets using ONLY the found book fragments.
+
+Requirements:
+- Write analysis DIRECTLY, NO introductions
+- Do NOT reference fragment numbers
+- Use only facts from chunks
+- If information is missing - say "Information not found"
+
+Analysis structure:
+1. **Partner 1** - how this aspect affects them personally, their lessons
+2. **Partner 2** - how this aspect affects them personally, their lessons
+3. **The couple as a whole** - how the aspect manifests in relationship dynamics
+
+Consider:
+- Aspect type and orb
+- Karmic meaning of the meeting
+- Growth potential for each
+
+Use Jeff Green's book as priority source.""",
+}
+
 SYNASTRY_PROMPTS = {
     'ru': """Ты эксперт по эволюционной астрологии и синастрии (Джефф Грин, Плутон, кармические узлы).
 Создай ГЛУБОКИЙ анализ синастрии (совместимости) двух людей.
@@ -258,6 +300,7 @@ def get_template(name: str, language: str) -> str:
         'planet': PLANET_PROMPTS,
         'synthesis': SYNTHESIS_PROMPTS,
         'synastry': SYNASTRY_PROMPTS,
+        'synastry_aspect': SYNASTRY_ASPECT_PROMPTS,
     }
     prompts = templates.get(name, ANALYSIS_PROMPTS)
     return prompts.get(language, prompts['en'])

@@ -683,7 +683,7 @@ from app.schemas.schemas import (
     TransitRequest, SynastryRequestDirect, AnalysisRequest, AnalysisResponse,
     ParsedQuery, RelevantChunk
 )
-from app.schemas.analysis import PlanetAnalysisRequest, PlanetAnalysisResponse, FullAnalysisRequest, ChatRequest, ChatResponse, SummaryRequest, SummaryResponse
+from app.schemas.analysis import (PlanetAnalysisRequest, PlanetAnalysisResponse, FullAnalysisRequest, ChatRequest, ChatResponse, SummaryRequest, SummaryResponse, SynastryAspectRequest, SynastryAspectResponse)
 from app.utils.astrology_v2 import (
     calculate_planet_positions, calculate_aspects,
     calculate_solar_return, calculate_synastry,
@@ -691,6 +691,7 @@ from app.utils.astrology_v2 import (
 )
 from app.swephelper import swe
 import json
+from app.services.synastry_service import analyze_synastry_aspect
 
 router = APIRouter()
 
@@ -1271,6 +1272,22 @@ async def calculate_synastry_direct(request: SynastryRequestDirect):
         'aspects': aspects,
         'total_aspects': len(aspects),
     }
+
+
+@router.post("/synastry/aspect", response_model=SynastryAspectResponse)
+async def analyze_synastry_aspect_endpoint(request: SynastryAspectRequest):
+    """
+    Analyze a specific synastry aspect between two planets
+    """
+    return await analyze_synastry_aspect(
+        planet1=request.planet1,
+        planet2=request.planet2,
+        aspect_name=request.aspect_name,
+        aspect_name_ru=request.aspect_name_ru,
+        orb=request.orb,
+        language=request.language,
+        top_k=20
+    )
 
 
 @router.post("/analysis/query")
