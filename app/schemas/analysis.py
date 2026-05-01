@@ -141,3 +141,24 @@ class SynastryChatResponse(BaseModel):
     """Ответ астролога-агента по синастрии"""
     answer: str
     relevant_chunks: List[Dict[str, Any]] = []
+
+
+class SynastryAspectRequest(BaseModel):
+    """Запрос на анализ аспекта синастрии"""
+    planet1: str
+    planet2: str
+    aspect_name: str
+    aspect_name_ru: Optional[str] = None
+    orb: float = 0.0
+    language: str = "en"
+
+
+class SynastryAspectResponse(BaseModel):
+    """Ответ с анализом аспекта синастрии"""
+    planet1: str
+    planet2: str
+    aspect: str
+    aspect_ru: Optional[str] = None
+    orb: float
+    analysis: str
+    relevant_chunks: List[Dict[str, Any]] = []
