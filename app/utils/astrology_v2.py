@@ -672,6 +672,31 @@ def calculate_synastry(chart1: Dict[str, Any], chart2: Dict[str, Any]) -> Dict[s
     }
 
 
+def get_house_for_longitude(longitude: float, houses: Dict) -> Optional[int]:
+    """
+    Определяет номер дома (1-12) по долготе планеты и куспидам домов.
+    """
+    cusps = []
+    for i in range(1, 13):
+        if str(i) in houses:
+            cusps.append(houses[str(i)]['cusp_longitude'])
+        else:
+            return None
+    
+    # House system: cusps[i] is start of house i+1
+    for i in range(12):
+        start_cusp = cusps[i]
+        end_cusp = cusps[(i + 1) % 12]
+        
+        if start_cusp <= end_cusp:
+            if start_cusp <= longitude < end_cusp:
+                return i + 1
+        else:  # wrap around (house 12 crosses 0 Aries)
+            if longitude >= start_cusp or longitude < end_cusp:
+                return i + 1
+    return None
+
+
 # Тестовая функция
 if __name__ == "__main__":
     # Пример расчёта

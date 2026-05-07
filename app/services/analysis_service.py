@@ -654,13 +654,70 @@ async def analyze_planet(
     }
 
 
+# async def search_chunks_all_books(
+#     query: str,
+#     top_k_per_book: int = 3
+# ) -> List[Dict[str, Any]]:
+#     """
+#     [v2] Гибридный RAG: берёт топ-N чанков из КАЖДОЙ книги отдельно.
+#     Гарантирует что все книги участвуют в анализе.
+#     """
+#     from supabase import create_client
+#     from app.core.config import settings
+#     from app.services.search_service import search_chunks_hybrid
+
+#     try:
+#         supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+#         books_response = supabase.table("books").select("id, title").execute()
+
+#         if not books_response.data:
+#             return []
+
+#         # Параллельный поиск по всем книгам через asyncio.gather
+#         import asyncio
+
+#         async def search_one_book(book: Dict[str, Any]) -> List[Dict[str, Any]]:
+#             chunks = await search_chunks_hybrid(
+#                 query,
+#                 top_k=top_k_per_book,
+#                 book_id=book["id"]
+#             )
+#             for chunk in chunks:
+#                 chunk["book_title"] = book.get("title", "")
+#             return chunks
+
+#         results = await asyncio.gather(
+#             *[search_one_book(book) for book in books_response.data],
+#             return_exceptions=True
+#         )
+
+#         all_chunks = []
+#         seen_ids = set()
+#         for result in results:
+#             if isinstance(result, Exception):
+#                 print(f"[search_chunks_all_books] Book search error: {result}")
+#                 continue
+#             for chunk in result:
+#                 chunk_id = chunk.get("id")
+#                 if chunk_id not in seen_ids:
+#                     seen_ids.add(chunk_id)
+#                     all_chunks.append(chunk)
+
+#         print(f"[search_chunks_all_books] Total unique chunks: {len(all_chunks)} from {len(books_response.data)} books")
+#         return all_chunks
+
+#     except Exception as e:
+#         print(f"[search_chunks_all_books] Error: {e}")
+#         return []
+
+
 async def search_chunks_all_books(
     query: str,
     top_k_per_book: int = 3
 ) -> List[Dict[str, Any]]:
     """
-    [v2] Гибридный RAG: берёт топ-N чанков из КАЖДОЙ книги отдельно.
-    Гарантирует что все книги участвуют в анализе.
+    [v2] Гибридный RAG: ОДИН запрос ко всем книгам сразу.
+    Устраняет проблему множественных вызовов RPC.
     """
     from supabase import create_client
     from app.core.config import settings
@@ -668,43 +725,38 @@ async def search_chunks_all_books(
 
     try:
         supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+        
+        # 1. Получаем список книг для маппинга названий
         books_response = supabase.table("books").select("id, title").execute()
-
         if not books_response.data:
             return []
-
-        # Параллельный поиск по всем книгам через asyncio.gather
-        import asyncio
-
-        async def search_one_book(book: Dict[str, Any]) -> List[Dict[str, Any]]:
-            chunks = await search_chunks_hybrid(
-                query,
-                top_k=top_k_per_book,
-                book_id=book["id"]
-            )
-            for chunk in chunks:
-                chunk["book_title"] = book.get("title", "")
-            return chunks
-
-        results = await asyncio.gather(
-            *[search_one_book(book) for book in books_response.data],
-            return_exceptions=True
+        
+        book_map = {b["id"]: b.get("title", "") for b in books_response.data}
+        total_books = len(books_response.data)
+        
+        # 2. ОДИН запрос без фильтра по book_id.
+        # Запрашиваем больше чанков, чтобы охватить все книги
+        chunks = await search_chunks_hybrid(
+            query,
+            top_k=top_k_per_book * total_books 
         )
-
-        all_chunks = []
+        
+        # 3. Добавляем названия книг
+        if chunks:
+            for chunk in chunks:
+                chunk["book_title"] = book_map.get(chunk.get("book_id", ""), "")
+        
+        # Удаляем дубликаты
+        unique_chunks = []
         seen_ids = set()
-        for result in results:
-            if isinstance(result, Exception):
-                print(f"[search_chunks_all_books] Book search error: {result}")
-                continue
-            for chunk in result:
-                chunk_id = chunk.get("id")
-                if chunk_id not in seen_ids:
-                    seen_ids.add(chunk_id)
-                    all_chunks.append(chunk)
-
-        print(f"[search_chunks_all_books] Total unique chunks: {len(all_chunks)} from {len(books_response.data)} books")
-        return all_chunks
+        for chunk in chunks:
+            c_id = chunk.get("id")
+            if c_id and c_id not in seen_ids:
+                seen_ids.add(c_id)
+                unique_chunks.append(chunk)
+        
+        print(f"[search_chunks_all_books] Total unique chunks: {len(unique_chunks)} from {total_books} books")
+        return unique_chunks
 
     except Exception as e:
         print(f"[search_chunks_all_books] Error: {e}")
@@ -920,6 +972,257 @@ async def full_chart_analysis_v2(
         },
         "language": language,
         "version": "v2_hybrid_rag"
+    }
+
+
+
+async def full_synastry_analysis_v2(
+    chart1_data: Dict[str, Any],
+    chart2_data: Dict[str, Any],
+    language: str = "ru",
+    top_k_per_book: int = 1
+) -> Dict[str, Any]:
+    """
+    [v2] Полный анализ синастрии — ГИБРИДНЫЙ подход:
+    - Для каждого аспекта синастрии делаем точечный RAG-поиск по ВСЕМ книгам
+    - Для ключевых планет обеих карт делаем RAG-поиск
+    - Собираем структурированный промпт
+    - Один финальный вызов LLM
+
+    Преимущества:
+    - Все книги участвуют в анализе
+    - Нет проблемы с превышением контекста
+    - Каждый аспект получает релевантные фрагменты
+    """
+    import asyncio
+    from app.services.llm_adapter import get_llm_adapter
+    from app.services.prompt_labels import get_labels
+    from app.services.prompt_templates import get_template
+    from app.utils.astrology_v2 import calculate_synastry, ASPECTS_RU
+
+    adapter = get_llm_adapter()
+    labels = get_labels(language)
+
+    # 1. Расчёт аспектов синастрии
+    synastry_result = calculate_synastry(chart1_data, chart2_data)
+    aspects = synastry_result.get('aspects', [])
+
+    # 2. Фильтрация значимых аспектов (топ по приоритету)
+    aspect_priority = {'Conjunction': 5, 'Opposition': 4, 'Trine': 3, 'Square': 2, 'Sextile': 1}
+    sorted_aspects = sorted(aspects, key=lambda x: aspect_priority.get(x.get('aspect', ''), 0), reverse=True)
+    top_aspects = sorted_aspects[:15]  # Топ-15 аспектов
+
+    print(f"[full_synastry_analysis_v2] Total aspects: {len(aspects)}, top aspects: {len(top_aspects)}")
+
+    # 3. Параллельный RAG-поиск по аспектам
+    async def search_aspect(asp: Dict) -> tuple:
+        p1 = asp.get('planet1', '')
+        p2 = asp.get('planet2', '')
+        asp_type = asp.get('aspect', '')
+        orb = asp.get('orb', 0)
+        asp_ru = asp.get('aspect_ru', asp_type)
+
+        # Строим поисковый запрос
+        query = f"{p1} {asp_type} {p2} synastry"
+        chunks = await search_chunks_all_books(query, top_k_per_book=top_k_per_book)
+        return f"{p1} {asp_ru} {p2} (орб: {orb}°)", chunks
+
+    # 4. Параллельный RAG-поиск по ключевым планетам
+    key_planets = ['Pluto', 'NorthNode', 'SouthNode', 'Saturn', 'Sun', 'Moon', 'Ascendant', 'Venus', 'Mars', 'Jupiter']
+
+    async def search_planet_synastry(planet_name: str, chart_num: int, chart_data: Dict) -> tuple:
+        # Проверяем есть ли планета в карте
+        planets = chart_data.get('planets', {})
+        if planet_name not in planets and planet_name != 'Ascendant':
+            return f"Planet {planet_name} (Chart {chart_num})", []
+
+        query = f"{planet_name} synastry partner"
+        chunks = await search_chunks_all_books(query, top_k_per_book=top_k_per_book)
+        return f"Planet {planet_name} (Chart {chart_num})", chunks
+
+    # Запуск параллельного поиска
+    aspect_tasks = [search_aspect(asp) for asp in top_aspects]
+
+    planet_tasks_chart1 = [
+        search_planet_synastry(p, 1, chart1_data) for p in key_planets
+    ]
+    planet_tasks_chart2 = [
+        search_planet_synastry(p, 2, chart2_data) for p in key_planets
+    ]
+
+    all_tasks = aspect_tasks + planet_tasks_chart1 + planet_tasks_chart2
+    results = await asyncio.gather(*all_tasks, return_exceptions=True)
+
+    print(f"[full_synastry_analysis_v2] RAG search completed. Tasks: {len(all_tasks)}")
+
+    # 5. Сборка промпта
+    synastry_template = get_template("synastry", language)
+
+    # Подготовка списка аспектов
+    aspects_list = []
+    for asp in aspects:
+        p1 = asp.get('planet1', '?')
+        p2 = asp.get('planet2', '?')
+        asp_ru = asp.get('aspect_ru', asp.get('aspect', '?'))
+        orb = asp.get('orb', 0)
+        aspects_list.append(f"{p1} {asp_ru} {p2} (орб: {orb}°)")
+
+    aspects_str = "\n".join(aspects_list) if aspects_list else "Нет аспектов"
+
+    # Сборка фрагментов из книг - аспекты
+    books_content = "\n=== ФРАГМЕНТЫ ПО АСПЕКТАМ СИНАСТРИИ ===\n"
+    for i, result in enumerate(results[:len(top_aspects)]):
+        if isinstance(result, Exception):
+            print(f"[full_synastry_analysis_v2] Aspect search error: {result}")
+            continue
+        asp_label, chunks = result
+        if chunks:
+            books_content += f"\n【АСПЕКТ: {asp_label}】\n"
+            for j, chunk in enumerate(chunks, 1):
+                text = chunk.get("text", "")[:500]
+                book_title = chunk.get("book_title", "")
+                books_content += f"[{j}] ({book_title}):\n{text}\n"
+
+    # Сборка фрагментов из книг - планеты
+    books_content += "\n=== ФРАГМЕНТЫ ПО ПЛАНЕТАМ ===\n"
+    for i, result in enumerate(results[len(top_aspects):], start=len(top_aspects)):
+        if isinstance(result, Exception):
+            print(f"[full_synastry_analysis_v2] Planet search error: {result}")
+            continue
+        planet_label, chunks = result
+        if chunks:
+            books_content += f"\n【{planet_label.upper()}】\n"
+            for j, chunk in enumerate(chunks, 1):
+                text = chunk.get("text", "")[:500]
+                book_title = chunk.get("book_title", "")
+                books_content += f"[{j}] ({book_title}):\n{text}\n"
+
+    # Подставляем в шаблон
+    prompt = synastry_template
+    prompt = prompt.replace("{aspects_list}", aspects_str)
+    prompt = prompt.replace("{books_content}", books_content)
+
+    # Добавляем данные карты 1
+    prompt += f"\n\n=== КАРТА 1 ==="
+    prompt += f"\nСолнце: {chart1_data.get('sun_sign_ru', '?')} в {chart1_data.get('sun_sign', '?')}"
+    prompt += f"\nЛуна: {chart1_data.get('moon_sign_ru', '?')} в {chart1_data.get('moon_sign', '?')}"
+    prompt += f"\nАсцендент: {chart1_data.get('ascendant_ru', '?')} в {chart1_data.get('ascendant', '?')}"
+
+    planets1 = chart1_data.get('planets', {})
+    prompt += f"\n\nПЛАНЕТЫ КАРТЫ 1:"
+    for p_name, p_data in sorted(planets1.items()):
+        sign_ru = p_data.get('sign_ru', p_data.get('sign', '?'))
+        house = p_data.get('house', '?')
+        is_retro = p_data.get('is_retrograde', False)
+        rx_str = " (ретроградная)" if is_retro else ""
+        prompt += f"\n  {p_name}: в {sign_ru}, дом {house}{rx_str}"
+
+    houses1 = chart1_data.get('houses', {})
+    prompt += f"\n\nДОМА КАРТЫ 1:"
+    for house_num in range(1, 13):
+        key = str(house_num)
+        if key in houses1:
+            h = houses1[key]
+            prompt += f"\n  Дом {house_num}: {h.get('sign_ru', '?')}"
+
+    # Добавляем данные карты 2
+    prompt += f"\n\n=== КАРТА 2 ==="
+    prompt += f"\nСолнце: {chart2_data.get('sun_sign_ru', '?')} в {chart2_data.get('sun_sign', '?')}"
+    prompt += f"\nЛуна: {chart2_data.get('moon_sign_ru', '?')} в {chart2_data.get('moon_sign', '?')}"
+    prompt += f"\nАсцендент: {chart2_data.get('ascendant_ru', '?')} в {chart2_data.get('ascendant', '?')}"
+
+    planets2 = chart2_data.get('planets', {})
+    prompt += f"\n\nПЛАНЕТЫ КАРТЫ 2:"
+    for p_name, p_data in sorted(planets2.items()):
+        sign_ru = p_data.get('sign_ru', p_data.get('sign', '?'))
+        house = p_data.get('house', '?')
+        is_retro = p_data.get('is_retrograde', False)
+        rx_str = " (ретроградная)" if is_retro else ""
+        prompt += f"\n  {p_name}: в {sign_ru}, дом {house}{rx_str}"
+
+    houses2 = chart2_data.get('houses', {})
+    prompt += f"\n\nДОМА КАРТЫ 2:"
+    for house_num in range(1, 13):
+        key = str(house_num)
+        if key in houses2:
+            h = houses2[key]
+            prompt += f"\n  Дом {house_num}: {h.get('sign_ru', '?')}"
+
+    # Подставляем данные в шаблон (для совместимости с {planets_1}, {houses_1} и т.д.)
+    prompt = prompt.replace("{sun_sign_1}", chart1_data.get('sun_sign_ru', '?'))
+    prompt = prompt.replace("{moon_sign_1}", chart1_data.get('moon_sign_ru', '?'))
+    prompt = prompt.replace("{ascendant_1}", chart1_data.get('ascendant_ru', '?'))
+
+    # Формируем строки планет и домов для шаблона
+    planets_1_str = ""
+    for p_name, p_data in sorted(planets1.items()):
+        sign_ru = p_data.get('sign_ru', p_data.get('sign', '?'))
+        house = p_data.get('house', '?')
+        planets_1_str += f"\n  {p_name}: в {sign_ru}, дом {house}"
+    prompt = prompt.replace("{planets_1}", planets_1_str)
+
+    houses_1_str = ""
+    for house_num in range(1, 13):
+        key = str(house_num)
+        if key in houses1:
+            h = houses1[key]
+            houses_1_str += f"\n  Дом {house_num}: {h.get('sign_ru', '?')}"
+    prompt = prompt.replace("{houses_1}", houses_1_str)
+
+    prompt = prompt.replace("{sun_sign_2}", chart2_data.get('sun_sign_ru', '?'))
+    prompt = prompt.replace("{moon_sign_2}", chart2_data.get('moon_sign_ru', '?'))
+    prompt = prompt.replace("{ascendant_2}", chart2_data.get('ascendant_ru', '?'))
+
+    planets_2_str = ""
+    for p_name, p_data in sorted(planets2.items()):
+        sign_ru = p_data.get('sign_ru', p_data.get('sign', '?'))
+        house = p_data.get('house', '?')
+        planets_2_str += f"\n  {p_name}: в {sign_ru}, дом {house}"
+    prompt = prompt.replace("{planets_2}", planets_2_str)
+
+    houses_2_str = ""
+    for house_num in range(1, 13):
+        key = str(house_num)
+        if key in houses2:
+            h = houses2[key]
+            houses_2_str += f"\n  Дом {house_num}: {h.get('sign_ru', '?')}"
+    prompt = prompt.replace("{houses_2}", houses_2_str)
+
+    # 6. Вызов LLM
+    print(f"[full_synastry_analysis_v2] Sending prompt to LLM (~{len(prompt)//4} tokens estimated)")
+
+    try:
+        full_analysis = await adapter.generate(prompt, language)
+    except Exception as e:
+        full_analysis = f"Ошибка анализа: {str(e)}"
+        print(f"[full_synastry_analysis_v2] LLM error: {e}")
+
+    # 7. Генерация краткого резюме
+    summary = await generate_summary(full_analysis, language)
+
+    # 8. Возврат результата
+    return {
+        "chart1_summary": {
+            "sun_sign": chart1_data.get('sun_sign', '?'),
+            "sun_sign_ru": chart1_data.get('sun_sign_ru', '?'),
+            "moon_sign": chart1_data.get('moon_sign', '?'),
+            "moon_sign_ru": chart1_data.get('moon_sign_ru', '?'),
+            "ascendant": chart1_data.get('ascendant', '?'),
+            "ascendant_ru": chart1_data.get('ascendant_ru', '?'),
+        },
+        "chart2_summary": {
+            "sun_sign": chart2_data.get('sun_sign', '?'),
+            "sun_sign_ru": chart2_data.get('sun_sign_ru', '?'),
+            "moon_sign": chart2_data.get('moon_sign', '?'),
+            "moon_sign_ru": chart2_data.get('moon_sign_ru', '?'),
+            "ascendant": chart2_data.get('ascendant', '?'),
+            "ascendant_ru": chart2_data.get('ascendant_ru', '?'),
+        },
+        "aspects": aspects,
+        "analysis": full_analysis,
+        "summary": summary,
+        "language": language,
+        "version": "v2_hybrid_rag_synastry"
     }
 
 

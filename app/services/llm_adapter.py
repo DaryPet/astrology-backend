@@ -250,8 +250,8 @@ class DeepSeekAdapter(LLMAdapter):
                 messages=[{"role": "user", "content": prompt}],
                 temperature=1,
                 # max_tokens=8000,
-                # max_tokens=32768,
-                timeout=300,
+                max_tokens=32768,
+                timeout=500,
             )
             return response.choices[0].message.content
         except Exception as e:
@@ -265,7 +265,7 @@ class DeepSeekAdapter(LLMAdapter):
                 messages=messages,
                 temperature=1,
                 # max_tokens=32768,
-                timeout=300,
+                timeout=500,
             )
             return response.choices[0].message.content
         except Exception as e:

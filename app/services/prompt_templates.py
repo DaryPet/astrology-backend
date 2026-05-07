@@ -222,72 +222,146 @@ Use Jeff Green's book as priority source.""",
 
 SYNASTRY_PROMPTS = {
     'ru': """Ты эксперт по эволюционной астрологии и синастрии (Джефф Грин, Плутон, кармические узлы).
-Создай ГЛУБОКИЙ анализ синастрии (совместимости) двух людей.
+Создай ГЛУБОКИЙ, ПОДРОБНЫЙ, ВСЕОБЪЕМЛЮЩИЙ анализ синастрии (совместимости) двух людей.
 
-**КРИТИЧЕСКИЕ ТРЕБОВАНИЯ:**
-1. Используй книгу Джеффа Грина о Плутоне и эволюционной астрологии как ОСНОВНУЮ
-2. Анализируй кармические связи, душевные контракты, эволюционный потенциал
-3. Пиши подробно, минимум 3000 слов
-4. Простым языком, без сложного сленга
+**КРИТИЧЕСКИЕ ТРЕБОВАНИЯ - ЭТО НЕ ШУТКА:**
 
-**СТРУКТУРА АНАЛИЗА:**
+1. ТЫ ДОЛЖЕН НАПИСАТЬ МИНИМУМ 10000 СЛОВ всего
+2. ДЛЯ ПЛУТОНА И УЗЛОВ В СИНАСТРИИ - минимум 800 слов на каждую тему!
+3. НЕ ОСТАНАВЛИВАЙСЯ пока не раскроешь ВСЕ 12 тем
+4. Думай глубоко о каждом аспекте - что это значит для пары?
+5. Пиши как объясняешь лучшему другу, который ничего не знает об астрологии
 
-1. **ОБЩАЯ КАРМИЧЕСКАЯ СВЯЗЬ** - зачем эти души встретились?
-2. **ПЛУТОН В СИНАСТРИИ** - главные трансформации, глубинные паттерны (минимум 800 слов!)
-3. **УЗЛЫ В СИНАСТРИИ** - прошлые жизни, душевный контракт
-4. **СОЛНЦЕ-ЛУНА** - эмоциональный фундамент отношений
-5. **АСЦЕНДЕНТЫ** - как партнеры видят друг друга
-6. **ВЕНЕРА И МАРС** - любовь, страсть, сексуальность
-7. **САТУРН** - стабильность, уроки, ограничения
-8. **КАРМИЧЕСКИЕ АСПЕКТЫ** - соединения, оппозиции, квадратуры между тяжелыми планетами
-9. **ЧТО ДЕЛАТЬ** - практические рекомендации для пары
+**ГЛАВНЫЕ ПРАВИЛА:**
 
-**АСПЕКТЫ СИНАСТРИИ:**
+1. ПИШИ ГЛУБОКО - раскрой КАЖДЫЙ аспект полностью, не поверхностно
+2. ПИШИ ПОДРОБНО - минимум 10000 слов в итоге - ЭТО ОБЯЗАТЕЛЬНО!
+3. ПИШИ ПОНЯТНО - простыми словами, без астрологического сленга
+4. НЕ используй технические термины, градусы, орбы - только: планета, знак, дом
+5. Используй ТОЛЬКО РЕАЛЬНЫЕ аспекты из списка. Если аспекта нет - НЕ выдумывай!
+6. НЕ называй книги и авторов
+7. НЕ пиши сколько слов в анализе
+8. КНИГА ПО УЗЛАМ И ПЛУТОНУ - это ключевая книга! Используй её информацию максимально подробно!
+
+**СТРУКТУРА (пиши одним связным текстом, но эти темы должны быть раскрыты):**
+
+1. **ОБЩАЯ КАРМИЧЕСКАЯ СВЯЗЬ** - зачем эти души встретились? Кармический урок, душевный контракт, эволюционный смысл встречи
+2. **ПЛУТОН В СИНАСТРИИ** - главные трансформации, глубинные паттерны. Плутон партнера 1 к планетам партнера 2 и наоборот (минимум 800 слов!)
+3. **УЗЛЫ В СИНАСТРИИ** - прошлые жизни, душевный контракт, Северный и Южный узлы (минимум 800 слов!)
+4. **СОЛНЦЕ В СИНАСТРИИ** - энергетический фундамент, как партнеры поддерживают друг друга в реализации своего "Я"
+5. **ЛУНА В СИНАСТРИИ** - эмоциональный фундамент, потребности, привычки, внутренний комфорт пары
+6. **АСЦЕНДЕНТЫ** - как партнеры видят друг друга физически и энергетически, первое впечатление
+7. **ВЕНЕРА И МАРС** - любовь, страсть, сексуальность, конфликты, гармония
+8. **САТУРН** - стабильность, структура, ограничения, уроки, кармическая ответственность
+9. **УРАН, НЕПТУН, ХИРОН, ЛИЛИТ** - неожиданности, иллюзии, раны, скрытые желания
+10. **КАРМИЧЕСКИЕ АСПЕКТЫ** - соединения, оппозиции, квадратуры между тяжелыми планетами
+11. **ВСЕ ДОМА В СИНАСТРИИ** - планеты партнера 2 в домах партнера 1 (и наоборот). Для каждого дома: какая сфера жизни партнера 1 активируется партнером 2
+12. **ЧТО ДЕЛАТЬ** - практические рекомендации для пары, как использовать потенциал, как пройти уроки
+
+**ДЛЯ КАЖДОГО АСПЕКТА:**
+- Напиши подробно (минимум 200-300 слов на аспект)
+- Укажи планеты, знаки, дома
+- Объясни ПРОСТО - как это влияет на отношения
+
+**АСПЕКТЫ СИНАСТРИИ (используй ТОЛЬКО эти):**
 {aspects_list}
+Если аспекта нет в списке - НЕ выдумывай его!
 
-**ИНФОРМАЦИЯ ИЗ КНИГ ДЖЕФФА ГРИНА:**
+**ИНФОРМАЦИЯ ИЗ КНИГ (фрагменты):**
 {books_content}
 
 **ДАННЫЕ ПЕРВОЙ КАРТЫ:**
 {sun_sign_1} {moon_sign_1} {ascendant_1}
 
+**ПЛАНЕТЫ ПЕРВОЙ КАРТЫ:**
+{planets_1}
+
 **ДАННЫЕ ВТОРОЙ КАРТЫ:**
 {sun_sign_2} {moon_sign_2} {ascendant_2}
+
+**ПЛАНЕТЫ ВТОРОЙ КАРТЫ:**
+{planets_2}
+
+**ДОМА ПЕРВОЙ КАРТЫ:**
+{houses_1}
+
+**ДОМА ВТОРОЙ КАРТЫ:**
+{houses_2}
+
+**ОВЕРЛЕИ ДОМОВ (планеты в домах партнера):**
+{house_overlays}
 
 Пиши на русском. Глубоко, подробно, понятно.""",
 
     'en': """You are an expert in evolutionary astrology and synastry (Jeff Green, Pluto, karmic nodes).
-Create a DEEP analysis of synastry (compatibility) between two people.
+Create a DEEP, DETAILED, COMPREHENSIVE synastry analysis (compatibility) between two people.
 
-**CRITICAL REQUIREMENTS:**
-1. Use Jeff Green's book on Pluto and evolutionary astrology as PRIMARY source
-2. Analyze karmic connections, soul contracts, evolutionary potential
-3. Write detailed, minimum 3000 words
-4. In simple language, no complex slang
+**CRITICAL REQUIREMENTS - THIS IS NOT A JOKE:**
 
-**ANALYSIS STRUCTURE:**
+1. YOU MUST WRITE AT LEAST 10000 WORDS total
+2. FOR PLUTO AND NODES IN SYNASTRY - minimum 800 words each!
+3. DO NOT STOP until you have covered ALL 12 topics
+4. Think deeply about each aspect - what does it mean for the couple?
+5. Write like you're explaining to a best friend who knows nothing about astrology
 
-1. **OVERALL KARMIC CONNECTION** - why did these souls meet?
-2. **PLUTO IN SYNASTRY** - main transformations, deep patterns (minimum 800 words!)
-3. **NODES IN SYNASTRY** - past lives, soul contract
-4. **SUN-MOON** - emotional foundation of relationship
-5. **ASCENDANTS** - how partners see each other
-6. **VENUS AND MARS** - love, passion, sexuality
-7. **SATURN** - stability, lessons, limitations
-8. **KARMIC ASPECTS** - conjunctions, oppositions, squares between heavy planets
-9. **WHAT TO DO** - practical recommendations for the couple
+**MAIN RULES:**
 
-**SYNASTRY ASPECTS:**
+1. WRITE DEEP - reveal EACH aspect fully, not superficially
+2. WRITE DETAILED - minimum 10000 words in total - THIS IS MANDATORY!
+3. WRITE SIMPLY - in plain language, no astrological slang
+4. NO technical terms, degrees, orbs - only: planet, sign, house
+5. Use ONLY REAL aspects from the list. If an aspect is NOT in the list - DON'T make it up!
+6. DON'T mention book names or authors
+7. DON'T write word count
+8. THE BOOK ABOUT NODES AND PLUTO - this is a KEY book! Use its information very detailed!
+
+**STRUCTURE (write as one coherent text, but these topics must be covered):**
+
+1. **OVERALL KARMIC CONNECTION** - why did these souls meet? Karmic lesson, soul contract, evolutionary meaning of the meeting
+2. **PLUTO IN SYNASTRY** - main transformations, deep patterns. Partner 1's Pluto to Partner 2's planets and vice versa (minimum 800 words!)
+3. **NODES IN SYNASTRY** - past lives, soul contract, North and South Nodes (minimum 800 words!)
+4. **SUN IN SYNASTRY** - energy foundation, how partners support each other's "I am" realization
+5. **MOON IN SYNASTRY** - emotional foundation, needs, habits, inner comfort of the couple
+6. **ASCENDANTS** - how partners see each other physically and energetically, first impression
+7. **VENUS AND MARS** - love, passion, sexuality, conflicts, harmony
+8. **SATURN** - stability, structure, limitations, lessons, karmic responsibility
+9. **URANUS, NEPTUNE, CHIRON, LILITH** - surprises, illusions, wounds, hidden desires
+10. **KARMIC ASPECTS** - conjunctions, oppositions, squares between heavy planets
+11. **ALL HOUSES IN SYNASTRY** - Partner 2's planets in Partner 1's houses (and vice versa). For each house: which life area of Partner 1 is activated by Partner 2
+12. **WHAT TO DO** - practical recommendations for the couple, how to use the potential, how to pass the lessons
+
+**FOR EACH ASPECT:**
+- Write in detail (minimum 200-300 words per aspect)
+- Specify planets, signs, houses
+- Explain SIMPLY - how it affects relationships
+
+**SYNASTRY ASPECTS (use ONLY these):**
 {aspects_list}
+If an aspect is NOT in the list - DON'T make it up!
 
-**FROM JEFF GREEN'S BOOKS:**
+**FROM BOOKS (fragments):**
 {books_content}
 
 **CHART 1 DATA:**
 {sun_sign_1} {moon_sign_1} {ascendant_1}
 
+**CHART 1 PLANETS:**
+{planets_1}
+
 **CHART 2 DATA:**
 {sun_sign_2} {moon_sign_2} {ascendant_2}
+
+**CHART 2 PLANETS:**
+{planets_2}
+
+**CHART 1 HOUSES:**
+{houses_1}
+
+**CHART 2 HOUSES:**
+{houses_2}
+
+**HOUSE OVERLAYS (planets in partner's houses):**
+{house_overlays}
 
 Write in English. Deep, detailed, simple.""",
 }
