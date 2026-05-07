@@ -349,8 +349,8 @@ async def full_synastry_analysis_v2(
         full_analysis = f"Ошибка анализа: {str(e)}"
         print(f"[full_synastry_analysis_v2] LLM error: {e}")
 
-    # 7. Генерация краткого резюме
-    summary = await generate_summary(full_analysis, language)
+    # 7. Краткое резюме (первые 500 символов)
+    summary = full_analysis[:500].rsplit('. ', 1)[0] if len(full_analysis) > 500 else full_analysis
 
     # 8. Возврат результата
     return {
