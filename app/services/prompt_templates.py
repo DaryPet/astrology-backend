@@ -77,7 +77,7 @@ SYNTHESIS_PROMPTS = {
 
 **КРИТИЧЕСКИЕ ТРЕБОВАНИЯ - ЭТО НЕ ШУТКА:**
 
-1. ТЫ ДОЛЖЕН НАПИСАТЬ МИНИМУМ 10000 СЛОВ всего
+1. ТЫ ДОЛЖЕН НАПИСАТЬ МИНИМУМ 5000 СЛОВ всего
 2. ДЛЯ КАЖДОЙ ПЛАНЕТЫ ты ДОЛЖЕН написать минимум 300-500 слов (для Плутона и Узлов - минимум 800 слов!)
 3. НЕ ОСТАНАВЛИВАЙСЯ пока не раскроешь ВСЕ 13 тем
 4. Думай глубоко о каждой планете - что это значит для жизни этого человека?
@@ -86,7 +86,7 @@ SYNTHESIS_PROMPTS = {
 **ГЛАВНЫЕ ПРАВИЛА:**
 
 1. ПИШИ ГЛУБОКО - раскрой КАЖДУЮ планету полностью, не поверхностно
-2. ПИШИ ПОДРОБНО - минимум 10000 слов в итоге - ЭТО ОБЯЗАТЕЛЬНО!
+2. ПИШИ ПОДРОБНО - минимум 5000 слов в итоге - ЭТО ОБЯЗАТЕЛЬНО!
 3. ПИШИ ПОНЯТНО - простыми словами, без астрологического сленга
 4. НЕ используй технические термины, градусы, орбы - только: планета, знак, дом
 5. Используй ТОЛЬКО РЕАЛЬНЫЕ аспекты из списка. Если аспекта нет - НЕ выдумывай!
@@ -129,7 +129,7 @@ SYNTHESIS_PROMPTS = {
 
 **CRITICAL REQUIREMENTS - THIS IS NOT A JOKE:**
 
-1. YOU MUST WRITE AT LEAST 10000 WORDS total
+1. YOU MUST WRITE AT LEAST 5000 WORDS total
 2. FOR EACH PLANET you MUST write minimum 300-500 words (for Pluto and Nodes - minimum 800 words!)
 3. DO NOT STOP until you have covered ALL 13 topics
 4. Think deeply about each planet - what does it mean for this person's life?
@@ -138,7 +138,7 @@ SYNTHESIS_PROMPTS = {
 **MAIN RULES:**
 
 1. WRITE DEEP - reveal EACH planet fully, not superficially
-2. WRITE DETAILED - minimum 10000 words in total - THIS IS MANDATORY!
+2. WRITE DETAILED - minimum 5000 words in total - THIS IS MANDATORY!
 3. WRITE SIMPLY - in plain language, no astrological slang
 4. NO technical terms, degrees, orbs - only: planet, sign, house
 5. Use ONLY REAL aspects from the list. If an aspect is NOT in the list - DON'T make it up!
@@ -226,7 +226,7 @@ SYNASTRY_PROMPTS = {
 
 **КРИТИЧЕСКИЕ ТРЕБОВАНИЯ - ЭТО НЕ ШУТКА:**
 
-1. ТЫ ДОЛЖЕН НАПИСАТЬ МИНИМУМ 10000 СЛОВ всего
+1. ТЫ ДОЛЖЕН НАПИСАТЬ МИНИМУМ 5000 СЛОВ всего
 2. ДЛЯ ПЛУТОНА И УЗЛОВ В СИНАСТРИИ - минимум 800 слов на каждую тему!
 3. НЕ ОСТАНАВЛИВАЙСЯ пока не раскроешь ВСЕ 12 тем
 4. Думай глубоко о каждом аспекте - что это значит для пары?
@@ -235,7 +235,7 @@ SYNASTRY_PROMPTS = {
 **ГЛАВНЫЕ ПРАВИЛА:**
 
 1. ПИШИ ГЛУБОКО - раскрой КАЖДЫЙ аспект полностью, не поверхностно
-2. ПИШИ ПОДРОБНО - минимум 10000 слов в итоге - ЭТО ОБЯЗАТЕЛЬНО!
+2. ПИШИ ПОДРОБНО - минимум 5000 слов в итоге - ЭТО ОБЯЗАТЕЛЬНО!
 3. ПИШИ ПОНЯТНО - простыми словами, без астрологического сленга
 4. НЕ используй технические термины, градусы, орбы - только: планета, знак, дом
 5. Используй ТОЛЬКО РЕАЛЬНЫЕ аспекты из списка. Если аспекта нет - НЕ выдумывай!
@@ -298,7 +298,7 @@ Create a DEEP, DETAILED, COMPREHENSIVE synastry analysis (compatibility) between
 
 **CRITICAL REQUIREMENTS - THIS IS NOT A JOKE:**
 
-1. YOU MUST WRITE AT LEAST 10000 WORDS total
+1. YOU MUST WRITE AT LEAST 5000 WORDS total
 2. FOR PLUTO AND NODES IN SYNASTRY - minimum 800 words each!
 3. DO NOT STOP until you have covered ALL 12 topics
 4. Think deeply about each aspect - what does it mean for the couple?
@@ -307,7 +307,7 @@ Create a DEEP, DETAILED, COMPREHENSIVE synastry analysis (compatibility) between
 **MAIN RULES:**
 
 1. WRITE DEEP - reveal EACH aspect fully, not superficially
-2. WRITE DETAILED - minimum 10000 words in total - THIS IS MANDATORY!
+2. WRITE DETAILED - minimum 5000 words in total - THIS IS MANDATORY!
 3. WRITE SIMPLY - in plain language, no astrological slang
 4. NO technical terms, degrees, orbs - only: planet, sign, house
 5. Use ONLY REAL aspects from the list. If an aspect is NOT in the list - DON'T make it up!

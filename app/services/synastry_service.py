@@ -165,7 +165,7 @@ async def full_synastry_analysis_v2(
 
         # Строим поисковый запрос
         query = f"{p1} {asp_type} {p2} synastry"
-        chunks = await search_chunks_all_books(query, top_k_per_book=top_k_per_book)
+        chunks = await search_chunks_by_query(query, top_k=top_k_per_book, book_id=JEFF_GREEN_BOOK_ID)
         return f"{p1} {asp_ru} {p2} (орб: {orb}°)", chunks
 
     # 4. Параллельный RAG-поиск по ключевым планетам
@@ -178,7 +178,7 @@ async def full_synastry_analysis_v2(
             return f"Planet {planet_name} (Chart {chart_num})", []
 
         query = f"{planet_name} synastry partner"
-        chunks = await search_chunks_all_books(query, top_k_per_book=top_k_per_book)
+        chunks = await search_chunks_by_query(query, top_k=top_k_per_book, book_id=JEFF_GREEN_BOOK_ID)
         return f"Planet {planet_name} (Chart {chart_num})", chunks
 
     # Запуск параллельного поиска
