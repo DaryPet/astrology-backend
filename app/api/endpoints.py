@@ -16,6 +16,7 @@ from app.schemas.schemas import (
     QueryRequest, SynastryRequest, NatalChartRequest, NatalChartResponseFull,
     TransitRequest, SynastryRequestDirect, BookChunkResponse
 )
+from app.schemas.analysis import SynastryAnalysisRequest
 from app.utils.astrology_v2 import (
     calculate_planet_positions, calculate_aspects,
     calculate_solar_return, calculate_synastry,
@@ -1617,7 +1618,7 @@ async def chat_with_astrologer_endpoint(request: ChatRequest) -> ChatResponse:
     - Отвечает в контексте натальной карты и полного анализа
     """
     from app.services.analysis_service import chat_with_astrologer
-
+ 
     result = await chat_with_astrologer(
         question=request.question,
         chart_data=request.chart_data,
@@ -1625,8 +1626,95 @@ async def chat_with_astrologer_endpoint(request: ChatRequest) -> ChatResponse:
         chat_history=[msg.dict() for msg in request.chat_history],
         language=request.language
     )
-
+ 
     return ChatResponse(
         answer=result["answer"],
         relevant_chunks=result["relevant_chunks"]
     )
+
+
+@router.post("/analysis/synastry/full")
+async def full_synastry_analysis_endpoint(request: SynastryAnalysisRequest):
+    """
+    Полный глубокий анализ синастрии (гибридный метод v2)
+    
+    Требует:
+    - chart1: данные первой карты (birth_date, birth_place, и т.д.)
+    - chart2: данные второй карты
+    - language: язык анализа (ru/en)
+    
+    Возвращает полный анализ синастрии (10000+ слов),
+    используя гибридный поиск по всем книгам для каждого аспекта.
+    """
+    from app.services.synastry_service import full_synastry_analysis_v2
+    from app.utils.astrology_v2 import calculate_planet_positions, calculate_aspects
+    from datetime import datetime
+    
+    # Функция для расчёта карты
+    async def calculate_chart(chart_req, chart_num: int):
+        # Получаем координаты
+        if chart_req.latitude is not None and chart_req.longitude is not None:
+            lat, lon = chart_req.latitude, chart_req.longitude
+        else:
+            try:
+                lat, lon = get_coordinates(chart_req.birth_place)
+            except ValueError as e:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cannot determine coordinates for chart {chart_num}: {str(e)}"
+                )
+        
+        # Парсим время рождения
+        birth_datetime = chart_req.birth_date
+        if chart_req.birth_time:
+            try:
+                time_parts = chart_req.birth_time.split(':')
+                hour = int(time_parts[0])
+                minute = int(time_parts[1]) if len(time_parts) > 1 else 0
+                second = int(time_parts[2]) if len(time_parts) > 2 else 0
+                birth_datetime = birth_datetime.replace(hour=hour, minute=minute, second=second)
+            except:
+                pass
+        
+        # Применяем таймзону
+        if chart_req.timezone:
+            try:
+                from zoneinfo import ZoneInfo
+                tz = ZoneInfo(chart_req.timezone)
+                if birth_datetime.tzinfo is None:
+                    birth_datetime = birth_datetime.replace(tzinfo=tz)
+            except:
+                pass
+        
+        # Рассчитываем карту
+        chart = calculate_planet_positions(
+            birth_date=birth_datetime,
+            birth_place=chart_req.birth_place,
+            lat=lat,
+            lon=lon,
+            timezone_str=chart_req.timezone,
+            house_system=chart_req.house_system or 'Placidus'
+        )
+        
+        # Добавляем аспекты
+        aspects = calculate_aspects(chart['planets'])
+        chart['aspects'] = aspects
+        
+        return chart
+    
+    # Рассчитываем обе карты
+    chart1_data = await calculate_chart(request.chart1, 1)
+    chart2_data = await calculate_chart(request.chart2, 2)
+    
+    # Определяем язык
+    language = request.language or "ru"
+    
+    # Выполняем полный анализ синастрии
+    result = await full_synastry_analysis_v2(
+        chart1_data=chart1_data,
+        chart2_data=chart2_data,
+        language=language,
+        top_k_per_book=request.top_k_per_book
+    )
+    
+    return result

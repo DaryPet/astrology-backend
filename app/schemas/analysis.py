@@ -119,6 +119,7 @@ class SynastryAnalysisResponse(BaseModel):
     chart1_summary: Dict[str, Any]
     chart2_summary: Dict[str, Any]
     aspects: List[Dict[str, Any]]
+    overlays: Optional[Dict[str, Any]] = None
     analysis: str
     summary: Optional[str] = None
     relevant_chunks: List[Dict[str, Any]] = []

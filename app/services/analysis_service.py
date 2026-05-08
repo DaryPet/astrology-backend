@@ -654,13 +654,70 @@ async def analyze_planet(
     }
 
 
+# async def search_chunks_all_books(
+#     query: str,
+#     top_k_per_book: int = 3
+# ) -> List[Dict[str, Any]]:
+#     """
+#     [v2] Гибридный RAG: берёт топ-N чанков из КАЖДОЙ книги отдельно.
+#     Гарантирует что все книги участвуют в анализе.
+#     """
+#     from supabase import create_client
+#     from app.core.config import settings
+#     from app.services.search_service import search_chunks_hybrid
+
+#     try:
+#         supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+#         books_response = supabase.table("books").select("id, title").execute()
+
+#         if not books_response.data:
+#             return []
+
+#         # Параллельный поиск по всем книгам через asyncio.gather
+#         import asyncio
+
+#         async def search_one_book(book: Dict[str, Any]) -> List[Dict[str, Any]]:
+#             chunks = await search_chunks_hybrid(
+#                 query,
+#                 top_k=top_k_per_book,
+#                 book_id=book["id"]
+#             )
+#             for chunk in chunks:
+#                 chunk["book_title"] = book.get("title", "")
+#             return chunks
+
+#         results = await asyncio.gather(
+#             *[search_one_book(book) for book in books_response.data],
+#             return_exceptions=True
+#         )
+
+#         all_chunks = []
+#         seen_ids = set()
+#         for result in results:
+#             if isinstance(result, Exception):
+#                 print(f"[search_chunks_all_books] Book search error: {result}")
+#                 continue
+#             for chunk in result:
+#                 chunk_id = chunk.get("id")
+#                 if chunk_id not in seen_ids:
+#                     seen_ids.add(chunk_id)
+#                     all_chunks.append(chunk)
+
+#         print(f"[search_chunks_all_books] Total unique chunks: {len(all_chunks)} from {len(books_response.data)} books")
+#         return all_chunks
+
+#     except Exception as e:
+#         print(f"[search_chunks_all_books] Error: {e}")
+#         return []
+
+
 async def search_chunks_all_books(
     query: str,
     top_k_per_book: int = 3
 ) -> List[Dict[str, Any]]:
     """
-    [v2] Гибридный RAG: берёт топ-N чанков из КАЖДОЙ книги отдельно.
-    Гарантирует что все книги участвуют в анализе.
+    [v2] Гибридный RAG: ОДИН запрос ко всем книгам сразу.
+    Устраняет проблему множественных вызовов RPC.
     """
     from supabase import create_client
     from app.core.config import settings
@@ -668,43 +725,38 @@ async def search_chunks_all_books(
 
     try:
         supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+        
+        # 1. Получаем список книг для маппинга названий
         books_response = supabase.table("books").select("id, title").execute()
-
         if not books_response.data:
             return []
-
-        # Параллельный поиск по всем книгам через asyncio.gather
-        import asyncio
-
-        async def search_one_book(book: Dict[str, Any]) -> List[Dict[str, Any]]:
-            chunks = await search_chunks_hybrid(
-                query,
-                top_k=top_k_per_book,
-                book_id=book["id"]
-            )
-            for chunk in chunks:
-                chunk["book_title"] = book.get("title", "")
-            return chunks
-
-        results = await asyncio.gather(
-            *[search_one_book(book) for book in books_response.data],
-            return_exceptions=True
+        
+        book_map = {b["id"]: b.get("title", "") for b in books_response.data}
+        total_books = len(books_response.data)
+        
+        # 2. ОДИН запрос без фильтра по book_id.
+        # Запрашиваем больше чанков, чтобы охватить все книги
+        chunks = await search_chunks_hybrid(
+            query,
+            top_k=top_k_per_book * total_books 
         )
-
-        all_chunks = []
+        
+        # 3. Добавляем названия книг
+        if chunks:
+            for chunk in chunks:
+                chunk["book_title"] = book_map.get(chunk.get("book_id", ""), "")
+        
+        # Удаляем дубликаты
+        unique_chunks = []
         seen_ids = set()
-        for result in results:
-            if isinstance(result, Exception):
-                print(f"[search_chunks_all_books] Book search error: {result}")
-                continue
-            for chunk in result:
-                chunk_id = chunk.get("id")
-                if chunk_id not in seen_ids:
-                    seen_ids.add(chunk_id)
-                    all_chunks.append(chunk)
-
-        print(f"[search_chunks_all_books] Total unique chunks: {len(all_chunks)} from {len(books_response.data)} books")
-        return all_chunks
+        for chunk in chunks:
+            c_id = chunk.get("id")
+            if c_id and c_id not in seen_ids:
+                seen_ids.add(c_id)
+                unique_chunks.append(chunk)
+        
+        print(f"[search_chunks_all_books] Total unique chunks: {len(unique_chunks)} from {total_books} books")
+        return unique_chunks
 
     except Exception as e:
         print(f"[search_chunks_all_books] Error: {e}")
