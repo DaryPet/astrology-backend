@@ -103,6 +103,8 @@ async def analyze_synastry_aspect(
 async def full_synastry_analysis_v2(
     chart1_data: Dict[str, Any],
     chart2_data: Dict[str, Any],
+    aspects: Optional[List[Dict[str, Any]]] = None,
+    overlays: Optional[Dict[str, Any]] = None,
     language: str = "ru",
     top_k_per_book: int = 1
 ) -> Dict[str, Any]:
@@ -124,29 +126,31 @@ async def full_synastry_analysis_v2(
     adapter = get_llm_adapter()
     labels = get_labels(language)
 
-    # 1. Расчёт аспектов синастрии
-    synastry_result = calculate_synastry(chart1_data, chart2_data)
-    aspects = synastry_result.get('aspects', [])
+    # 1. Расчёт аспектов синастрии (если не переданы напрямую)
+    if not aspects:
+        synastry_result = calculate_synastry(chart1_data, chart2_data)
+        aspects = synastry_result.get('aspects', [])
 
-    # 1.5 Расчёт house overlay
-    overlays = {"planets_1_in_houses_2": {}, "planets_2_in_houses_1": {}}
-    
-    houses_2 = chart2_data.get('houses', {})
-    houses_1 = chart1_data.get('houses', {})
-    
-    # Планеты партнера 1 в домах партнера 2
-    for p_name, p_data in chart1_data.get('planets', {}).items():
-        lon = p_data.get('full_degree', 0)
-        house_num = get_house_for_longitude(lon, houses_2)
-        if house_num:
-            overlays["planets_1_in_houses_2"][p_name] = house_num
-    
-    # Планеты партнера 2 в домах партнера 1
-    for p_name, p_data in chart2_data.get('planets', {}).items():
-        lon = p_data.get('full_degree', 0)
-        house_num = get_house_for_longitude(lon, houses_1)
-        if house_num:
-            overlays["planets_2_in_houses_1"][p_name] = house_num
+    # 1.5 Расчёт house overlay (если не передан)
+    if not overlays:
+        overlays = {"planets_1_in_houses_2": {}, "planets_2_in_houses_1": {}}
+        
+        houses_2 = chart2_data.get('houses', {})
+        houses_1 = chart1_data.get('houses', {})
+        
+        # Планеты партнера 1 в домах партнера 2
+        for p_name, p_data in chart1_data.get('planets', {}).items():
+            lon = p_data.get('full_degree', 0)
+            house_num = get_house_for_longitude(lon, houses_2)
+            if house_num:
+                overlays["planets_1_in_houses_2"][p_name] = house_num
+        
+        # Планеты партнера 2 в домах партнера 1
+        for p_name, p_data in chart2_data.get('planets', {}).items():
+            lon = p_data.get('full_degree', 0)
+            house_num = get_house_for_longitude(lon, houses_1)
+            if house_num:
+                overlays["planets_2_in_houses_1"][p_name] = house_num
 
     # 2. Фильтрация значимых аспектов (топ по приоритету)
     aspect_priority = {'Conjunction': 5, 'Opposition': 4, 'Trine': 3, 'Square': 2, 'Sextile': 1}
@@ -206,19 +210,43 @@ async def full_synastry_analysis_v2(
         p2 = asp.get('planet2', '?')
         asp_ru = asp.get('aspect_ru', asp.get('aspect', '?'))
         orb = asp.get('orb', 0)
-        aspects_list.append(f"{p1} {asp_ru} {p2} (орб: {orb}°)")
+
+        # Берем знаки из самого аспекта (они уже добавлены на бэкенде/UI)
+        p1_sign = asp.get('planet1_sign', '')
+        p2_sign = asp.get('planet2_sign', '')
+
+        # Fallback: если в аспекте нет знаков, берем из карт (для локально рассчитанных аспектов)
+        if not p1_sign and chart1_data and 'planets' in chart1_data:
+            p1_planet_data = chart1_data['planets'].get(p1, {})
+            p1_sign = p1_planet_data.get('sign_ru', p1_planet_data.get('sign', ''))
+
+        if not p2_sign and chart2_data and 'planets' in chart2_data:
+            p2_planet_data = chart2_data['planets'].get(p2, {})
+            p2_sign = p2_planet_data.get('sign_ru', p2_planet_data.get('sign', ''))
+
+        aspects_list.append(f"ПАРТНЕР1:{p1} ({p1_sign}) {asp_ru} ПАРТНЕР2:{p2} ({p2_sign}) (орб: {orb}°)")
 
     aspects_str = "\n".join(aspects_list) if aspects_list else "Нет аспектов"
 
     # Формируем информацию об оверлеях
+    PLANET_NAMES_RU = {
+        'Sun': 'Солнце', 'Moon': 'Луна', 'Mercury': 'Меркурий',
+        'Venus': 'Венера', 'Mars': 'Марс', 'Jupiter': 'Юпитер',
+        'Saturn': 'Сатурн', 'Uranus': 'Уран', 'Neptune': 'Нептун',
+        'Pluto': 'Плутон', 'NorthNode': 'Северный узел',
+        'SouthNode': 'Южный узел', 'Lilith': 'Лилит', 'Chiron': 'Хирон'
+    }
+
     overlays_str = "\n=== ОВЕРЛЕИ ДОМОВ ===\n"
     overlays_str += "\nПланеты партнера 1 в домах партнера 2:\n"
     for p_name, house_num in overlays["planets_1_in_houses_2"].items():
-        overlays_str += f"\n  {p_name} в доме {house_num}"
-    
+        p_ru = PLANET_NAMES_RU.get(p_name, p_name)
+        overlays_str += f"\n  {p_ru} в доме {house_num}"
+
     overlays_str += "\n\nПланеты партнера 2 в домах партнера 1:\n"
     for p_name, house_num in overlays["planets_2_in_houses_1"].items():
-        overlays_str += f"\n  {p_name} в доме {house_num}"
+        p_ru = PLANET_NAMES_RU.get(p_name, p_name)
+        overlays_str += f"\n  {p_ru} в доме {house_num}"
 
     # Сборка фрагментов из книг - аспекты
     books_content = "\n=== ФРАГМЕНТЫ ПО АСПЕКТАМ СИНАСТРИИ ===\n"
