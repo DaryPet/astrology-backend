@@ -238,10 +238,11 @@ SYNASTRY_PROMPTS = {
 2. ПИШИ ПОДРОБНО - минимум 5000 слов в итоге - ЭТО ОБЯЗАТЕЛЬНО!
 3. ПИШИ ПОНЯТНО - простыми словами, без астрологического сленга
 4. НЕ используй технические термины, градусы, орбы - только: планета, знак, дом
-5. Используй ТОЛЬКО РЕАЛЬНЫЕ аспекты из списка. Если аспекта нет - НЕ выдумывай!
-6. НЕ называй книги и авторов
-7. НЕ пиши сколько слов в анализе
-8. КНИГА ПО УЗЛАМ И ПЛУТОНУ - это ключевая книга! Используй её информацию максимально подробно!
+5. Используй ТОЛЬКО аспекты из списка ниже. НЕ ДОБАВЛЯЙ ни одного аспекта которого нет в списке! Планеты в одном знаке или доме БЕЗ аспекта в списке - НЕ являются соединением! ЗАПРЕЩЕНО писать про любой аспект которого нет в списке {aspects_list}
+6. В списке аспектов: ПАРТНЕР1 = первый партнер (chart1), ПАРТНЕР2 = второй партнер (chart2). НИКОГДА не меняй их местами при анализе!
+7. НЕ называй книги и авторов
+8. НЕ пиши сколько слов в анализе
+9. КНИГА ПО УЗЛАМ И ПЛУТОНУ - это ключевая книга! Используй её информацию максимально подробно!
 
 **СТРУКТУРА (пиши одним связным текстом, но эти темы должны быть раскрыты):**
 
@@ -311,9 +312,10 @@ Create a DEEP, DETAILED, COMPREHENSIVE synastry analysis (compatibility) between
 3. WRITE SIMPLY - in plain language, no astrological slang
 4. NO technical terms, degrees, orbs - only: planet, sign, house
 5. Use ONLY REAL aspects from the list. If an aspect is NOT in the list - DON'T make it up!
-6. DON'T mention book names or authors
-7. DON'T write word count
-8. THE BOOK ABOUT NODES AND PLUTO - this is a KEY book! Use its information very detailed!
+6. In the aspects list: PARTNER1 = first partner (chart1), PARTNER2 = second partner (chart2). NEVER swap them during analysis!
+7. DON'T mention book names or authors
+8. DON'T write word count
+9. THE BOOK ABOUT NODES AND PLUTO - this is a KEY book! Use its information very detailed!
 
 **STRUCTURE (write as one coherent text, but these topics must be covered):**
 

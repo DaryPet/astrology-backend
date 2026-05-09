@@ -678,8 +678,9 @@ def get_house_for_longitude(longitude: float, houses: Dict) -> Optional[int]:
     """
     cusps = []
     for i in range(1, 13):
-        if str(i) in houses:
-            cusps.append(houses[str(i)]['cusp_longitude'])
+        key = str(i) if str(i) in houses else i
+        if key in houses:
+            cusps.append(houses[key]['cusp_longitude'])
         else:
             return None
     

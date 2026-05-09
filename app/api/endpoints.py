@@ -20,7 +20,8 @@ from app.schemas.analysis import SynastryAnalysisRequest
 from app.utils.astrology_v2 import (
     calculate_planet_positions, calculate_aspects,
     calculate_solar_return, calculate_synastry,
-    PLANETS, ASPECTS, ASPECTS_RU, ORBS, get_zodiac_sign, get_zodiac_degree
+    PLANETS, ASPECTS, ASPECTS_RU, ORBS, get_zodiac_sign, get_zodiac_degree,
+    get_house_for_longitude
 )
 from app.swephelper import swe
 
@@ -1253,6 +1254,19 @@ async def calculate_synastry_direct(request: SynastryRequestDirect):
     aspect_priority = {'Conjunction': 5, 'Opposition': 4, 'Trine': 3, 'Square': 2, 'Sextile': 1}
     aspects.sort(key=lambda x: (aspect_priority.get(x['aspect'], 0), -x['orb']), reverse=True)
     
+    # House overlays: planets from one chart in houses of the other
+    planets_1_in_houses_2 = {}
+    for p_name, p_data in chart1['planets'].items():
+        house = get_house_for_longitude(p_data['full_degree'], chart2['houses'])
+        if house:
+            planets_1_in_houses_2[p_name] = house
+
+    planets_2_in_houses_1 = {}
+    for p_name, p_data in chart2['planets'].items():
+        house = get_house_for_longitude(p_data['full_degree'], chart1['houses'])
+        if house:
+            planets_2_in_houses_1[p_name] = house
+
     return {
         'chart1': {
             'sun_sign': chart1['sun_sign'],
@@ -1272,6 +1286,10 @@ async def calculate_synastry_direct(request: SynastryRequestDirect):
         },
         'aspects': aspects,
         'total_aspects': len(aspects),
+        'overlays': {
+            'planets_1_in_houses_2': planets_1_in_houses_2,
+            'planets_2_in_houses_1': planets_2_in_houses_1,
+        }
     }
 
 
@@ -1713,6 +1731,8 @@ async def full_synastry_analysis_endpoint(request: SynastryAnalysisRequest):
     result = await full_synastry_analysis_v2(
         chart1_data=chart1_data,
         chart2_data=chart2_data,
+        aspects=request.aspects,
+        overlays=request.overlays,
         language=language,
         top_k_per_book=request.top_k_per_book
     )

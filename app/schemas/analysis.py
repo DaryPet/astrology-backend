@@ -110,6 +110,8 @@ class SynastryAnalysisRequest(BaseModel):
     """Запрос на полный анализ синастрии"""
     chart1: ChartRequest
     chart2: ChartRequest
+    aspects: Optional[List[Dict[str, Any]]] = None
+    overlays: Optional[Dict[str, Any]] = None
     language: Optional[str] = None
     top_k_per_book: int = 3
 
