@@ -319,7 +319,7 @@ def calculate_planet_positions(
             continue  # Рассчитаем после NorthNode
         
         if planet_name == 'NorthNode':
-            result = swe.calc_ut(jd, planet_id, swe.FLG_MOSEPH)
+            result = swe.calc_ut(jd, planet_id, swe.FLG_MOSEPH | swe.FLG_SPEED)
             longitude = result[0][0]
             speed = result[0][3] if len(result[0]) > 3 else 0
         elif planet_name == 'Lilith':
@@ -334,7 +334,11 @@ def calculate_planet_positions(
             speed = pos['speed']
         
         sign_en, sign_ru = get_zodiac_sign(longitude)
-        is_retrograde = speed < 0
+        # North Node and South Node are always retrograde in astrology
+        if planet_name in ('NorthNode', 'SouthNode'):
+            is_retrograde = True
+        else:
+            is_retrograde = speed < 0
         
         planets[planet_name] = {
             'planet': planet_name,
@@ -357,7 +361,7 @@ def calculate_planet_positions(
         'degree': round(get_zodiac_degree(sn_longitude), 4),
         'full_degree': round(sn_longitude, 4),
         'speed': round(-planets['NorthNode']['speed'], 4),
-        'is_retrograde': planets['NorthNode']['is_retrograde'],
+        'is_retrograde': True,  # South Node всегда ретрограден в астрологии
     }
     
     # Расчёт Chiron (малая планета/астероид)

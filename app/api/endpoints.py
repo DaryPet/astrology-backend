@@ -1464,11 +1464,16 @@ async def analyze_planet_endpoint(
     """
     from app.services.analysis_service import analyze_planet
     
-    is_retrograde = request.is_retrograde
-    if not is_retrograde and request.chart_data:
-        planets_data = request.chart_data.get('planets', {})
-        planet_data = planets_data.get(request.planet, {})
-        is_retrograde = planet_data.get('is_retrograde', False)
+    # Узлы всегда ретроградны — хардкод до любой логики
+    if request.planet in ('NorthNode', 'North Node', 'SouthNode', 'South Node'):
+        is_retrograde = True
+    else:
+        is_retrograde = request.is_retrograde
+        if not is_retrograde and request.chart_data:
+            planets_data = request.chart_data.get('planets', {})
+            planet_key = request.planet.replace(' ', '')
+            planet_data = planets_data.get(planet_key) or planets_data.get(request.planet, {})
+            is_retrograde = planet_data.get('is_retrograde', False)
     
     result = await analyze_planet(
         planet=request.planet,
@@ -1731,7 +1736,7 @@ async def full_synastry_analysis_endpoint(request: SynastryAnalysisRequest):
     result = await full_synastry_analysis_v2(
         chart1_data=chart1_data,
         chart2_data=chart2_data,
-        aspects=request.aspects,
+        aspects=calculate_synastry(chart1_data, chart2_data).get('aspects', []),
         overlays=request.overlays,
         language=language,
         top_k_per_book=request.top_k_per_book
