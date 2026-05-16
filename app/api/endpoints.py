@@ -1273,7 +1273,7 @@ async def calculate_synastry_direct(request: SynastryRequestDirect):
             'moon_sign': chart1['moon_sign'],
             'ascendant': chart1['ascendant'],
             'planets': chart1['planets'],
-            'houses': chart1['houses'],
+             'houses': {str(k): v for k, v in chart1['houses'].items()},
             'meta': chart1.get('meta', {}),
         },
         'chart2': {
@@ -1281,7 +1281,7 @@ async def calculate_synastry_direct(request: SynastryRequestDirect):
             'moon_sign': chart2['moon_sign'],
             'ascendant': chart2['ascendant'],
             'planets': chart2['planets'],
-            'houses': chart2['houses'],
+             'houses': {str(k): v for k, v in chart2['houses'].items()},
             'meta': chart2.get('meta', {}),
         },
         'aspects': aspects,
