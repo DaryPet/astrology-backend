@@ -12,6 +12,15 @@ from app.services.analysis_service import search_chunks_all_books, generate_summ
 
 JEFF_GREEN_BOOK_ID = 26
 
+PLANET_RU = {
+    'Sun': 'Солнце', 'Moon': 'Луна', 'Mercury': 'Меркурий',
+    'Venus': 'Венера', 'Mars': 'Марс', 'Jupiter': 'Юпитер',
+    'Saturn': 'Сатурн', 'Uranus': 'Уран', 'Neptune': 'Нептун',
+    'Pluto': 'Плутон', 'NorthNode': 'Северный Узел',
+    'SouthNode': 'Южный Узел', 'Chiron': 'Хирон',
+    'Lilith': 'Лилит', 'Ascendant': 'Асцендент',
+}
+
 
 def build_synastry_aspect_prompt(
     planet1: str,
@@ -23,6 +32,10 @@ def build_synastry_aspect_prompt(
     language: str = "en"
 ) -> str:
     """Построить промпт для анализа аспекта синастрии"""
+    
+    if language == 'ru':
+        planet1 = PLANET_RU.get(planet1, planet1)
+        planet2 = PLANET_RU.get(planet2, planet2)
     
     prompt_parts = []
     labels = get_labels(language)
@@ -43,6 +56,10 @@ def build_synastry_aspect_prompt(
             if len(text) > 300:
                 text = text[:300] + "..."
             prompt_parts.append(f"\n[{labels['fragment']} {i}]:\n{text}")
+    else:
+        # Explicit note when no fragments found
+        prompt_parts.append(f"\n\n=== ПРИМЕЧАНИЕ О ДОСТУПНЫХ ИСТОЧНИКАХ ===")
+        prompt_parts.append("В библиотеке не найдено специфических фрагментов по данному аспекту синастрии. Анализ должен быть основан на общих принципах эволюционной синастрии и данных карт.")
     
     prompt_parts.append(f"\n\n{labels['analysis']}")
     prompt_parts.append(labels['please_analyze_synastry_aspect'])
@@ -224,7 +241,15 @@ async def full_synastry_analysis_v2(
             p2_planet_data = chart2_data['planets'].get(p2, {})
             p2_sign = p2_planet_data.get('sign_ru', p2_planet_data.get('sign', ''))
 
-        aspects_list.append(f"ПАРТНЕР1:{p1} ({p1_sign}) {asp_ru} ПАРТНЕР2:{p2} ({p2_sign}) (орб: {orb}°)")
+        # Переводим названия планет на русский язык если нужно
+        if language == 'ru':
+            p1_display = PLANET_RU.get(p1, p1)
+            p2_display = PLANET_RU.get(p2, p2)
+        else:
+            p1_display = p1
+            p2_display = p2
+            
+        aspects_list.append(f"ПАРТНЕР1:{p1_display} ({p1_sign}) {asp_ru} ПАРТНЕР2:{p2_display} ({p2_sign}) (орб: {orb}°)")
 
     aspects_str = "\n".join(aspects_list) if aspects_list else "Нет аспектов"
 

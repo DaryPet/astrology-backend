@@ -456,6 +456,10 @@ def build_analysis_prompt(
             if len(text) > 600:
                 text = text[:600] + "..."
             prompt_parts.append(f"\n[{labels['fragment']} {i}]:\n{text}")
+    else:
+        # Explicit note when no fragments found
+        prompt_parts.append(f"\n\n=== ПРИМЕЧАНИЕ О ДОСТУПНЫХ ИСТОЧНИКАХ ===")
+        prompt_parts.append("В библиотеке не найдено релевантных фрагментов по данному запросу. Анализ должен быть основан на общих принципах эволюционной астрологии и предоставленных данных натальной карты.")
     
     prompt_parts.append(f"\n\n{labels['analysis']}")
     prompt_parts.append(labels['please_analyze'])
@@ -557,6 +561,10 @@ def build_planet_analysis_prompt(
             if len(text) > 600:
                 text = text[:600] + "..."
             prompt_parts.append(f"\n[{labels['fragment']} {i}]:\n{text}")
+    else:
+        # Explicit note when no fragments found
+        prompt_parts.append(f"\n\n=== ПРИМЕЧАНИЕ О ДОСТУПНЫХ ИСТОЧНИКАХ ===")
+        prompt_parts.append("В библиотеке не найдено специфических текстовых фрагментов по данной конфигурации планеты. Анализ должен быть основан на общих принципах эволюционной астрологии.")
     
     prompt_parts.append(f"\n\n{labels['analysis']}")
     prompt_parts.append(labels['please_analyze_planet'])
@@ -1168,7 +1176,11 @@ async def chat_with_astrologer(
                 planet_context += f"[{i}] ({book_title}):\n{text}\n"
 
     books_context = f"{question_context}\n=== ФРАГМЕНТЫ ПО ПЛАНЕТАМ ===\n{planet_context}"
-
+    
+    # Если ни одного фрагмента не нашлось — добавляем явное примечание
+    if not question_context.strip() and not planet_context.strip():
+        books_context = "В библиотеке не найдено релевантных фрагментов по этому вопросу. Используйте общие принципы эволюционной астрологии и данные натальной карты."
+    
     planets_summary = ""
     for planet_name, planet_data in planets.items():
         sign = planet_data.get("sign", "?")
@@ -1271,7 +1283,11 @@ async def chat_with_astrologer_optimized(
             book_title = chunk.get('book_title', '')
             book_info = f" ({book_title})" if book_title else ""
             prompt_parts.append(f"\n[{labels['fragment']} {i}]{book_info}:\n{text}")
-
+    else:
+        # Explicit note when no fragments found
+        prompt_parts.append(f"\n\n=== ПРИМЕЧАНИЕ О ДОСТУПНЫХ ИСТОЧНИКАХ ===")
+        prompt_parts.append("В библиотеке не найдено релевантных фрагментов по данному вопросу. Анализ должен быть основан на общих принципах эволюционной астрологии и предоставленных данных натальной карты.")
+    
     prompt_parts.append(f"\n\n{labels['analysis']}")
     prompt_parts.append(labels.get('please_analyze', 'Answer the question based on the chart and book fragments.'))
 
