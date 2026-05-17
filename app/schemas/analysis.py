@@ -14,6 +14,7 @@ class PlanetAnalysisRequest(BaseModel):
     aspects: Optional[List[Dict[str, Any]]] = None
     language: str
     chart_data: Optional[Dict[str, Any]] = None
+    mode: Optional[str] = 'advanced'
 
 
 class PlanetAspectInfo(BaseModel):
@@ -44,6 +45,7 @@ class FullAnalysisRequest(BaseModel):
     longitude: Optional[float] = None
     timezone: Optional[str] = None
     house_system: Optional[str] = "Placidus"
+    mode: Optional[str] = 'advanced'
     
     language: str = "ru"
     top_books: int = 5
@@ -114,6 +116,7 @@ class SynastryAnalysisRequest(BaseModel):
     overlays: Optional[Dict[str, Any]] = None
     language: Optional[str] = None
     top_k_per_book: int = 3
+    mode: str = 'advanced'
 
 
 class SynastryAnalysisResponse(BaseModel):
@@ -154,6 +157,7 @@ class SynastryAspectRequest(BaseModel):
     aspect_name_ru: Optional[str] = None
     orb: float = 0.0
     language: str = "en"
+    mode: Optional[str] = 'advanced'
 
 
 class SynastryAspectResponse(BaseModel):
