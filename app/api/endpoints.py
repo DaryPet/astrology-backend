@@ -1305,7 +1305,8 @@ async def analyze_synastry_aspect_endpoint(request: SynastryAspectRequest):
         aspect_name_ru=request.aspect_name_ru,
         orb=request.orb,
         language=request.language,
-        top_k=20
+        top_k=20,
+        mode=request.mode
     )
 
 
@@ -1484,7 +1485,8 @@ async def analyze_planet_endpoint(
         is_retrograde=is_retrograde or False,
         aspects=request.aspects,
         language=request.language,
-        top_k=20
+        top_k=20,
+        mode=request.mode
     )
     
     return result
@@ -1581,7 +1583,7 @@ async def full_chart_analysis_endpoint(request: FullAnalysisRequest, db: AsyncSe
     if not chart_data:
         raise HTTPException(status_code=400, detail="Either chart_data or birth_date must be provided")
     
-    result = await do_full_analysis(chart_data=chart_data, language=request.language)
+    result = await do_full_analysis(chart_data=chart_data, language=request.language,  mode=request.mode)
     
     # === СОХРАНЯЕМ В БД ===
     try:
@@ -1640,15 +1642,34 @@ async def chat_with_astrologer_endpoint(request: ChatRequest) -> ChatResponse:
     - Учитывает историю диалога
     - Отвечает в контексте натальной карты и полного анализа
     """
-    from app.services.analysis_service import chat_with_astrologer
+    # from app.services.analysis_service import chat_with_astrologer
  
-    result = await chat_with_astrologer(
-        question=request.question,
-        chart_data=request.chart_data,
-        full_analysis=request.summary,
-        chat_history=[msg.dict() for msg in request.chat_history],
-        language=request.language
-    )
+    # result = await chat_with_astrologer(
+    #     question=request.question,
+    #     chart_data=request.chart_data,
+    #     full_analysis=request.summary,
+    #     chat_history=[msg.dict() for msg in request.chat_history],
+    #     language=request.language
+    # )
+
+    if request.chart_data.get('type') == 'synastry':
+        from app.services.synastry_service import chat_with_synastry_astrologer
+        result = await chat_with_synastry_astrologer(
+            question=request.question,
+            chart_data=request.chart_data,
+            full_analysis=request.summary,
+            chat_history=[msg.dict() for msg in request.chat_history],
+            language=request.language
+        )
+    else:
+        from app.services.analysis_service import chat_with_astrologer
+        result = await chat_with_astrologer(
+            question=request.question,
+            chart_data=request.chart_data,
+            full_analysis=request.summary,
+            chat_history=[msg.dict() for msg in request.chat_history],
+            language=request.language
+        )
  
     return ChatResponse(
         answer=result["answer"],
@@ -1739,7 +1760,8 @@ async def full_synastry_analysis_endpoint(request: SynastryAnalysisRequest):
         aspects=calculate_synastry(chart1_data, chart2_data).get('aspects', []),
         overlays=request.overlays,
         language=language,
-        top_k_per_book=request.top_k_per_book
+        top_k_per_book=request.top_k_per_book,
+        mode=request.mode
     )
     
     return result

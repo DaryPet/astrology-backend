@@ -1,4 +1,5 @@
 """System prompts for LLM"""
+from app.services.prompt_templates_simple import get_simple_template
 
 ANALYSIS_PROMPTS = {
     'ru': """Вы эксперт по эволюционной астрологии (Джефф Грин, кармические узлы, трансформация души) с глубокими знаниями классических и современных астрологических традиций.
@@ -467,8 +468,22 @@ Write in English. Deep, detailed, simple.""",
 }
 
 
-def get_template(name: str, language: str) -> str:
-    """Получить промпт по имени с fallback"""
+# def get_template(name: str, language: str) -> str:
+#     """Получить промпт по имени с fallback"""
+#     templates = {
+#         'analysis': ANALYSIS_PROMPTS,
+#         'planet': PLANET_PROMPTS,
+#         'synthesis': SYNTHESIS_PROMPTS,
+#         'synastry': SYNASTRY_PROMPTS,
+#         'synastry_aspect': SYNASTRY_ASPECT_PROMPTS,
+#     }
+#     prompts = templates.get(name, ANALYSIS_PROMPTS)
+#     return prompts.get(language, prompts['en'])
+
+
+def get_template(name: str, language: str, mode: str = 'advanced') -> str:
+    if mode == 'simple':
+        return get_simple_template(name, language)
     templates = {
         'analysis': ANALYSIS_PROMPTS,
         'planet': PLANET_PROMPTS,

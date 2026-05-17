@@ -29,7 +29,8 @@ def build_synastry_aspect_prompt(
     aspect_name_ru: Optional[str],
     orb: float,
     chunks: List[Dict[str, Any]],
-    language: str = "en"
+    language: str = "en",
+    mode: Optional[str] = 'advanced'
 ) -> str:
     """Построить промпт для анализа аспекта синастрии"""
     
@@ -39,7 +40,7 @@ def build_synastry_aspect_prompt(
     
     prompt_parts = []
     labels = get_labels(language)
-    system_prompt = get_template('synastry_aspect', language)
+    system_prompt = get_template('synastry_aspect', language, mode)
     prompt_parts.append(system_prompt)
     
     prompt_parts.append(f"\n\n{labels['aspect_data']}")
@@ -74,7 +75,8 @@ async def analyze_synastry_aspect(
     aspect_name_ru: Optional[str] = None,
     orb: float = 0.0,
     language: str = "en",
-    top_k: int = 5
+    top_k: int = 5,
+    mode: str = 'advanced'
 ) -> Dict[str, Any]:
     """
     Анализ конкретного аспекта в синастрии
@@ -100,7 +102,8 @@ async def analyze_synastry_aspect(
         aspect_name_ru=aspect_name_ru,
         orb=orb,
         chunks=chunks,
-        language=language
+        language=language,
+        mode=mode
     )
     
     adapter = get_llm_adapter()
@@ -123,7 +126,9 @@ async def full_synastry_analysis_v2(
     aspects: Optional[List[Dict[str, Any]]] = None,
     overlays: Optional[Dict[str, Any]] = None,
     language: str = "ru",
-    top_k_per_book: int = 1
+    top_k_per_book: int = 1,
+    mode: str = 'advanced'
+
 ) -> Dict[str, Any]:
     """
     [v2] Полный анализ синастрии — ГИБРИДНЫЙ подход:
@@ -218,7 +223,7 @@ async def full_synastry_analysis_v2(
     print(f"[full_synastry_analysis_v2] RAG search completed. Tasks: {len(all_tasks)}")
 
     # 5. Сборка промпта
-    synastry_template = get_template("synastry", language)
+    synastry_template = get_template("synastry", language, mode)
 
     # Подготовка списка аспектов
     aspects_list = []
@@ -430,4 +435,141 @@ async def full_synastry_analysis_v2(
         "relevant_chunks": [],
         "language": language,
         "created_at": datetime.utcnow()
+    }
+
+async def chat_with_synastry_astrologer(
+    question: str,
+    chart_data: Dict[str, Any],
+    full_analysis: str,
+    chat_history: List[Dict[str, str]],
+    language: str = "ru"
+) -> Dict[str, Any]:
+    """
+    Чат с астрологом по синастрии
+    """
+    from app.services.search_service import search_chunks_by_query
+
+    adapter = get_llm_adapter()
+
+    chart1 = chart_data.get('chart1', {})
+    chart2 = chart_data.get('chart2', {})
+    aspects = chart_data.get('aspects', [])
+    overlays = chart_data.get('overlays', {})
+
+    # RAG поиск по вопросу
+    chunks = await search_chunks_by_query(question, top_k=10, book_id=JEFF_GREEN_BOOK_ID)
+    if not chunks:
+        chunks = await search_chunks_by_query(question, top_k=10)
+
+    books_context = ""
+    if chunks:
+        books_context = "\n=== ФРАГМЕНТЫ ПО ВОПРОСУ ===\n" if language == 'ru' else "\n=== BOOK FRAGMENTS ===\n"
+        for i, chunk in enumerate(chunks, 1):
+            text = chunk.get("text", "")[:400]
+            book_title = chunk.get("book_title", "")
+            books_context += f"[{i}] ({book_title}):\n{text}\n"
+
+    def planets_str(planets_dict):
+        result = ""
+        for pn, pd in planets_dict.items():
+            sign_ru = pd.get('sign_ru', pd.get('sign', '?'))
+            house = pd.get('house', '?')
+            degree = round(pd.get('degree', 0), 1)
+            retro = " (Rx)" if pd.get('is_retrograde') else ""
+            result += f"  {pn}: {sign_ru} {degree}° дом {house}{retro}\n"
+        return result
+
+    aspects_str = ""
+    for asp in aspects:
+        p1 = PLANET_RU.get(asp.get('planet1', ''), asp.get('planet1', ''))
+        p2 = PLANET_RU.get(asp.get('planet2', ''), asp.get('planet2', ''))
+        asp_ru = asp.get('aspect_ru', asp.get('aspect', ''))
+        orb = asp.get('orb', 0)
+        aspects_str += f"  {p1} {asp_ru} {p2} (орб: {orb}°)\n"
+
+    overlays_str = ""
+    p1_in_h2 = overlays.get('planets_1_in_houses_2', {})
+    p2_in_h1 = overlays.get('planets_2_in_houses_1', {})
+    for p, h in p1_in_h2.items():
+        if language == 'ru':
+            overlays_str += f"  {PLANET_RU.get(p, p)} Партнёра 1 в доме {h} Партнёра 2\n"
+        else:
+            overlays_str += f"  {p} of Partner 1 in house {h} of Partner 2\n"
+    for p, h in p2_in_h1.items():
+        if language == 'ru':
+            overlays_str += f"  {PLANET_RU.get(p, p)} Партнёра 2 в доме {h} Партнёра 1\n"
+        else:
+            overlays_str += f"  {p} of Partner 2 in house {h} of Partner 1\n"
+
+    if language == 'ru':
+        system_prompt = f"""Ты личный астролог. Ты уже сделал полный анализ синастрии этой пары и теперь отвечаешь на вопросы. Отвечай строго по данным карт — не выдумывай.
+
+=== ПАРТНЁР 1 ===
+Солнце: {chart1.get('sun_sign_ru', '?')}, Луна: {chart1.get('moon_sign_ru', '?')}, Асц: {chart1.get('ascendant_ru', '?')}
+ПЛАНЕТЫ:
+{planets_str(chart1.get('planets', {}))}
+
+=== ПАРТНЁР 2 ===
+Солнце: {chart2.get('sun_sign_ru', '?')}, Луна: {chart2.get('moon_sign_ru', '?')}, Асц: {chart2.get('ascendant_ru', '?')}
+ПЛАНЕТЫ:
+{planets_str(chart2.get('planets', {}))}
+
+=== АСПЕКТЫ СИНАСТРИИ ===
+{aspects_str}
+
+=== ОВЕРЛЕИ ДОМОВ ===
+{overlays_str}
+
+=== ПОЛНЫЙ АНАЛИЗ ===
+{full_analysis}
+
+{books_context}
+
+ПРАВИЛА:
+- Отвечай строго по данным карт выше
+- Не выдумывай планеты и позиции
+- Отвечай на языке вопроса
+- Используй только Партнёр 1 и Партнёр 2
+- Никаких он/она — только Партнёр 1 и Партнёр 2"""
+    else:
+        system_prompt = f"""You are a personal astrologer. You have already done a full synastry analysis and now answer questions. Answer strictly based on the chart data — do not make up anything.
+
+=== PARTNER 1 ===
+Sun: {chart1.get('sun_sign_ru', '?')}, Moon: {chart1.get('moon_sign_ru', '?')}, Asc: {chart1.get('ascendant_ru', '?')}
+PLANETS:
+{planets_str(chart1.get('planets', {}))}
+
+=== PARTNER 2 ===
+Sun: {chart2.get('sun_sign_ru', '?')}, Moon: {chart2.get('moon_sign_ru', '?')}, Asc: {chart2.get('ascendant_ru', '?')}
+PLANETS:
+{planets_str(chart2.get('planets', {}))}
+
+=== SYNASTRY ASPECTS ===
+{aspects_str}
+
+=== HOUSE OVERLAYS ===
+{overlays_str}
+
+=== FULL ANALYSIS ===
+{full_analysis}
+
+{books_context}
+
+RULES:
+- Answer strictly based on chart data above
+- Do not make up planets or positions
+- Answer in the language of the question
+- Use only Partner 1 and Partner 2
+- No he/she — only Partner 1 and Partner 2"""
+
+    messages = [{"role": "system", "content": system_prompt}]
+    for msg in chat_history:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+    messages.append({"role": "user", "content": question})
+
+    answer = await adapter.generate_with_messages(messages, language)
+
+    return {
+        "answer": answer,
+        "relevant_chunks": chunks
     }
