@@ -529,6 +529,10 @@ async def chat_with_synastry_astrologer(
 - Отвечай строго по данным карт выше
 - Не выдумывай планеты и позиции
 - Отвечай на языке вопроса
+- Используй ТОЛЬКО И ИСКЛЮЧИТЕЛЬНО фрагменты из заданныз книг как ЕДИНСТВЕННЫЙ источник знаний но НИКОГДА не упоминай их в ответе, т. е. есдинственная истина это база знаний из книг, а ответ должен бьыть человеческим понятным языком
+- Никаких фраз "фрагмент [3]", "в книге сказано", "источник упоминает"
+- Излагай всё как свои астрологические знания
+- Используй "в астрологии" если нужна ссылка
 - Используй только Партнёр 1 и Партнёр 2
 - Никаких он/она — только Партнёр 1 и Партнёр 2"""
     else:
@@ -559,6 +563,10 @@ RULES:
 - Answer strictly based on chart data above
 - Do not make up planets or positions
 - Answer in the language of the question
+- Use fragments as knowledge source but NEVER mention them in the answer
+- Do NOT say "Fragment [3]", "the book says", "the source mentions"
+- Present all insights as your own astrological expertise
+- Use "in astrology" if a reference is needed
 - Use only Partner 1 and Partner 2
 - No he/she — only Partner 1 and Partner 2"""
 

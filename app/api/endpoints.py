@@ -1505,7 +1505,11 @@ async def full_chart_analysis_endpoint(request: FullAnalysisRequest, db: AsyncSe
     from datetime import datetime
     
     # === ПРОВЕРКА КЭША ===
-    cache_key = f"{request.birth_date}|{request.birth_place}"
+    # cache_key = f"{request.birth_date}|{request.birth_place}"
+    cache_key = f"{request.birth_date}|{request.birth_place}|{request.mode}"
+
+#     # СТАЛО:
+# cache_key = None  # временно отключить кэш
     
     if cache_key in _analysis_cache:
         cached_result, timestamp = _analysis_cache[cache_key]
