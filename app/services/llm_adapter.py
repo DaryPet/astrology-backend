@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, AsyncGenerator
 import asyncio
 from app.core.config import settings
 
@@ -16,6 +16,10 @@ class LLMAdapter(ABC):
     async def generate_with_messages(self, messages: List[Dict[str, str]], language: str = "en") -> str:
         """Сгенерировать ответ на основе сообщений (chat format)"""
         pass
+    
+    async def generate_stream(self, prompt: str, language: str = "en") -> AsyncGenerator[str, None]:
+        """Стриминговый генератор (по умолчанию - обычный generate)"""
+        yield await self.generate(prompt, language)
 
 
 # class OpenAIAdapter(LLMAdapter):
@@ -270,6 +274,24 @@ class DeepSeekAdapter(LLMAdapter):
             return response.choices[0].message.content
         except Exception as e:
             return f"Error: {str(e)}"
+    
+    async def generate_stream(self, prompt: str, language: str = "en") -> AsyncGenerator[str, None]:
+        """Стриминговый генератор для DeepSeek"""
+        client = self._get_client()
+        try:
+            stream = await client.chat.completions.create(
+                model="deepseek-v4-flash",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=1,
+                max_tokens=32768,
+                timeout=500,
+                stream=True,
+            )
+            async for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+        except Exception as e:
+            yield f"Error: {str(e)}"
 
 _adapters = {
     'deepseek': DeepSeekAdapter,

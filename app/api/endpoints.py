@@ -685,7 +685,7 @@ from app.schemas.schemas import (
     TransitRequest, SynastryRequestDirect, AnalysisRequest, AnalysisResponse,
     ParsedQuery, RelevantChunk
 )
-from app.schemas.analysis import (PlanetAnalysisRequest, PlanetAnalysisResponse, FullAnalysisRequest, ChatRequest, ChatResponse, SummaryRequest, SummaryResponse, SynastryAspectRequest, SynastryAspectResponse)
+from app.schemas.analysis import (PlanetAnalysisRequest, PlanetAnalysisResponse, FullAnalysisRequest, ChatRequest, ChatResponse, SummaryRequest, SummaryResponse, SynastryAspectRequest, SynastryAspectResponse, SynastryRelationshipRequest)
 from app.utils.astrology_v2 import (
     calculate_planet_positions, calculate_aspects,
     calculate_solar_return, calculate_synastry,
@@ -1766,6 +1766,37 @@ async def full_synastry_analysis_endpoint(request: SynastryAnalysisRequest):
         language=language,
         top_k_per_book=request.top_k_per_book,
         mode=request.mode
+    )
+    
+    return result
+
+
+@router.post("/synastry/relationship-types")
+async def analyze_relationship_types_endpoint(request: SynastryRelationshipRequest):
+    """
+    Определить типы отношений в синастрии (с поддержкой стриминга)
+    
+    Принимает готовый полный анализ синастрии
+    и возвращает проценты для каждого типа отношений.
+    """
+    from app.services.synastry_relationship_service import (
+        analyze_relationship_types,
+        stream_relationship_types
+    )
+    from fastapi.responses import StreamingResponse
+    
+    if request.stream:
+        return StreamingResponse(
+            stream_relationship_types(
+                full_analysis=request.full_analysis,
+                language=request.language
+            ),
+            media_type="text/plain"
+        )
+    
+    result = await analyze_relationship_types(
+        full_analysis=request.full_analysis,
+        language=request.language
     )
     
     return result

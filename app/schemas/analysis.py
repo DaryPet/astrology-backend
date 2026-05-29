@@ -169,3 +169,31 @@ class SynastryAspectResponse(BaseModel):
     orb: float
     analysis: str
     relevant_chunks: List[Dict[str, Any]] = []
+
+
+class RelationshipTypeInfo(BaseModel):
+    """Информация о типе отношений"""
+    percentage: int
+    label: str
+    description: Optional[str] = None
+
+
+class SynastryRelationshipRequest(BaseModel):
+    """Запрос на определение типов отношений в синастрии"""
+    # Новый формат (предпочтительный)
+    full_analysis: Optional[str] = None
+    # Старый формат (для обратной совместимости)
+    # chart1: Optional[Dict[str, Any]] = None
+    # chart2: Optional[Dict[str, Any]] = None
+    # aspects: Optional[List[Dict[str, Any]]] = None
+    # overlays: Optional[Dict[str, Any]] = None
+    
+    language: str = "ru"
+    stream: bool = False
+
+
+class SynastryRelationshipResponse(BaseModel):
+    """Ответ с типами отношений"""
+    relationship_types: Dict[str, RelationshipTypeInfo]
+    dominant_type: str
+    analysis: str
