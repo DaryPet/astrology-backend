@@ -1663,7 +1663,8 @@ async def chat_with_astrologer_endpoint(request: ChatRequest) -> ChatResponse:
             chart_data=request.chart_data,
             full_analysis=request.summary,
             chat_history=[msg.dict() for msg in request.chat_history],
-            language=request.language
+            language=request.language,
+            relationship_context=request.relationship_context
         )
     else:
         from app.services.analysis_service import chat_with_astrologer
@@ -1765,7 +1766,8 @@ async def full_synastry_analysis_endpoint(request: SynastryAnalysisRequest):
         overlays=request.overlays,
         language=language,
         top_k_per_book=request.top_k_per_book,
-        mode=request.mode
+        mode=request.mode,
+        relationship_context=request.relationship_context
     )
     
     return result

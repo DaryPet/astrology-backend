@@ -91,6 +91,7 @@ class ChatRequest(BaseModel):
     summary: str
     chat_history: List[ChatMessage] = []
     language: str = "ru"
+    relationship_context: Optional[str] = None  # "default", "relatives", "partner", "colleagues", "friends"
 
 
 class ChatResponse(BaseModel):
@@ -117,6 +118,7 @@ class SynastryAnalysisRequest(BaseModel):
     language: Optional[str] = None
     top_k_per_book: int = 3
     mode: str = 'advanced'
+    relationship_context: Optional[str] = None  # "default", "relatives", "partner", "colleagues", "friends"
 
 
 class SynastryAnalysisResponse(BaseModel):
@@ -141,6 +143,7 @@ class SynastryChatRequest(BaseModel):
     full_analysis: Optional[str] = None
     chat_history: List[ChatMessage] = []
     language: Optional[str] = None
+    relationship_context: Optional[str] = None  # "default", "relatives", "partner", "colleagues", "friends"
 
 
 class SynastryChatResponse(BaseModel):
