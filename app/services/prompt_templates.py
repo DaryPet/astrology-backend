@@ -468,6 +468,30 @@ Write in English. Deep, detailed, simple.""",
 }
 
 
+RELATIONSHIP_CONTEXT_PROMPTS = {
+    'ru': {
+        'default': '',
+        'relatives': '\n\n**ВАЖНОЕ ОГРАНИЧЕНИЕ:** Анализируйте отношения РОДСТВЕННЫХ лиц (мать-ребенок, бабушка-внук, сестра-брат и т.д.). Фокус на: наследственные паттерны, семейная карма, взаимные уроки, защита, поддержка. НЕ УПОМИНАЙ романтику, сексуальность, интимность и глубинную страстность вообще. Это семейные узы, а не парные.',
+        'partner': '\n\n**ТИП ОТНОШЕНИЙ:** Романтические/партнерские отношения. Включай полную анализу сексуальности, любви, совместной жизни, интимной связи между партнёрами.',
+        'colleagues': '\n\n**ТИП ОТНОШЕНИЙ:** Деловые партнеры/коллеги. Фокус на: профессиональное синергизм, бизнес-совместимость, рабочие динамики. При сильных аспектах (Плутон, Узлы соединения/оппозиции) можно упомянуть возможность романтического развития как вторичный фактор.',
+        'friends': '\n\n**ТИП ОТНОШЕНИЙ:** Дружба/друзья. Фокус на: дружеские качества, взаимная поддержка, общие интересы. При ярких аспектах можно мягко указать на потенциальный переход в романтические отношения, используя фразы вроде "потенциальный романтический интерес".'
+    },
+    'en': {
+        'default': '',
+        'relatives': '\n\n**IMPORTANT CONSTRAINT:** This is a family relationship analysis (parent-child, grandmother-grandchild, siblings, etc.). Focus on: inherited patterns, family karma, mutual lessons, protection, support. DO NOT mention romance, sexuality, intimacy, or deep passion. These are family bonds, not romantic partnership.',
+        'partner': '\n\n**RELATIONSHIP TYPE:** Romantic/partner relationship. Include full analysis of sexuality, love, shared life, intimate connection between partners.',
+        'colleagues': '\n\n**RELATIONSHIP TYPE:** Business partners/colleagues. Focus on: professional synergy, business compatibility, work dynamics. For strong aspects (Pluto, Nodes conjunctions/oppositions), may mention potential romantic development as secondary factor.',
+        'friends': '\n\n**RELATIONSHIP TYPE:** Friendship/friends. Focus on: friendly qualities, mutual support, shared interests. For strong aspects, may gently hint at potential romantic transition using phrases like "potential romantic interest".'
+    }
+}
+
+
+def get_relationship_context_prompt(context: str, language: str = 'ru') -> str:
+    """Get relationship context instruction for synastry prompts"""
+    contexts = RELATIONSHIP_CONTEXT_PROMPTS.get(language, RELATIONSHIP_CONTEXT_PROMPTS['en'])
+    return contexts.get(context, contexts.get('default', ''))
+
+
 # def get_template(name: str, language: str) -> str:
 #     """Получить промпт по имени с fallback"""
 #     templates = {

@@ -6,7 +6,7 @@ from app.services.search_service import (
 )
 from app.services.llm_adapter import get_llm_adapter
 from app.services.prompt_labels import get_labels
-from app.services.prompt_templates import get_template
+from app.services.prompt_templates import get_template, get_relationship_context_prompt
 from app.services.analysis_service import search_chunks_all_books, generate_summary
 
 
@@ -127,7 +127,8 @@ async def full_synastry_analysis_v2(
     overlays: Optional[Dict[str, Any]] = None,
     language: str = "ru",
     top_k_per_book: int = 1,
-    mode: str = 'advanced'
+    mode: str = 'advanced',
+    relationship_context: Optional[str] = None
 
 ) -> Dict[str, Any]:
     """
@@ -224,6 +225,11 @@ async def full_synastry_analysis_v2(
 
     # 5. Сборка промпта
     synastry_template = get_template("synastry", language, mode)
+    
+    # Add relationship context to prompt
+    context_prompt = get_relationship_context_prompt(relationship_context, language)
+    if context_prompt:
+        synastry_template = synastry_template + context_prompt
 
     # Подготовка списка аспектов
     aspects_list = []
@@ -434,6 +440,7 @@ async def full_synastry_analysis_v2(
         "summary": summary,
         "relevant_chunks": [],
         "language": language,
+        "relationship_context": relationship_context,
         "created_at": datetime.utcnow()
     }
 
@@ -442,7 +449,8 @@ async def chat_with_synastry_astrologer(
     chart_data: Dict[str, Any],
     full_analysis: str,
     chat_history: List[Dict[str, str]],
-    language: str = "ru"
+    language: str = "ru",
+    relationship_context: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Чат с астрологом по синастрии
@@ -502,8 +510,9 @@ async def chat_with_synastry_astrologer(
             overlays_str += f"  {p} of Partner 2 in house {h} of Partner 1\n"
 
     if language == 'ru':
+        context_instruction = get_relationship_context_prompt(relationship_context, language) if relationship_context else ""
         system_prompt = f"""Ты личный астролог. Ты уже сделал полный анализ синастрии этой пары и теперь отвечаешь на вопросы. Отвечай строго по данным карт — не выдумывай.
-
+{context_instruction}
 === ПАРТНЁР 1 ===
 Солнце: {chart1.get('sun_sign_ru', '?')}, Луна: {chart1.get('moon_sign_ru', '?')}, Асц: {chart1.get('ascendant_ru', '?')}
 ПЛАНЕТЫ:
@@ -536,8 +545,9 @@ async def chat_with_synastry_astrologer(
 - Используй только Партнёр 1 и Партнёр 2
 - Никаких он/она — только Партнёр 1 и Партнёр 2"""
     else:
+        context_instruction = get_relationship_context_prompt(relationship_context, language) if relationship_context else ""
         system_prompt = f"""You are a personal astrologer. You have already done a full synastry analysis and now answer questions. Answer strictly based on the chart data — do not make up anything.
-
+{context_instruction}
 === PARTNER 1 ===
 Sun: {chart1.get('sun_sign_ru', '?')}, Moon: {chart1.get('moon_sign_ru', '?')}, Asc: {chart1.get('ascendant_ru', '?')}
 PLANETS:
