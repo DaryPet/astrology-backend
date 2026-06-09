@@ -345,12 +345,15 @@ async def search_chunks_all_books(
     from supabase import create_client
     from app.core.config import settings
     from app.services.search_service import search_chunks_hybrid
+    from app.services.supabase_async import run_sync_in_thread
 
     try:
         supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
         
         # 1. Получаем список книг для маппинга названий
-        books_response = supabase.table("books").select("id, title").execute()
+        # Оборачиваем синхронный вызов в async executor чтобы не блокировать event loop
+        table_call = supabase.table("books").select("id, title")
+        books_response = await run_sync_in_thread(table_call.execute)
         if not books_response.data:
             return []
         
