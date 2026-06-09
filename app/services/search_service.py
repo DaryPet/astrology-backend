@@ -191,6 +191,8 @@ async def search_chunks_hybrid(
     book_id: Optional[int] = None
 ) -> List[Dict[str, Any]]:
     """Гибридный поиск: BM25 + Vector через Supabase RPC"""
+    from app.services.supabase_async import run_sync_in_thread
+    
     supabase = get_supabase()
     if not supabase:
         return []
@@ -199,12 +201,14 @@ async def search_chunks_hybrid(
     query_embedding = generate_embedding(query)
     
     try:
-        response = supabase.rpc("hybrid_search", {
+        # Оборачиваем синхронный вызов в async executor чтобы не блокировать event loop
+        rpc_call = supabase.rpc("hybrid_search", {
             "query_embedding": query_embedding,
             "query_text": query,
             "match_count": top_k,
             "book_id_filter": book_id
-        }).execute()
+        })
+        response = await run_sync_in_thread(rpc_call.execute)
         
         print(f"[HYBRID SEARCH] Query: {query}")
         if book_id:
@@ -535,6 +539,8 @@ async def search_chunks_simple(
     top_k: int = 5
 ) -> List[Dict[str, Any]]:
     """Простой текстовый поиск без эмбеддингов"""
+    from app.services.supabase_async import run_sync_in_thread
+    
     supabase = get_supabase()
     if not supabase:
         return []
@@ -542,7 +548,9 @@ async def search_chunks_simple(
     query_lower = query.lower()
     
     try:
-        response = supabase.table("book_chunks").select("id, book_id, text, chunk_index, word_count").execute()
+        # Оборачиваем синхронный вызов в async executor чтобы не блокировать event loop
+        table_call = supabase.table("book_chunks").select("id, book_id, text, chunk_index, word_count")
+        response = await run_sync_in_thread(table_call.execute)
         
         if not response.data:
             return []
