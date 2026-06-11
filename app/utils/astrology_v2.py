@@ -739,3 +739,205 @@ if __name__ == "__main__":
     if sr:
         print(f"Дата: {sr['date']}")
         print(f"Точность: {sr['exactness']}%")
+
+
+# ============================================================
+# SECONDARY PROGRESSIONS (Вторичные прогрессии, «день за год»)
+# ============================================================
+
+TROPICAL_YEAR = 365.2422  # тропический год в днях
+PROGRESSION_ORB = 1.5     # тугой орб для аспектов прогрессий (стандарт 1-1.5°)
+
+
+def _datetime_to_utc_jd(dt: datetime) -> float:
+    """Конвертация datetime (aware или naive-как-UTC) в Julian Day (UT)"""
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc)
+    return swe.utc_to_jd(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, swe.GREG_CAL)[0]
+
+
+def calculate_secondary_progressions(
+    birth_date: datetime,
+    birth_place: str,
+    target_date: Optional[datetime] = None,
+    lat: float = None,
+    lon: float = None,
+    timezone_str: str = None,
+    house_system: str = 'Placidus',
+    orb: float = PROGRESSION_ORB,
+) -> Dict[str, Any]:
+    """
+    Расчёт вторичных прогрессий (Secondary Progressions) через Swiss Ephemeris.
+
+    Метод «день за год»: каждый день после рождения символически равен
+    одному году жизни. Прогрессивный Julian Day:
+        progressed_jd = natal_jd + (target_jd - natal_jd) / TROPICAL_YEAR
+
+    Возвращает:
+    - прогрессивные позиции планет (+ натальный дом каждой прогрессивной планеты)
+    - прогрессивные ASC/MC и дома (вторичные угловые: дома на прогрессивный JD
+      по натальным координатам)
+    - аспекты прогрессивных планет к натальным (тугой орб)
+    - возраст и период
+    """
+    # 1. Натальная карта — переиспользуем основной расчёт
+    natal = calculate_planet_positions(
+        birth_date, birth_place, lat, lon, timezone_str, house_system
+    )
+    natal_jd = natal['meta']['jd']
+
+    # 2. Дата, на которую строим прогрессии (по умолчанию — сейчас, UTC)
+    if target_date is None:
+        target_date = datetime.now(timezone.utc)
+    target_jd = _datetime_to_utc_jd(target_date)
+
+    # 3. Формула «день за год»
+    age_years = (target_jd - natal_jd) / TROPICAL_YEAR
+    if age_years < 0:
+        age_years = 0.0
+    progressed_jd = natal_jd + age_years
+
+    # 4. Прогрессивные планеты
+    progressed_planets: Dict[str, Any] = {}
+    for planet_name, planet_id in PLANETS.items():
+        if planet_name == 'SouthNode':
+            continue  # рассчитаем после NorthNode
+        try:
+            result = swe.calc_ut(progressed_jd, planet_id, swe.FLG_MOSEPH | swe.FLG_SPEED)
+            longitude = result[0][0]
+            speed = result[0][3] if len(result[0]) > 3 else 0
+        except Exception as e:
+            print(f"[progressions] {planet_name} calc error: {e}")
+            continue
+
+        sign_en, sign_ru = get_zodiac_sign(longitude)
+        is_retrograde = True if planet_name == 'NorthNode' else speed < 0
+        natal_planet = natal['planets'].get(planet_name, {})
+
+        progressed_planets[planet_name] = {
+            'planet': planet_name,
+            'sign': sign_en,
+            'sign_ru': sign_ru,
+            'degree': round(get_zodiac_degree(longitude), 4),
+            'full_degree': round(longitude, 4),
+            'speed': round(speed, 4) if speed else 0,
+            'is_retrograde': is_retrograde,
+            # дом прогрессивной планеты в НАТАЛЬНОЙ системе домов (стандарт интерпретации)
+            'natal_house': get_house_for_longitude(longitude, natal['houses']),
+            # сменила ли планета знак относительно натала — ключевой маркер для анализа
+            'changed_sign': sign_en != natal_planet.get('sign'),
+            'natal_sign': natal_planet.get('sign'),
+        }
+
+    # SouthNode — противоположно NorthNode
+    if 'NorthNode' in progressed_planets:
+        nn_longitude = progressed_planets['NorthNode']['full_degree']
+        sn_longitude = (nn_longitude + 180) % 360
+        sn_sign_en, sn_sign_ru = get_zodiac_sign(sn_longitude)
+        natal_sn = natal['planets'].get('SouthNode', {})
+        progressed_planets['SouthNode'] = {
+            'planet': 'SouthNode',
+            'sign': sn_sign_en,
+            'sign_ru': sn_sign_ru,
+            'degree': round(get_zodiac_degree(sn_longitude), 4),
+            'full_degree': round(sn_longitude, 4),
+            'speed': round(-progressed_planets['NorthNode']['speed'], 4),
+            'is_retrograde': True,
+            'natal_house': get_house_for_longitude(sn_longitude, natal['houses']),
+            'changed_sign': sn_sign_en != natal_sn.get('sign'),
+            'natal_sign': natal_sn.get('sign'),
+        }
+
+    # Chiron (как в натальном расчёте — с обработкой ошибок эфемерид)
+    chiron_id = MINOR_PLANETS.get('Chiron')
+    if chiron_id is not None:
+        try:
+            result = swe.calc_ut(progressed_jd, chiron_id, swe.FLG_MOSEPH | swe.FLG_SPEED)
+            if result and len(result[0]) > 0 and result[0][0] >= 0:
+                longitude = result[0][0]
+                speed = result[0][3] if len(result[0]) > 3 else 0
+                sign_en, sign_ru = get_zodiac_sign(longitude)
+                natal_chiron = natal['planets'].get('Chiron', {})
+                progressed_planets['Chiron'] = {
+                    'planet': 'Chiron',
+                    'sign': sign_en,
+                    'sign_ru': sign_ru,
+                    'degree': round(get_zodiac_degree(longitude), 4),
+                    'full_degree': round(longitude, 4),
+                    'speed': round(speed, 4) if speed else 0,
+                    'is_retrograde': speed < 0,
+                    'natal_house': get_house_for_longitude(longitude, natal['houses']),
+                    'changed_sign': sign_en != natal_chiron.get('sign'),
+                    'natal_sign': natal_chiron.get('sign'),
+                }
+        except Exception as e:
+            print(f"[progressions] Chiron calc error: {e}")
+
+    # 5. Прогрессивные углы и дома (вторичные угловые на натальных координатах)
+    eff_lat = lat if lat is not None else 0.0
+    eff_lon = lon if lon is not None else 0.0
+    progressed_houses_data = calculate_houses(progressed_jd, eff_lat, eff_lon, house_system)
+
+    # 6. Аспекты прогрессивных планет к натальным (тугой орб)
+    aspects_to_natal: List[Dict[str, Any]] = []
+    for p_name, p_data in progressed_planets.items():
+        for n_name, n_data in natal['planets'].items():
+            diff = abs(p_data['full_degree'] - n_data['full_degree'])
+            if diff > 180:
+                diff = 360 - diff
+
+            for aspect_degree, aspect_name in ASPECTS.items():
+                deviation = abs(diff - aspect_degree)
+                if deviation <= orb:
+                    aspects_to_natal.append({
+                        'progressed': p_name,
+                        'natal': n_name,
+                        # дублируем под planet1/planet2 для совместимости с UI-компонентами аспектов
+                        'planet1': p_name,
+                        'planet2': n_name,
+                        'aspect': aspect_name,
+                        'aspect_ru': ASPECTS_RU[aspect_degree],
+                        'orb': round(deviation, 2),
+                        'exactness': round(100 - deviation / orb * 100, 1),
+                        'progressed_sign': p_data['sign'],
+                        'natal_sign': n_data['sign'],
+                    })
+                    break
+
+    # Сортируем по точности (самые точные — самые важные в прогрессиях)
+    aspects_to_natal.sort(key=lambda x: x['orb'])
+
+    # Нормализованный период (YYYY-MM) — используется как ключ кэширования анализа
+    period = target_date.strftime('%Y-%m')
+
+    return {
+        'type': 'progressions',
+        'method': 'secondary',  # вторичные прогрессии («день за год»)
+        'period': period,
+        'age_years': round(age_years, 2),
+        'target_date': target_date.isoformat(),
+        'natal_jd': round(natal_jd, 6),
+        'progressed_jd': round(progressed_jd, 6),
+        'progressed_planets': progressed_planets,
+        'progressed_ascendant': progressed_houses_data['ascendant'],
+        'progressed_mc': progressed_houses_data['mc'],
+        'progressed_houses': progressed_houses_data['houses'],
+        'aspects_to_natal': aspects_to_natal,
+        'natal_summary': {
+            'sun_sign': natal['sun_sign'],
+            'sun_sign_ru': natal['sun_sign_ru'],
+            'moon_sign': natal['moon_sign'],
+            'moon_sign_ru': natal['moon_sign_ru'],
+            'ascendant': natal['ascendant'],
+            'ascendant_ru': natal['ascendant_ru'],
+        },
+        'meta': {
+            'house_system': house_system,
+            'orb': orb,
+            'birth_date': birth_date.isoformat() if hasattr(birth_date, 'isoformat') else str(birth_date),
+            'birth_place': birth_place,
+            'latitude': lat,
+            'longitude': lon,
+            'timezone': timezone_str,
+        },
+    }

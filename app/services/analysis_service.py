@@ -19,6 +19,14 @@ PLANET_TO_BOOK_ID = {
 }
 
 
+# Числительные домов для RAG-запросов (используется в full_chart_analysis_v2 и progressions_analysis)
+HOUSE_WORDS = {
+    1: "first", 2: "second", 3: "third", 4: "fourth",
+    5: "fifth", 6: "sixth", 7: "seventh", 8: "eighth",
+    9: "ninth", 10: "tenth", 11: "eleventh", 12: "twelfth"
+}
+
+
 def build_analysis_prompt(
     user_query: str,
     chart_data: Optional[Dict[str, Any]],
@@ -447,12 +455,6 @@ async def full_chart_analysis_v2(
     houses = chart_data.get("houses", {})
     houses_meta = chart_data.get("houses_meta", {})
 
-    HOUSE_WORDS = {
-        1: "first", 2: "second", 3: "third", 4: "fourth",
-        5: "fifth", 6: "sixth", 7: "seventh", 8: "eighth",
-        9: "ninth", 10: "tenth", 11: "eleventh", 12: "twelfth"
-    }
-
     # --- Шаг 1: Параллельный RAG-поиск по каждой планете ---
     async def search_planet(planet_name: str, planet_data: Dict) -> tuple:
         sign = planet_data.get("sign", "")
@@ -599,6 +601,202 @@ async def full_chart_analysis_v2(
         },
         "language": language,
         "version": "v2_hybrid_rag"
+    }
+
+
+# ============================================================
+# SECONDARY PROGRESSIONS ANALYSIS (анализ вторичных прогрессий)
+# ============================================================
+
+async def progressions_analysis(
+    natal_chart: Dict[str, Any],
+    progressions: Dict[str, Any],
+    language: str = "ru",
+    top_k_per_book: int = 2,
+    mode: str = 'advanced'
+) -> Dict[str, Any]:
+    """
+    AI-анализ вторичных прогрессий — тот же гибридный подход, что и full_chart_analysis_v2:
+    - точечный RAG-поиск по тем же книгам (прогрессивные личные планеты + аспекты к наталу)
+    - сборка структурированного промпта (шаблон 'progressions', advanced/simple)
+    - один финальный вызов LLM + краткое summary
+    """
+    import asyncio
+    from app.services.llm_adapter import get_llm_adapter
+    from app.services.prompt_labels import get_labels
+    from app.services.prompt_templates import get_template
+
+    adapter = get_llm_adapter()
+    labels = get_labels(language)
+
+    prog_planets = progressions.get("progressed_planets", {})
+    aspects = progressions.get("aspects_to_natal", [])
+    natal_summary = progressions.get("natal_summary", {})
+    natal_planets = (natal_chart or {}).get("planets", {})
+
+    # В прогрессиях интерпретационно значимы личные планеты (внешние почти не двигаются)
+    PERSONAL_PLANETS = ["Sun", "Moon", "Mercury", "Venus", "Mars"]
+
+    # --- Шаг 1: Параллельный RAG-поиск ---
+    async def search_progressed_planet(planet_name: str, planet_data: Dict) -> tuple:
+        sign = planet_data.get("sign", "")
+        house = planet_data.get("natal_house", "")
+        house_word = HOUSE_WORDS.get(house, str(house))
+        query = f"progressed {planet_name.lower()} {sign.lower()} {house_word} house"
+        chunks = await search_chunks_all_books(query, top_k_per_book=top_k_per_book)
+        return planet_name, chunks
+
+    async def search_aspect(asp: Dict) -> tuple:
+        p1 = asp.get("progressed", asp.get("planet1", ""))
+        p2 = asp.get("natal", asp.get("planet2", ""))
+        asp_type = asp.get("aspect", "")
+        query = f"progressed {p1.lower()} {asp_type.lower()} natal {p2.lower()}"
+        chunks = await search_chunks_all_books(query, top_k_per_book=2)
+        return f"{p1} {asp_type} {p2}", chunks
+
+    async def search_general() -> tuple:
+        chunks = await search_chunks_all_books(
+            "secondary progressions progressed chart day for a year",
+            top_k_per_book=top_k_per_book
+        )
+        return "Secondary Progressions", chunks
+
+    planet_tasks = [
+        search_progressed_planet(name, prog_planets[name])
+        for name in PERSONAL_PLANETS if name in prog_planets
+    ]
+    # Планеты, сменившие знак относительно натала — поворотные точки, ищем и их
+    for name, data in prog_planets.items():
+        if data.get("changed_sign") and name not in PERSONAL_PLANETS:
+            planet_tasks.append(search_progressed_planet(name, data))
+    planet_tasks.append(search_general())
+
+    aspect_tasks = [search_aspect(asp) for asp in aspects[:10]]
+
+    print(f"[progressions_analysis] Parallel RAG: {len(planet_tasks)} planet queries, {len(aspect_tasks)} aspect queries")
+
+    planet_results = await asyncio.gather(*planet_tasks, return_exceptions=True)
+    aspect_results = await asyncio.gather(*aspect_tasks, return_exceptions=True)
+
+    # --- Шаг 2: Сборка структурированного промпта ---
+    template = get_template("progressions", language, mode)
+
+    # Список аспектов прогрессий к наталу
+    aspects_list = []
+    for asp in aspects:
+        p1 = asp.get("progressed", asp.get("planet1", "?"))
+        p2 = asp.get("natal", asp.get("planet2", "?"))
+        asp_ru = asp.get("aspect_ru", asp.get("aspect", "?"))
+        if language == 'ru':
+            aspects_list.append(f"Прогрессивный {p1} {asp_ru} натальный {p2}")
+        else:
+            aspects_list.append(f"Progressed {p1} {asp.get('aspect', '?')} natal {p2}")
+    aspects_str = "\n".join(aspects_list) if aspects_list else (
+        "Точных аспектов к натальной карте сейчас нет" if language == 'ru'
+        else "No exact aspects to the natal chart right now"
+    )
+
+    # Фрагменты книг
+    planet_chunks_text = ""
+    for result in planet_results:
+        if isinstance(result, Exception):
+            continue
+        section_name, chunks = result
+        if chunks:
+            planet_chunks_text += f"\n\n【{section_name.upper()}】\n"
+            for i, chunk in enumerate(chunks, 1):
+                text = chunk.get("text", "")[:800]
+                book_title = chunk.get("book_title", "")
+                planet_chunks_text += f"[{i}] ({book_title}):\n{text}\n"
+
+    aspect_chunks_text = ""
+    for result in aspect_results:
+        if isinstance(result, Exception):
+            continue
+        asp_label, chunks = result
+        if chunks:
+            aspect_chunks_text += f"\n\n【АСПЕКТ: {asp_label}】\n"
+            for i, chunk in enumerate(chunks, 1):
+                text = chunk.get("text", "")[:600]
+                book_title = chunk.get("book_title", "")
+                aspect_chunks_text += f"[{i}] ({book_title}):\n{text}\n"
+
+    books_content = f"""
+=== ФРАГМЕНТЫ ПО ПРОГРЕССИВНЫМ ПЛАНЕТАМ (из всех книг) ===
+{planet_chunks_text}
+
+=== ФРАГМЕНТЫ ПО АСПЕКТАМ ПРОГРЕССИЙ (из всех книг) ===
+{aspect_chunks_text}
+"""
+
+    prompt = template
+    prompt = prompt.replace("{aspects_list}", aspects_str)
+    prompt = prompt.replace("{books_content}", books_content)
+
+    # --- Данные прогрессий ---
+    age = progressions.get("age_years", "?")
+    period = progressions.get("period", "?")
+
+    prompt += f"\n\n=== ДАННЫЕ ВТОРИЧНЫХ ПРОГРЕССИЙ ==="
+    prompt += f"\nВозраст: {age}"
+    prompt += f"\nПериод: {period}"
+
+    prog_asc = progressions.get("progressed_ascendant", {})
+    prog_mc = progressions.get("progressed_mc", {})
+    if prog_asc:
+        prompt += f"\nПрогрессивный Асцендент: {prog_asc.get('sign_ru', prog_asc.get('sign', '?'))}"
+    if prog_mc:
+        prompt += f"\nПрогрессивный MC: {prog_mc.get('sign_ru', prog_mc.get('sign', '?'))}"
+
+    prompt += f"\n\n=== ПРОГРЕССИВНЫЕ ПЛАНЕТЫ (знак, натальный дом) ==="
+    for planet_name in PERSONAL_PLANETS + [n for n in prog_planets if n not in PERSONAL_PLANETS]:
+        planet_data = prog_planets.get(planet_name)
+        if not planet_data:
+            continue
+        sign_ru = planet_data.get("sign_ru", planet_data.get("sign", "?"))
+        house = planet_data.get("natal_house", "?")
+        rx_str = " (ретроградная)" if planet_data.get("is_retrograde") else ""
+        changed = ""
+        if planet_data.get("changed_sign") and planet_data.get("natal_sign"):
+            natal_sign_ru = natal_planets.get(planet_name, {}).get("sign_ru", planet_data.get("natal_sign"))
+            changed = f" — СМЕНИЛА ЗНАК (в натале была в {natal_sign_ru})"
+        prompt += f"\n{planet_name}: в {sign_ru}, {labels.get('house', 'дом')} {house}{rx_str}{changed}"
+
+    prompt += f"\n\n=== НАТАЛЬНАЯ ОСНОВА ==="
+    prompt += f"\nСолнце: {natal_summary.get('sun_sign_ru', natal_chart.get('sun_sign_ru', '?'))}"
+    prompt += f"\nЛуна: {natal_summary.get('moon_sign_ru', natal_chart.get('moon_sign_ru', '?'))}"
+    prompt += f"\nАсцендент: {natal_summary.get('ascendant_ru', natal_chart.get('ascendant_ru', '?'))}"
+
+    # --- Шаг 3: Один финальный вызов LLM ---
+    print(f"[progressions_analysis] Sending final prompt to LLM (~{len(prompt)//4} tokens estimated)")
+
+    try:
+        full_analysis = await adapter.generate(prompt, language)
+    except Exception as e:
+        full_analysis = f"Ошибка анализа: {str(e)}"
+
+    # --- Шаг 4: Краткое резюме ---
+    summary = await generate_summary(full_analysis, language)
+
+    prog_moon = prog_planets.get("Moon", {})
+    prog_sun = prog_planets.get("Sun", {})
+
+    return {
+        "analysis": full_analysis,
+        "summary": summary,
+        "progressions_summary": {
+            "period": period,
+            "age_years": age,
+            "progressed_moon_sign": prog_moon.get("sign", "?"),
+            "progressed_moon_sign_ru": prog_moon.get("sign_ru", "?"),
+            "progressed_moon_house": prog_moon.get("natal_house"),
+            "progressed_sun_sign": prog_sun.get("sign", "?"),
+            "progressed_sun_sign_ru": prog_sun.get("sign_ru", "?"),
+            "sun_changed_sign": prog_sun.get("changed_sign", False),
+            "aspects_count": len(aspects),
+        },
+        "language": language,
+        "version": "progressions_v1_hybrid_rag"
     }
 
 

@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime
 import json
 import time
 from typing import List, Dict, Any, Optional
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 # Initialize Swiss Ephemeris via helper (sets Moshier mode)
 from app import swephelper
@@ -16,14 +18,19 @@ from app.schemas.schemas import (
     QueryRequest, SynastryRequest, NatalChartRequest, NatalChartResponseFull,
     TransitRequest, SynastryRequestDirect, BookChunkResponse
 )
-from app.schemas.analysis import SynastryAnalysisRequest
+from app.schemas.analysis import SynastryAnalysisRequest, ProgressionsRequest, ProgressionsAnalysisRequest
 from app.utils.astrology_v2 import (
     calculate_planet_positions, calculate_aspects,
     calculate_solar_return, calculate_synastry,
+    calculate_secondary_progressions,
     PLANETS, ASPECTS, ASPECTS_RU, ORBS, get_zodiac_sign, get_zodiac_degree,
     get_house_for_longitude
 )
 from app.swephelper import swe
+from app.auth import get_current_user
+
+# Rate limiter for endpoints
+limiter = Limiter(key_func=get_remote_address)
 
 # Геокодинг и определение таймзон
 from geopy.geocoders import Nominatim
@@ -1294,24 +1301,26 @@ async def calculate_synastry_direct(request: SynastryRequestDirect):
 
 
 @router.post("/synastry/aspect", response_model=SynastryAspectResponse)
-async def analyze_synastry_aspect_endpoint(request: SynastryAspectRequest):
+@limiter.limit("15/minute")
+async def analyze_synastry_aspect_endpoint(request: Request, payload: SynastryAspectRequest, user = Depends(get_current_user)):
     """
     Analyze a specific synastry aspect between two planets
     """
     return await analyze_synastry_aspect(
-        planet1=request.planet1,
-        planet2=request.planet2,
-        aspect_name=request.aspect_name,
-        aspect_name_ru=request.aspect_name_ru,
-        orb=request.orb,
-        language=request.language,
+        planet1=payload.planet1,
+        planet2=payload.planet2,
+        aspect_name=payload.aspect_name,
+        aspect_name_ru=payload.aspect_name_ru,
+        orb=payload.orb,
+        language=payload.language,
         top_k=20,
-        mode=request.mode
+        mode=payload.mode
     )
 
 
 @router.post("/analysis/query")
-async def analyze_query(request: AnalysisRequest) -> AnalysisResponse:
+@limiter.limit("10/minute")
+async def analyze_query(request: Request, payload: AnalysisRequest, user = Depends(get_current_user)) -> AnalysisResponse:
     """
     Поиск и анализ астрологического запроса
     
@@ -1337,9 +1346,9 @@ async def analyze_query(request: AnalysisRequest) -> AnalysisResponse:
     from app.services.analysis_service import analyze_astrology_query
     
     result = await analyze_astrology_query(
-        query=request.query,
+        query=payload.query,
         chart_data=None,
-        top_k=request.top_k
+        top_k=payload.top_k
     )
     
     return {
@@ -1353,7 +1362,8 @@ async def analyze_query(request: AnalysisRequest) -> AnalysisResponse:
 
 
 @router.post("/analysis/query-with-chart")
-async def analyze_query_with_chart(request: AnalysisRequest) -> AnalysisResponse:
+@limiter.limit("10/minute")
+async def analyze_query_with_chart(request: Request, payload: AnalysisRequest, user = Depends(get_current_user)) -> AnalysisResponse:
     """
     Поиск и анализ астрологического запроса С натальной картой
     
@@ -1364,8 +1374,8 @@ async def analyze_query_with_chart(request: AnalysisRequest) -> AnalysisResponse
     
     chart_data = None
     
-    if request.chart_data:
-        birth_request = request.chart_data
+    if payload.chart_data:
+        birth_request = payload.chart_data
         
         if birth_request.latitude is not None and birth_request.longitude is not None:
             lat, lon = birth_request.latitude, birth_request.longitude
@@ -1424,9 +1434,9 @@ async def analyze_query_with_chart(request: AnalysisRequest) -> AnalysisResponse
             }
     
     result = await analyze_astrology_query(
-        query=request.query,
+        query=payload.query,
         chart_data=chart_data,
-        top_k=request.top_k
+        top_k=payload.top_k
     )
     
     return {
@@ -1440,53 +1450,39 @@ async def analyze_query_with_chart(request: AnalysisRequest) -> AnalysisResponse
 
 
 @router.post("/analysis/planet")
+@limiter.limit("10/minute")
 async def analyze_planet_endpoint(
-    request: PlanetAnalysisRequest
+    request: Request,
+    payload: PlanetAnalysisRequest,
+    user = Depends(get_current_user)
 ) -> PlanetAnalysisResponse:
     """
     Анализ одной планеты по клику/hover
-    
-    Request:
-    - planet: Название планеты (Sun, Moon, Mars, etc.)
-    - sign: Знак (Leo, Cancer, etc.)
-    - degree: Градус в знаке
-    - house: Номер дома (1-12)
-    - house_sign: Знак на куспиде дома
-    - is_retrograde: Ретроградность (опционально, можно получить из chart_data)
-    - aspects: Список аспектов планеты (опционально)
-    - chart_data: Данные натальной карты для извлечения is_retrograde (опционально)
-    
-    Response:
-    - planet: Название планеты
-    - sign: Знак
-    - house: Номер дома
-    - analysis: Текст анализа от LLM
-    - relevant_chunks: Найденные чанки из книг
     """
     from app.services.analysis_service import analyze_planet
     
     # Узлы всегда ретроградны — хардкод до любой логики
-    if request.planet in ('NorthNode', 'North Node', 'SouthNode', 'South Node'):
+    if payload.planet in ('NorthNode', 'North Node', 'SouthNode', 'South Node'):
         is_retrograde = True
     else:
-        is_retrograde = request.is_retrograde
-        if not is_retrograde and request.chart_data:
-            planets_data = request.chart_data.get('planets', {})
-            planet_key = request.planet.replace(' ', '')
-            planet_data = planets_data.get(planet_key) or planets_data.get(request.planet, {})
+        is_retrograde = payload.is_retrograde
+        if not is_retrograde and payload.chart_data:
+            planets_data = payload.chart_data.get('planets', {})
+            planet_key = payload.planet.replace(' ', '')
+            planet_data = planets_data.get(planet_key) or planets_data.get(payload.planet, {})
             is_retrograde = planet_data.get('is_retrograde', False)
     
     result = await analyze_planet(
-        planet=request.planet,
-        sign=request.sign,
-        degree=request.degree,
-        house=request.house or 1,
-        house_sign=request.house_sign,
+        planet=payload.planet,
+        sign=payload.sign,
+        degree=payload.degree,
+        house=payload.house or 1,
+        house_sign=payload.house_sign,
         is_retrograde=is_retrograde or False,
-        aspects=request.aspects,
-        language=request.language,
+        aspects=payload.aspects,
+        language=payload.language,
         top_k=20,
-        mode=request.mode
+        mode=payload.mode
     )
     
     return result
@@ -1639,7 +1635,8 @@ async def generate_summary_endpoint(request: SummaryRequest):
 
 
 @router.post("/analysis/chat")
-async def chat_with_astrologer_endpoint(request: ChatRequest) -> ChatResponse:
+@limiter.limit("20/minute")
+async def chat_with_astrologer_endpoint(request: Request, payload: ChatRequest, user = Depends(get_current_user)) -> ChatResponse:
     """
     Чат с персональным астрологом-агентом.
     - Гибридный RAG: поиск по книгам по вопросу + по планетам
@@ -1649,31 +1646,31 @@ async def chat_with_astrologer_endpoint(request: ChatRequest) -> ChatResponse:
     # from app.services.analysis_service import chat_with_astrologer
  
     # result = await chat_with_astrologer(
-    #     question=request.question,
-    #     chart_data=request.chart_data,
-    #     full_analysis=request.summary,
-    #     chat_history=[msg.dict() for msg in request.chat_history],
-    #     language=request.language
+    #     question=payload.question,
+    #     chart_data=payload.chart_data,
+    #     full_analysis=payload.summary,
+    #     chat_history=[msg.dict() for msg in payload.chat_history],
+    #     language=payload.language
     # )
 
-    if request.chart_data.get('type') == 'synastry':
+    if payload.chart_data.get('type') == 'synastry':
         from app.services.synastry_service import chat_with_synastry_astrologer
         result = await chat_with_synastry_astrologer(
-            question=request.question,
-            chart_data=request.chart_data,
-            full_analysis=request.summary,
-            chat_history=[msg.dict() for msg in request.chat_history],
-            language=request.language,
-            relationship_context=request.relationship_context
+            question=payload.question,
+            chart_data=payload.chart_data,
+            full_analysis=payload.summary,
+            chat_history=[msg.dict() for msg in payload.chat_history],
+            language=payload.language,
+            relationship_context=payload.relationship_context
         )
     else:
         from app.services.analysis_service import chat_with_astrologer
         result = await chat_with_astrologer(
-            question=request.question,
-            chart_data=request.chart_data,
-            full_analysis=request.summary,
-            chat_history=[msg.dict() for msg in request.chat_history],
-            language=request.language
+            question=payload.question,
+            chart_data=payload.chart_data,
+            full_analysis=payload.summary,
+            chat_history=[msg.dict() for msg in payload.chat_history],
+            language=payload.language
         )
  
     return ChatResponse(
@@ -1683,7 +1680,8 @@ async def chat_with_astrologer_endpoint(request: ChatRequest) -> ChatResponse:
 
 
 @router.post("/analysis/synastry/full")
-async def full_synastry_analysis_endpoint(request: SynastryAnalysisRequest):
+@limiter.limit("5/minute")
+async def full_synastry_analysis_endpoint(request: Request, payload: SynastryAnalysisRequest, user = Depends(get_current_user)):
     """
     Полный глубокий анализ синастрии (гибридный метод v2)
     
@@ -1752,29 +1750,30 @@ async def full_synastry_analysis_endpoint(request: SynastryAnalysisRequest):
         return chart
     
     # Рассчитываем обе карты
-    chart1_data = await calculate_chart(request.chart1, 1)
-    chart2_data = await calculate_chart(request.chart2, 2)
+    chart1_data = await calculate_chart(payload.chart1, 1)
+    chart2_data = await calculate_chart(payload.chart2, 2)
     
     # Определяем язык
-    language = request.language or "ru"
+    language = payload.language or "ru"
     
     # Выполняем полный анализ синастрии
     result = await full_synastry_analysis_v2(
         chart1_data=chart1_data,
         chart2_data=chart2_data,
         aspects=calculate_synastry(chart1_data, chart2_data).get('aspects', []),
-        overlays=request.overlays,
+        overlays=payload.overlays,
         language=language,
-        top_k_per_book=request.top_k_per_book,
-        mode=request.mode,
-        relationship_context=request.relationship_context
+        top_k_per_book=payload.top_k_per_book,
+        mode=payload.mode,
+        relationship_context=payload.relationship_context
     )
     
     return result
 
 
 @router.post("/synastry/relationship-types")
-async def analyze_relationship_types_endpoint(request: SynastryRelationshipRequest):
+@limiter.limit("10/minute")
+async def analyze_relationship_types_endpoint(request: Request, payload: SynastryRelationshipRequest, user = Depends(get_current_user)):
     """
     Определить типы отношений в синастрии (с поддержкой стриминга)
     
@@ -1787,18 +1786,180 @@ async def analyze_relationship_types_endpoint(request: SynastryRelationshipReque
     )
     from fastapi.responses import StreamingResponse
     
-    if request.stream:
+    if payload.stream:
         return StreamingResponse(
             stream_relationship_types(
-                full_analysis=request.full_analysis,
-                language=request.language
+                full_analysis=payload.full_analysis,
+                language=payload.language
             ),
             media_type="text/plain"
         )
     
     result = await analyze_relationship_types(
-        full_analysis=request.full_analysis,
-        language=request.language
+        full_analysis=payload.full_analysis,
+        language=payload.language
     )
     
+    return result
+
+
+# ============================================
+# SECONDARY PROGRESSIONS (Вторичные прогрессии)
+# Доступ только для авторизованных пользователей —
+# фича привязана к СОХРАНЁННЫМ картам (как чат)
+# ============================================
+
+def _prepare_birth_datetime(birth_date, birth_time: Optional[str], tz_str: Optional[str]):
+    """Единая подготовка даты рождения (время + таймзона) — без дублирования кода"""
+    birth_datetime = birth_date
+    if birth_time:
+        try:
+            time_parts = birth_time.split(':')
+            hour = int(time_parts[0])
+            minute = int(time_parts[1]) if len(time_parts) > 1 else 0
+            second = int(time_parts[2]) if len(time_parts) > 2 else 0
+            birth_datetime = birth_datetime.replace(hour=hour, minute=minute, second=second)
+        except Exception:
+            pass
+    if tz_str:
+        try:
+            from zoneinfo import ZoneInfo
+            if birth_datetime.tzinfo is None:
+                birth_datetime = birth_datetime.replace(tzinfo=ZoneInfo(tz_str))
+        except Exception as e:
+            print(f"Timezone error: {e}")
+    return birth_datetime
+
+
+def _resolve_coordinates(latitude: Optional[float], longitude: Optional[float], birth_place: Optional[str]):
+    """Координаты: переданные или геокодинг по названию места"""
+    if latitude is not None and longitude is not None:
+        return latitude, longitude
+    if not birth_place or not birth_place.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Either 'birth_place' or both 'latitude' and 'longitude' must be provided."
+        )
+    try:
+        return get_coordinates(birth_place)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot determine coordinates for location: '{birth_place}'. Error: {str(e)}"
+        )
+
+
+@router.post("/progressions")
+@limiter.limit("15/minute")
+async def calculate_progressions_endpoint(request: Request, payload: ProgressionsRequest, user = Depends(get_current_user)):
+    """
+    Расчёт вторичных прогрессий («день за год») через Swiss Ephemeris.
+
+    Возвращает прогрессивные планеты (с натальными домами), прогрессивные
+    ASC/MC/дома и аспекты прогрессий к натальной карте (орб 1.5°).
+    Требует авторизацию — функция доступна только для сохранённых карт.
+    """
+    lat, lon = _resolve_coordinates(payload.latitude, payload.longitude, payload.birth_place)
+    birth_datetime = _prepare_birth_datetime(payload.birth_date, payload.birth_time, payload.timezone)
+
+    try:
+        result = calculate_secondary_progressions(
+            birth_date=birth_datetime,
+            birth_place=payload.birth_place or '',
+            target_date=payload.target_date,
+            lat=lat,
+            lon=lon,
+            timezone_str=payload.timezone,
+            house_system=payload.house_system or 'Placidus',
+        )
+    except Exception as e:
+        print(f"[progressions] calculation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Progressions calculation error: {str(e)}")
+
+    return result
+
+
+@router.post("/analysis/progressions")
+@limiter.limit("5/minute")
+async def progressions_analysis_endpoint(request: Request, payload: ProgressionsAnalysisRequest, user = Depends(get_current_user)):
+    """
+    AI-анализ вторичных прогрессий: RAG-поиск по тем же книгам + LLM
+    (шаблон 'progressions', режимы simple/advanced, языки ru/en).
+
+    Защита от повторных LLM-вызовов: in-memory кэш по ключу
+    birth_date|birth_place|period|mode|language (TTL как у полного анализа).
+    """
+    from app.services.analysis_service import progressions_analysis
+    from datetime import datetime as dt
+
+    # --- Прогрессии: берём готовые из запроса или считаем на бэкенде ---
+    progressions = payload.progression_data
+    if not progressions:
+        if not payload.birth_date:
+            raise HTTPException(status_code=400, detail="Either 'progression_data' or birth data must be provided")
+        lat, lon = _resolve_coordinates(payload.latitude, payload.longitude, payload.birth_place)
+        birth_datetime = _prepare_birth_datetime(payload.birth_date, payload.birth_time, payload.timezone)
+        try:
+            progressions = calculate_secondary_progressions(
+                birth_date=birth_datetime,
+                birth_place=payload.birth_place or '',
+                target_date=payload.target_date,
+                lat=lat,
+                lon=lon,
+                timezone_str=payload.timezone,
+                house_system=payload.house_system or 'Placidus',
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Progressions calculation error: {str(e)}")
+
+    # --- Натальная карта: из запроса или восстановление из meta прогрессий ---
+    natal_chart = payload.natal_chart
+    if not natal_chart:
+        meta = progressions.get('meta', {})
+        if not meta.get('birth_date'):
+            raise HTTPException(status_code=400, detail="'natal_chart' is required when it cannot be derived")
+        try:
+            birth_dt = dt.fromisoformat(meta['birth_date'])
+            natal_chart = calculate_planet_positions(
+                birth_date=birth_dt,
+                birth_place=meta.get('birth_place', ''),
+                lat=meta.get('latitude'),
+                lon=meta.get('longitude'),
+                timezone_str=meta.get('timezone'),
+                house_system=meta.get('house_system', 'Placidus'),
+            )
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Cannot rebuild natal chart: {str(e)}")
+
+    # --- Кэш (тот же механизм, что у /analysis/full) ---
+    meta = progressions.get('meta', {})
+    period = progressions.get('period', '')
+    cache_key = f"progressions|{meta.get('birth_date')}|{meta.get('birth_place')}|{period}|{payload.mode}|{payload.language}"
+
+    if cache_key in _analysis_cache:
+        cached_result, timestamp = _analysis_cache[cache_key]
+        if time.time() - timestamp < _ANALYSIS_CACHE_TTL:
+            print(f"[CACHE] Returning cached progressions analysis for {cache_key}")
+            return {
+                **cached_result,
+                "from_cache": True,
+                "cached_at": dt.fromtimestamp(timestamp).isoformat()
+            }
+        else:
+            del _analysis_cache[cache_key]
+
+    result = await progressions_analysis(
+        natal_chart=natal_chart,
+        progressions=progressions,
+        language=payload.language,
+        top_k_per_book=payload.top_k_per_book,
+        mode=payload.mode or 'advanced',
+    )
+
+    # Прикладываем расчётные данные — фронтенд может показать их без второго запроса
+    result["progression_data"] = progressions
+
+    if len(_analysis_cache) < _ANALYSIS_CACHE_MAX_SIZE:
+        _analysis_cache[cache_key] = (result, time.time())
+
     return result

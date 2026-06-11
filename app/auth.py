@@ -1,21 +1,36 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer
-from jose import jwt
+import httpx
 from app.core.config import settings
 
 router = APIRouter()
 security = HTTPBearer()
 
 async def get_current_user(credentials = Depends(security)):
+    token = credentials.credentials
+    if not token:
+        raise HTTPException(status_code=401, detail="No token provided")
+    
     try:
-        payload = jwt.decode(
-            credentials.credentials,
-            settings.SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
-            audience="authenticated"
-        )
-        return {"id": payload.get("sub"), "email": payload.get("email")}
-    except jwt.JWTError:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{settings.SUPABASE_URL}/auth/v1/user",
+                headers={
+                    "apikey": settings.SUPABASE_KEY,
+                    "Authorization": f"Bearer {token}"
+                }
+            )
+            print(f"SUPABASE RESPONSE: {response.status_code}")  # добавь эту строку
+            print(f"SUPABASE BODY: {response.text}")  #
+            if response.status_code != 200:
+                raise HTTPException(status_code=401, detail="Invalid token")
+            
+            user_data = response.json()
+            return {
+                "id": user_data.get("id"),
+                "email": user_data.get("email")
+            }
+    except httpx.HTTPError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 @router.get("/me")
