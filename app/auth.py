@@ -20,8 +20,6 @@ async def get_current_user(credentials = Depends(security)):
                     "Authorization": f"Bearer {token}"
                 }
             )
-            print(f"SUPABASE RESPONSE: {response.status_code}")  # добавь эту строку
-            print(f"SUPABASE BODY: {response.text}")  #
             if response.status_code != 200:
                 raise HTTPException(status_code=401, detail="Invalid token")
             
