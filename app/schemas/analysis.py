@@ -200,3 +200,50 @@ class SynastryRelationshipResponse(BaseModel):
     relationship_types: Dict[str, RelationshipTypeInfo]
     dominant_type: str
     analysis: str
+
+
+# ============================================================
+# SECONDARY PROGRESSIONS (Вторичные прогрессии)
+# ============================================================
+
+class ProgressionsRequest(BaseModel):
+    """Запрос на расчёт вторичных прогрессий"""
+    birth_date: datetime
+    birth_time: Optional[str] = None
+    birth_place: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    timezone: Optional[str] = None
+    house_system: Optional[str] = "Placidus"
+    # Дата, на которую строим прогрессии (по умолчанию — текущий момент)
+    target_date: Optional[datetime] = None
+
+
+class ProgressionsAnalysisRequest(BaseModel):
+    """Запрос на AI-анализ вторичных прогрессий"""
+    # Предпочтительный путь: фронтенд передаёт готовые данные (без повторного расчёта)
+    natal_chart: Optional[Dict[str, Any]] = None       # chart_data натальной карты
+    progression_data: Optional[Dict[str, Any]] = None  # результат /api/progressions
+
+    # Fallback: расчёт на бэкенде из данных рождения
+    birth_date: Optional[datetime] = None
+    birth_time: Optional[str] = None
+    birth_place: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    timezone: Optional[str] = None
+    house_system: Optional[str] = "Placidus"
+    target_date: Optional[datetime] = None
+
+    language: str = "ru"
+    mode: Optional[str] = "advanced"
+    top_k_per_book: int = 2
+
+
+class ProgressionsAnalysisResponse(BaseModel):
+    """Ответ с анализом прогрессий"""
+    analysis: str
+    summary: Optional[str] = None
+    progressions_summary: Dict[str, Any]
+    language: str
+    created_at: datetime

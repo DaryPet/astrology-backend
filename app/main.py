@@ -2,6 +2,10 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from fastapi.responses import JSONResponse
 from app.api.endpoints import router as api_router
 # from app.auth_routes_simple import router as auth_router
 # from app.db.database import init_db, engine
@@ -17,15 +21,13 @@ mimetypes.add_type('text/css', '.css')
 
 app = FastAPI(title="Astrology API", description="Fullstack Astrology Application")
 
-# Создаем таблицы для аутентификации при запуске
-# try:
-#     # Используем синхронный движок для создания таблиц
-#     from sqlalchemy import create_engine
-#     sync_engine = create_engine(str(engine.url).replace('+aiosqlite', ''))
-#     AuthBase.metadata.create_all(bind=sync_engine)
-#     print("✅ Таблицы аутентификации созданы успешно")
-# except Exception as e:
-#     print(f"⚠️  Ошибка при создании таблиц аутентификации: {e}")
+# Rate limiting setup
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc):
+    return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded. Please slow down."})
 
 # CORS - must be before static files
 app.add_middleware(
