@@ -28,7 +28,7 @@ async def get_current_user(credentials = Depends(security)):
                 "id": user_data.get("id"),
                 "email": user_data.get("email")
             }
-    except httpx.HTTPError:
+    except (httpx.HTTPError, ValueError):
         raise HTTPException(status_code=401, detail="Invalid token")
 
 @router.get("/me")
