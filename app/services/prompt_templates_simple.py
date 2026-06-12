@@ -307,10 +307,10 @@ PROGRESSIONS_PROMPTS_SIMPLE = {
 ПРОСТЫМИ СЛОВАМИ: прогрессии показывают, как человек внутренне взрослеет и какой «сезон души» у него сейчас. Это не предсказание событий, а описание внутреннего этапа.
 
 ЧТО РАСКРЫТЬ (4-6 абзацев, 400-700 слов):
-1. **Какой сейчас этап жизни** — пару тёплых фраз про возраст и период
-2. **Прогрессивная Луна** (самое важное!) — какой эмоциональный сезон сейчас, чего хочется душе, какая сфера жизни в фокусе
-3. **Прогрессивное Солнце** — как меняется ощущение себя; если знак сменился относительно рождения — обязательно объясни это просто
-4. **Самые точные аспекты к натальной карте** (1-3 главных из списка) — какой внутренний урок сейчас активен
+1. **Какой сейчас этап жизни** — по лунной фазе из данных: на каком этапе большого ~30-летнего цикла человек (начало, разгон, кульминация, переоценка, завершение) — пару тёплых фраз
+2. **Прогрессивная Луна** (самое важное!) — какой эмоциональный сезон сейчас И какая сфера жизни в фокусе (по её дому из данных: дом 6 = работа и здоровье, дом 4 = дом и семья и т.д.); если скоро сменит знак — мягко подготовь
+3. **Прогрессивное Солнце** — как меняется ощущение себя; если сменился знак ИЛИ дом относительно рождения — обязательно объясни просто: из какого качества в какое переходит
+4. **Самые точные аспекты к натальной карте** (1-3 главных из списка) — какой внутренний урок активен; учитывай, что именно затронутая натальная планета означает в карте (её знак и дом указаны в списке)
 5. **Простой совет** — как прожить этот период с пользой
 
 ПРАВИЛА:
@@ -334,10 +334,10 @@ PROGRESSIONS_PROMPTS_SIMPLE = {
 IN SIMPLE WORDS: progressions show how a person inwardly matures and what "season of the soul" they are in now. It's not event prediction, it's a description of an inner stage.
 
 WHAT TO COVER (4-6 paragraphs, 400-700 words):
-1. **Current life stage** — a couple of warm sentences about the age and period
-2. **Progressed Moon** (most important!) — what emotional season it is now, what the soul wants, which life area is in focus
-3. **Progressed Sun** — how the sense of self is changing; if the sign differs from the birth one — explain this simply, it matters
-4. **The most exact aspects to the natal chart** (1-3 main ones from the list) — which inner lesson is active now
+1. **The current life stage** — based on the lunar phase from the data: where the person is in the big ~30-year cycle (beginning, build-up, culmination, reassessment, completion) — a couple of warm sentences
+2. **Progressed Moon** (the most important!) — the current emotional season AND the life area in focus (by its house from the data: house 6 = work and health, house 4 = home and family, etc.); if a sign change is near — gently prepare them
+3. **Progressed Sun** — how the sense of self is changing; if the sign OR the house has changed since birth — explain it simply: from which quality into which
+4. **The most exact aspects to the natal chart** (1-3 main ones from the list) — which inner lesson is active; take into account what the touched natal planet means in the chart (its sign and house are given in the list)
 5. **A simple piece of advice** — how to live this period well
 
 RULES:

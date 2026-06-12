@@ -756,6 +756,34 @@ def _datetime_to_utc_jd(dt: datetime) -> float:
     return swe.utc_to_jd(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, swe.GREG_CAL)[0]
 
 
+# Прогрессивная лунная фаза (угол Луна−Солнце) — ядро интерпретации вторичных прогрессий.
+# 8 фаз по 45°: ключевые этапы ~30-летнего цикла внутреннего развития.
+LUNAR_PHASES = [
+    (0,   'New Moon',          'Новолуние'),
+    (45,  'Crescent',          'Растущий серп'),
+    (90,  'First Quarter',     'Первая четверть'),
+    (135, 'Gibbous',           'Растущая выпуклая'),
+    (180, 'Full Moon',         'Полнолуние'),
+    (225, 'Disseminating',     'Рассеивающая'),
+    (270, 'Last Quarter',      'Последняя четверть'),
+    (315, 'Balsamic',          'Бальзамическая'),
+]
+
+
+def get_progressed_lunar_phase(sun_longitude: float, moon_longitude: float) -> Dict[str, Any]:
+    """Определить прогрессивную лунную фазу по углу Луна−Солнце (0-360°)"""
+    angle = (moon_longitude - sun_longitude) % 360
+    phase_en, phase_ru = LUNAR_PHASES[0][1], LUNAR_PHASES[0][2]
+    for start_deg, en, ru in LUNAR_PHASES:
+        if angle >= start_deg:
+            phase_en, phase_ru = en, ru
+    return {
+        'angle': round(angle, 2),
+        'phase': phase_en,
+        'phase_ru': phase_ru,
+    }
+
+
 def calculate_secondary_progressions(
     birth_date: datetime,
     birth_place: str,
@@ -813,6 +841,8 @@ def calculate_secondary_progressions(
         sign_en, sign_ru = get_zodiac_sign(longitude)
         is_retrograde = True if planet_name == 'NorthNode' else speed < 0
         natal_planet = natal['planets'].get(planet_name, {})
+        prog_house = get_house_for_longitude(longitude, natal['houses'])
+        natal_planet_house = natal_planet.get('house')
 
         progressed_planets[planet_name] = {
             'planet': planet_name,
@@ -823,10 +853,15 @@ def calculate_secondary_progressions(
             'speed': round(speed, 4) if speed else 0,
             'is_retrograde': is_retrograde,
             # дом прогрессивной планеты в НАТАЛЬНОЙ системе домов (стандарт интерпретации)
-            'natal_house': get_house_for_longitude(longitude, natal['houses']),
+            'natal_house': prog_house,
             # сменила ли планета знак относительно натала — ключевой маркер для анализа
             'changed_sign': sign_en != natal_planet.get('sign'),
             'natal_sign': natal_planet.get('sign'),
+            # дом, в котором планета была в натале, и факт перехода в другой дом —
+            # не менее важный маркер, чем смена знака
+            'natal_planet_house': natal_planet_house,
+            'changed_house': (natal_planet_house is not None and prog_house != natal_planet_house),
+            'natal_degree': natal_planet.get('degree'),
         }
 
     # SouthNode — противоположно NorthNode
@@ -835,6 +870,8 @@ def calculate_secondary_progressions(
         sn_longitude = (nn_longitude + 180) % 360
         sn_sign_en, sn_sign_ru = get_zodiac_sign(sn_longitude)
         natal_sn = natal['planets'].get('SouthNode', {})
+        sn_house = get_house_for_longitude(sn_longitude, natal['houses'])
+        sn_natal_house = natal_sn.get('house')
         progressed_planets['SouthNode'] = {
             'planet': 'SouthNode',
             'sign': sn_sign_en,
@@ -843,9 +880,12 @@ def calculate_secondary_progressions(
             'full_degree': round(sn_longitude, 4),
             'speed': round(-progressed_planets['NorthNode']['speed'], 4),
             'is_retrograde': True,
-            'natal_house': get_house_for_longitude(sn_longitude, natal['houses']),
+            'natal_house': sn_house,
             'changed_sign': sn_sign_en != natal_sn.get('sign'),
             'natal_sign': natal_sn.get('sign'),
+            'natal_planet_house': sn_natal_house,
+            'changed_house': (sn_natal_house is not None and sn_house != sn_natal_house),
+            'natal_degree': natal_sn.get('degree'),
         }
 
     # Chiron (как в натальном расчёте — с обработкой ошибок эфемерид)
@@ -858,6 +898,8 @@ def calculate_secondary_progressions(
                 speed = result[0][3] if len(result[0]) > 3 else 0
                 sign_en, sign_ru = get_zodiac_sign(longitude)
                 natal_chiron = natal['planets'].get('Chiron', {})
+                ch_house = get_house_for_longitude(longitude, natal['houses'])
+                ch_natal_house = natal_chiron.get('house')
                 progressed_planets['Chiron'] = {
                     'planet': 'Chiron',
                     'sign': sign_en,
@@ -866,9 +908,12 @@ def calculate_secondary_progressions(
                     'full_degree': round(longitude, 4),
                     'speed': round(speed, 4) if speed else 0,
                     'is_retrograde': speed < 0,
-                    'natal_house': get_house_for_longitude(longitude, natal['houses']),
+                    'natal_house': ch_house,
                     'changed_sign': sign_en != natal_chiron.get('sign'),
                     'natal_sign': natal_chiron.get('sign'),
+                    'natal_planet_house': ch_natal_house,
+                    'changed_house': (ch_natal_house is not None and ch_house != ch_natal_house),
+                    'natal_degree': natal_chiron.get('degree'),
                 }
         except Exception as e:
             print(f"[progressions] Chiron calc error: {e}")
@@ -879,6 +924,12 @@ def calculate_secondary_progressions(
     progressed_houses_data = calculate_houses(progressed_jd, eff_lat, eff_lon, house_system)
 
     # 6. Аспекты прогрессивных планет к натальным (тугой орб)
+    # Для определения сходящийся/расходящийся считаем позиции чуть позже (+0.1 JD ≈ +36 дней жизни)
+    future_longitudes: Dict[str, float] = {}
+    for p_name, p_data in progressed_planets.items():
+        speed = p_data.get('speed', 0) or 0
+        future_longitudes[p_name] = (p_data['full_degree'] + speed * 0.1) % 360
+
     aspects_to_natal: List[Dict[str, Any]] = []
     for p_name, p_data in progressed_planets.items():
         for n_name, n_data in natal['planets'].items():
@@ -889,6 +940,12 @@ def calculate_secondary_progressions(
             for aspect_degree, aspect_name in ASPECTS.items():
                 deviation = abs(diff - aspect_degree)
                 if deviation <= orb:
+                    # Сходящийся: через +0.1 JD орб уменьшается (аспект идёт к точности)
+                    f_diff = abs(future_longitudes[p_name] - n_data['full_degree'])
+                    if f_diff > 180:
+                        f_diff = 360 - f_diff
+                    applying = abs(f_diff - aspect_degree) < deviation
+
                     aspects_to_natal.append({
                         'progressed': p_name,
                         'natal': n_name,
@@ -899,13 +956,33 @@ def calculate_secondary_progressions(
                         'aspect_ru': ASPECTS_RU[aspect_degree],
                         'orb': round(deviation, 2),
                         'exactness': round(100 - deviation / orb * 100, 1),
+                        'applying': applying,  # сходящийся (True) / расходящийся (False)
                         'progressed_sign': p_data['sign'],
                         'natal_sign': n_data['sign'],
+                        # контекст натальной планеты — нужен LLM для оверлея с наталом
+                        'natal_house': n_data.get('house'),
+                        'progressed_house': p_data.get('natal_house'),
                     })
                     break
 
     # Сортируем по точности (самые точные — самые важные в прогрессиях)
     aspects_to_natal.sort(key=lambda x: x['orb'])
+
+    # 7. Прогрессивная лунная фаза — главный маркер этапа ~30-летнего цикла
+    lunar_phase = None
+    if 'Sun' in progressed_planets and 'Moon' in progressed_planets:
+        lunar_phase = get_progressed_lunar_phase(
+            progressed_planets['Sun']['full_degree'],
+            progressed_planets['Moon']['full_degree'],
+        )
+
+    # 8. Тайминги: через сколько лет Солнце и Луна сменят знак
+    # (speed = °/эфемеридный день; в прогрессиях 1 день = 1 год жизни)
+    for key in ('Sun', 'Moon'):
+        p = progressed_planets.get(key)
+        if p and p.get('speed') and p['speed'] > 0.001:
+            remaining_deg = 30 - p['degree']
+            p['years_to_next_sign'] = round(remaining_deg / p['speed'], 1)
 
     # Нормализованный период (YYYY-MM) — используется как ключ кэширования анализа
     period = target_date.strftime('%Y-%m')
@@ -919,6 +996,7 @@ def calculate_secondary_progressions(
         'natal_jd': round(natal_jd, 6),
         'progressed_jd': round(progressed_jd, 6),
         'progressed_planets': progressed_planets,
+        'lunar_phase': lunar_phase,
         'progressed_ascendant': progressed_houses_data['ascendant'],
         'progressed_mc': progressed_houses_data['mc'],
         'progressed_houses': progressed_houses_data['houses'],

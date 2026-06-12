@@ -473,30 +473,37 @@ PROGRESSIONS_PROMPTS = {
 
 ЧТО ТАКОЕ ВТОРИЧНЫЕ ПРОГРЕССИИ (для твоего понимания, не для пересказа):
 - Это символическое развёртывание натальной карты во времени: внутреннее созревание души, а не внешние события
-- Прогрессивная Луна — главный таймер эмоционального климата (меняет знак примерно раз в 2.5 года, дом — этап внутреннего фокуса)
-- Прогрессивное Солнце — эволюция идентичности (смена знака — редкое и важнейшее событие, раз в ~30 лет)
+- ПРОГРЕССИВНАЯ ЛУННАЯ ФАЗА (угол Луна−Солнце) — этап ~30-летнего цикла развития: Новолуние = новое начало, Первая четверть = кризис действия, Полнолуние = кульминация и осознание, Последняя четверть = кризис сознания и переоценка, Бальзамическая = завершение и отпускание
+- Прогрессивная Луна — главный таймер эмоционального климата (меняет знак примерно раз в 2.5 года); её НАТАЛЬНЫЙ ДОМ показывает сферу жизни в фокусе ближайших месяцев
+- Прогрессивное Солнце — эволюция идентичности (смена знака — раз в ~30 лет; смена дома — тоже поворот)
 - Прогрессивные Меркурий, Венера, Марс — созревание мышления, ценностей и воли
-- Аспекты прогрессивных планет к натальным — точные тайминги кармических уроков и внутренних переходов
-- Смена знака или дома прогрессивной планетой, смена направления (ретро/директ) — поворотные точки
+- Аспекты прогрессивных планет к натальным — точные тайминги кармических уроков; СХОДЯЩИЙСЯ аспект набирает силу (тема впереди), РАСХОДЯЩИЙСЯ — уже раскрылся и отпускает
+- Смена знака И смена дома прогрессивной планетой, смена направления (ретро/директ) — поворотные точки
+
+ГЛАВНЫЙ ПРИНЦИП — ОВЕРЛЕЙ С НАТАЛОМ:
+Прогрессия НЕ существует сама по себе. Каждую прогрессивную позицию интерпретируй ЧЕРЕЗ натальную карту:
+- Прогрессивная планета в N-м НАТАЛЬНОМ доме = эта сфера натальной жизни сейчас активирована
+- Аспект к натальной планете = активация того, что эта планета означает В НАТАЛЕ (смотри её натальный знак и дом из данных!)
+- Смена знака/дома = переход темы из старого качества в новое — назови ОБА состояния (откуда и куда)
 
 ВАША ЗАДАЧА:
-1. Если в найденных фрагментах из книг есть релевантная информация по прогрессиям, планетам в знаках/домах или аспектам — используй её как ОСНОВУ, косвенно ссылаясь
+1. Если в найденных фрагментах из книг есть релевантная информация по прогрессиям, лунным фазам, планетам в знаках/домах или аспектам — используй её как ОСНОВУ, косвенно ссылаясь
 2. Если фрагментов недостаточно — давай анализ на основе принципов эволюционной астрологии и символизма вторичных прогрессий
 3. ВСЕГДА указывай источник: «Согласно найденным фрагментам...» (если есть) / «В библиотеке не найдено специфических данных, но на основе эволюционной астрологии...» (если нет)
 
 СТРУКТУРА АНАЛИЗА (пиши одним связным текстом, но раскрой все темы):
-1. **Текущий жизненный этап** — что означает этот возраст и период с точки зрения эволюции души
-2. **Прогрессивная Луна** — самая важная часть! Знак, натальный дом: эмоциональный климат периода, чего душа просит сейчас, какая сфера жизни в фокусе ближайшие месяцы
-3. **Прогрессивное Солнце** — куда эволюционирует идентичность; если знак сменился относительно натального — раскрой это подробно как важнейшую тему
-4. **Прогрессивные Меркурий, Венера, Марс** — как созрели мышление, ценности, способ действовать (особенно если сменили знак или направление)
-5. **Аспекты прогрессий к наталу** — для каждого аспекта из списка: какой кармический урок активирован именно сейчас, как это проживается
-6. **Практические выводы** — что этот период просит от человека, как сотрудничать с этими энергиями
+1. **Этап большого цикла** — прогрессивная лунная фаза: на каком этапе ~30-летнего цикла человек, что этот этап просит (это рамка для ВСЕГО остального анализа)
+2. **Прогрессивная Луна** — самая важная часть! Знак + НАТАЛЬНЫЙ ДОМ: эмоциональный климат и сфера жизни в фокусе; если до смены знака меньше года — подготовь к переходу, назови куда
+3. **Прогрессивное Солнце** — куда эволюционирует идентичность: знак, градус (начало знака = тема только заявлена, конец = выпускной экзамен), НАТАЛЬНЫЙ ДОМ; смену знака или дома раскрой подробно как важнейшую тему — откуда и куда
+4. **Прогрессивные Меркурий, Венера, Марс** — как созрели мышление, ценности, способ действовать; обязательно отметь смены знака/дома и ретроградность
+5. **Аспекты прогрессий к наталу** — для КАЖДОГО аспекта из списка: что натальная планета означает в ЭТОЙ карте (её натальный знак и дом даны!), какой кармический урок активирован, сходящийся он (набирает силу) или расходящийся (отпускает)
+6. **Синтез: 3-5 главных тем периода** — собери всё в целостную картину: что этот период просит от человека, как сотрудничать с этими энергиями
 
 ВАЖНЫЕ ПРАВИЛА:
 - Анализ должен быть КОНКРЕТНЫМ и персонализированным — привязывай к этой карте, этому возрасту, этому периоду
-- Пиши понятным языком, без жаргона — как для друга; НЕ используй технические термины: градусы, орбы, JD
+- Пиши понятным языком — как для друга; НЕ используй в тексте технические термины: орбы, JD, «сходящийся/расходящийся» (передавай смысл: «тема набирает силу» / «тема завершается»)
 - Используй ТОЛЬКО реальные аспекты из списка — если аспекта нет, НЕ выдумывай
-- Если аспектов к наталу сейчас нет — так и скажи: период более ровный, фокус на прогрессивной Луне
+- Если аспектов к наталу сейчас нет — так и скажи: период более ровный, фокус на прогрессивной Луне и лунной фазе
 - НЕ называй книги и авторов — только «в источниках», «в астрологических традициях»
 - НЕ выдумывай цитат
 - Объём: подробный, глубокий анализ минимум 1500-2500 слов
@@ -514,36 +521,43 @@ PROGRESSIONS_PROMPTS = {
 
 WHAT SECONDARY PROGRESSIONS ARE (for your understanding, not for retelling):
 - A symbolic unfolding of the natal chart through time: inner maturation of the soul, not external events
-- Progressed Moon — the main timer of emotional climate (changes sign roughly every 2.5 years; its house shows the stage of inner focus)
-- Progressed Sun — evolution of identity (a sign change is a rare, pivotal event, once in ~30 years)
+- The PROGRESSED LUNAR PHASE (Moon−Sun angle) marks the stage of the ~30-year development cycle: New Moon = new beginning, First Quarter = crisis of action, Full Moon = culmination and awareness, Last Quarter = crisis of consciousness and reassessment, Balsamic = completion and release
+- Progressed Moon — the main timer of emotional climate (changes sign roughly every 2.5 years); its NATAL HOUSE shows the life area in focus for the coming months
+- Progressed Sun — evolution of identity (a sign change happens once in ~30 years; a house change is also a turning point)
 - Progressed Mercury, Venus, Mars — maturation of thinking, values and will
-- Aspects of progressed planets to natal ones — precise timings of karmic lessons and inner transitions
-- A progressed planet changing sign or house, or changing direction (retro/direct) — turning points
+- Aspects of progressed planets to natal ones — precise timings of karmic lessons; an APPLYING aspect is gaining strength (the theme lies ahead), a SEPARATING one has already unfolded and is releasing
+- A progressed planet changing sign AND changing house, or changing direction (retro/direct) — turning points
+
+THE CORE PRINCIPLE — OVERLAY WITH THE NATAL CHART:
+A progression does NOT exist on its own. Interpret every progressed position THROUGH the natal chart:
+- A progressed planet in the Nth NATAL house = that area of natal life is currently activated
+- An aspect to a natal planet = activation of what that planet means IN THE NATAL CHART (check its natal sign and house in the data!)
+- A sign/house change = the theme moving from one quality into another — name BOTH states (from and to)
 
 YOUR TASK:
-1. If relevant information on progressions, planets in signs/houses or aspects is found in the book fragments — use it as the PRIMARY basis, implicitly referencing it
+1. If relevant information on progressions, lunar phases, planets in signs/houses or aspects is found in the book fragments — use it as the PRIMARY basis, implicitly referencing it
 2. If fragments are insufficient — provide analysis based on evolutionary astrology principles and the symbolism of secondary progressions
 3. ALWAYS indicate your source: "According to the found fragments..." (when present) / "No specific data found in the library, but based on evolutionary astrology..." (when absent)
 
-ANALYSIS STRUCTURE (write as one coherent text, covering all topics):
-1. **Current life stage** — what this age and period mean from the soul evolution perspective
-2. **Progressed Moon** — the most important part! Sign and natal house: emotional climate of the period, what the soul asks for now, which life area is in focus over the coming months
-3. **Progressed Sun** — where identity is evolving; if the sign has changed from the natal one — explore this in depth as a major theme
-4. **Progressed Mercury, Venus, Mars** — how thinking, values and the way of acting have matured (especially if they changed sign or direction)
-5. **Progressed-to-natal aspects** — for each aspect in the list: which karmic lesson is activated right now and how it is experienced
-6. **Practical conclusions** — what this period asks of the person and how to cooperate with these energies
+ANALYSIS STRUCTURE (write as one coherent text, but cover all themes):
+1. **Stage of the great cycle** — the progressed lunar phase: where in the ~30-year cycle the person is, what this stage asks for (this frames ALL the rest of the analysis)
+2. **Progressed Moon** — the most important part! Sign + NATAL HOUSE: emotional climate and the life area in focus; if a sign change is less than a year away — prepare them for the transition, name where it leads
+3. **Progressed Sun** — where identity is evolving: sign, degree (beginning of a sign = the theme has just been announced, the end = a graduation exam), NATAL HOUSE; unfold a sign or house change in detail as the key theme — from where and to where
+4. **Progressed Mercury, Venus, Mars** — how thinking, values and ways of acting have matured; be sure to note sign/house changes and retrogradation
+5. **Aspects of progressions to the natal chart** — for EACH aspect in the list: what the natal planet means in THIS chart (its natal sign and house are provided!), which karmic lesson is activated, whether it is applying (gaining strength) or separating (releasing)
+6. **Synthesis: 3-5 main themes of the period** — bring everything into a coherent picture: what this period asks of the person, how to cooperate with these energies
 
 IMPORTANT RULES:
-- The analysis must be SPECIFIC and personalized — tied to this chart, this age, this period
-- Write in plain language, no jargon — as for a friend; do NOT use technical terms: degrees, orbs, JD
-- Use ONLY the real aspects from the list — if an aspect is not there, DO NOT invent it
-- If there are no aspects to the natal chart right now — say so: the period is smoother, focus on the progressed Moon
-- DO NOT mention book titles or authors — only "in the sources", "in astrological traditions"
-- DO NOT invent quotes
-- Length: detailed, deep analysis, minimum 1500-2500 words
-- Remember: progressions describe INNER maturation, not fatal events — do not frighten, do not predict catastrophes
+- The analysis must be SPECIFIC and personalized — tie it to this chart, this age, this period
+- Write in accessible language — as if for a friend; do NOT use technical terms in the text: orbs, JD, "applying/separating" (convey the meaning: "the theme is gaining strength" / "the theme is wrapping up")
+- Use ONLY the real aspects from the list — if an aspect is not there, do NOT invent it
+- If there are no aspects to the natal chart right now — say so: the period is smoother, focus on the progressed Moon and the lunar phase
+- Do NOT name books or authors — only "in the sources", "in astrological traditions"
+- Do NOT invent quotes
+- Length: a detailed, deep analysis of at least 1500-2500 words
+- Remember: progressions describe INNER maturation, not fateful events — do not frighten, do not predict catastrophes
 
-**PROGRESSED-TO-NATAL ASPECTS — use ONLY these:**
+**ASPECTS OF PROGRESSIONS TO THE NATAL CHART — use ONLY these:**
 {aspects_list}
 
 **BOOKS (use them for the analysis):**

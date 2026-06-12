@@ -661,6 +661,16 @@ async def progressions_analysis(
         )
         return "Secondary Progressions", chunks
 
+    async def search_lunar_phase() -> tuple:
+        phase = (progressions.get("lunar_phase") or {}).get("phase", "")
+        if not phase:
+            return "Lunar Phase", []
+        chunks = await search_chunks_all_books(
+            f"progressed lunar phase {phase.lower()} moon cycle",
+            top_k_per_book=top_k_per_book
+        )
+        return f"Progressed Lunar Phase: {phase}", chunks
+
     planet_tasks = [
         search_progressed_planet(name, prog_planets[name])
         for name in PERSONAL_PLANETS if name in prog_planets
@@ -670,6 +680,7 @@ async def progressions_analysis(
         if data.get("changed_sign") and name not in PERSONAL_PLANETS:
             planet_tasks.append(search_progressed_planet(name, data))
     planet_tasks.append(search_general())
+    planet_tasks.append(search_lunar_phase())
 
     aspect_tasks = [search_aspect(asp) for asp in aspects[:10]]
 
@@ -681,16 +692,30 @@ async def progressions_analysis(
     # --- Шаг 2: Сборка структурированного промпта ---
     template = get_template("progressions", language, mode)
 
-    # Список аспектов прогрессий к наталу
+    # Список аспектов прогрессий к наталу — с полным контекстом для оверлея:
+    # позиция прогрессивной планеты, позиция и ДОМ натальной, орб, сходящийся/расходящийся
     aspects_list = []
     for asp in aspects:
         p1 = asp.get("progressed", asp.get("planet1", "?"))
         p2 = asp.get("natal", asp.get("planet2", "?"))
-        asp_ru = asp.get("aspect_ru", asp.get("aspect", "?"))
+        orb_val = asp.get("orb", "?")
+        n_house = asp.get("natal_house", "?")
+        p_house = asp.get("progressed_house", "?")
         if language == 'ru':
-            aspects_list.append(f"Прогрессивный {p1} {asp_ru} натальный {p2}")
+            asp_name = asp.get("aspect_ru", asp.get("aspect", "?"))
+            applying_str = "сходящийся" if asp.get("applying") else "расходящийся"
+            aspects_list.append(
+                f"Прогрессивный {p1} (в {asp.get('progressed_sign', '?')}, натальный дом {p_house}) "
+                f"{asp_name} натальный {p2} (в {asp.get('natal_sign', '?')}, дом {n_house}) "
+                f"— орб {orb_val}°, {applying_str}"
+            )
         else:
-            aspects_list.append(f"Progressed {p1} {asp.get('aspect', '?')} natal {p2}")
+            applying_str = "applying" if asp.get("applying") else "separating"
+            aspects_list.append(
+                f"Progressed {p1} (in {asp.get('progressed_sign', '?')}, natal house {p_house}) "
+                f"{asp.get('aspect', '?')} natal {p2} (in {asp.get('natal_sign', '?')}, house {n_house}) "
+                f"— orb {orb_val}°, {applying_str}"
+            )
     aspects_str = "\n".join(aspects_list) if aspects_list else (
         "Точных аспектов к натальной карте сейчас нет" if language == 'ru'
         else "No exact aspects to the natal chart right now"
@@ -741,6 +766,12 @@ async def progressions_analysis(
     prompt += f"\nВозраст: {age}"
     prompt += f"\nПериод: {period}"
 
+    # Прогрессивная лунная фаза — этап ~30-летнего цикла, главный контекст всего анализа
+    lunar_phase = progressions.get("lunar_phase") or {}
+    if lunar_phase:
+        phase_name = lunar_phase.get("phase_ru" if language == 'ru' else "phase", "?")
+        prompt += f"\nПРОГРЕССИВНАЯ ЛУННАЯ ФАЗА: {phase_name} (угол Луна−Солнце {lunar_phase.get('angle', '?')}°)"
+
     prog_asc = progressions.get("progressed_ascendant", {})
     prog_mc = progressions.get("progressed_mc", {})
     if prog_asc:
@@ -748,24 +779,42 @@ async def progressions_analysis(
     if prog_mc:
         prompt += f"\nПрогрессивный MC: {prog_mc.get('sign_ru', prog_mc.get('sign', '?'))}"
 
-    prompt += f"\n\n=== ПРОГРЕССИВНЫЕ ПЛАНЕТЫ (знак, натальный дом) ==="
+    prompt += f"\n\n=== ПРОГРЕССИВНЫЕ ПЛАНЕТЫ (знак, градус, натальный дом, изменения) ==="
     for planet_name in PERSONAL_PLANETS + [n for n in prog_planets if n not in PERSONAL_PLANETS]:
         planet_data = prog_planets.get(planet_name)
         if not planet_data:
             continue
         sign_ru = planet_data.get("sign_ru", planet_data.get("sign", "?"))
+        degree = planet_data.get("degree", "?")
         house = planet_data.get("natal_house", "?")
         rx_str = " (ретроградная)" if planet_data.get("is_retrograde") else ""
-        changed = ""
+        markers = []
         if planet_data.get("changed_sign") and planet_data.get("natal_sign"):
             natal_sign_ru = natal_planets.get(planet_name, {}).get("sign_ru", planet_data.get("natal_sign"))
-            changed = f" — СМЕНИЛА ЗНАК (в натале была в {natal_sign_ru})"
-        prompt += f"\n{planet_name}: в {sign_ru}, {labels.get('house', 'дом')} {house}{rx_str}{changed}"
+            markers.append(f"СМЕНИЛА ЗНАК (в натале была в {natal_sign_ru})")
+        if planet_data.get("changed_house") and planet_data.get("natal_planet_house"):
+            markers.append(f"ПЕРЕШЛА В ДРУГОЙ ДОМ (в натале была в доме {planet_data['natal_planet_house']})")
+        if planet_data.get("years_to_next_sign") is not None:
+            markers.append(f"сменит знак примерно через {planet_data['years_to_next_sign']} лет")
+        markers_str = " — " + "; ".join(markers) if markers else ""
+        try:
+            degree_str = f"{float(degree):.1f}°"
+        except (TypeError, ValueError):
+            degree_str = f"{degree}°"
+        prompt += f"\n{planet_name}: {degree_str} {sign_ru}, {labels.get('house', 'дом')} {house}{rx_str}{markers_str}"
 
-    prompt += f"\n\n=== НАТАЛЬНАЯ ОСНОВА ==="
+    # Полная натальная карта — без неё невозможен оверлей «прогрессия поверх натала»
+    prompt += f"\n\n=== НАТАЛЬНАЯ КАРТА (основа для оверлея) ==="
     prompt += f"\nСолнце: {natal_summary.get('sun_sign_ru', natal_chart.get('sun_sign_ru', '?'))}"
     prompt += f"\nЛуна: {natal_summary.get('moon_sign_ru', natal_chart.get('moon_sign_ru', '?'))}"
     prompt += f"\nАсцендент: {natal_summary.get('ascendant_ru', natal_chart.get('ascendant_ru', '?'))}"
+    if natal_planets:
+        prompt += f"\nНатальные планеты (знак, дом):"
+        for n_name, n_data in natal_planets.items():
+            n_sign = n_data.get("sign_ru", n_data.get("sign", "?"))
+            n_house = n_data.get("house", "?")
+            n_rx = " R" if n_data.get("is_retrograde") else ""
+            prompt += f"\n  {n_name}: {n_sign}, дом {n_house}{n_rx}"
 
     # --- Шаг 3: Один финальный вызов LLM ---
     print(f"[progressions_analysis] Sending final prompt to LLM (~{len(prompt)//4} tokens estimated)")
@@ -787,6 +836,8 @@ async def progressions_analysis(
         "progressions_summary": {
             "period": period,
             "age_years": age,
+            "lunar_phase": (progressions.get("lunar_phase") or {}).get("phase"),
+            "lunar_phase_ru": (progressions.get("lunar_phase") or {}).get("phase_ru"),
             "progressed_moon_sign": prog_moon.get("sign", "?"),
             "progressed_moon_sign_ru": prog_moon.get("sign_ru", "?"),
             "progressed_moon_house": prog_moon.get("natal_house"),
