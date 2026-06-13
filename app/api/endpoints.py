@@ -18,11 +18,13 @@ from app.schemas.schemas import (
     QueryRequest, SynastryRequest, NatalChartRequest, NatalChartResponseFull,
     TransitRequest, SynastryRequestDirect, BookChunkResponse
 )
-from app.schemas.analysis import SynastryAnalysisRequest, ProgressionsRequest, ProgressionsAnalysisRequest
+from app.schemas.analysis import SynastryAnalysisRequest, ProgressionsRequest, ProgressionsAnalysisRequest, TransitsRequest, TransitsAnalysisRequest, ProgressedSynastryRequest, ProgressedSynastryAnalysisRequest
 from app.utils.astrology_v2 import (
     calculate_planet_positions, calculate_aspects,
     calculate_solar_return, calculate_synastry,
     calculate_secondary_progressions,
+    calculate_transits,
+    calculate_progressed_synastry,
     PLANETS, ASPECTS, ASPECTS_RU, ORBS, get_zodiac_sign, get_zodiac_degree,
     get_house_for_longitude
 )
@@ -1069,110 +1071,6 @@ async def calculate_natal_chart(request: NatalChartRequest) -> NatalChartRespons
 # TRANSITS CALCULATION
 # ============================================
 
-@router.post("/transits")
-async def calculate_transits_direct(request: TransitRequest):
-    """
-    Расчёт текущих транзитов к натальной карте
-    
-    Требует:
-    - birth_date, birth_place, timezone - данные натальной карты
-    - transit_date - дата транзитов
-    """
-    # Получаем ТОЧНЫЕ координаты из названия места
-    # Используем переданные координаты или определяем сами
-    if request.latitude is not None and request.longitude is not None:
-        lat, lon = request.latitude, request.longitude
-    else:
-        try:
-            lat, lon = get_coordinates(request.birth_place)
-        except ValueError as e:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Cannot determine coordinates for location: '{request.birth_place}'. "
-                       f"Please enter a valid city name. Error: {str(e)}"
-            )
-    
-    # Get natal chart
-    natal = calculate_planet_positions(
-        birth_date=request.birth_date,
-        birth_place=request.birth_place,
-        lat=lat,
-        lon=lon,
-        timezone_str=request.timezone,
-    )
-    
-    # Calculate transiting planets at transit_date
-    transit_datetime = request.transit_date
-    if request.timezone:
-        try:
-            from zoneinfo import ZoneInfo
-            tz = ZoneInfo(request.timezone)
-            if transit_datetime.tzinfo is None:
-                transit_datetime = transit_datetime.replace(tzinfo=tz)
-        except:
-            pass
-    
-    transit_jd = swe.utc_to_jd(
-        transit_datetime.year, transit_datetime.month, transit_datetime.day,
-        transit_datetime.hour, transit_datetime.minute, transit_datetime.second,
-        swe.GREG_CAL
-    )[0]
-    
-    # Get transiting planets
-    transiting_planets = {}
-    for planet_name, planet_id in PLANETS.items():
-        if planet_name in ['SouthNode']:  # Skip duplicate
-            continue
-        try:
-            result = swe.calc_ut(transit_jd, planet_id, swe.FLG_MOSEPH)
-            longitude = result[0][0]
-            sign_en, sign_ru = get_zodiac_sign(longitude)
-            transiting_planets[planet_name] = {
-                'planet': planet_name,
-                'sign': sign_en,
-                'sign_ru': sign_ru,
-                'degree': round(get_zodiac_degree(longitude), 4),
-                'full_degree': round(longitude, 4),
-            }
-        except:
-            pass
-    
-    # Calculate aspects between transiting and natal planets
-    transit_aspects = []
-    for t_planet, t_data in transiting_planets.items():
-        for n_planet, n_data in natal['planets'].items():
-            lon1 = t_data['full_degree']
-            lon2 = n_data['full_degree']
-            
-            diff = abs(lon1 - lon2)
-            if diff > 180:
-                diff = 360 - diff
-            
-            for aspect_degree, aspect_name in ASPECTS.items():
-                key = tuple(sorted([t_planet, n_planet]))
-                orb = ORBS.get(key, 6)
-                
-                if abs(diff - aspect_degree) <= orb:
-                    transit_aspects.append({
-                        'transiting': t_planet,
-                        'natal': n_planet,
-                        'aspect': aspect_name,
-                        'aspect_ru': ASPECTS_RU[aspect_degree],
-                        'orb': round(abs(diff - aspect_degree), 2),
-                        'transiting_sign': t_data['sign'],
-                        'natal_sign': n_data['sign'],
-                    })
-                    break
-    
-    # Sort by importance
-    transit_aspects.sort(key=lambda x: x['orb'])
-    
-    return {
-        'transit_date': request.transit_date.isoformat(),
-        'natal_date': request.birth_date.isoformat(),
-        'transiting_planets': transiting_planets,
-        'aspects': transit_aspects,
-    }
 
 
 # ============================================
@@ -1962,4 +1860,202 @@ async def progressions_analysis_endpoint(request: Request, payload: Progressions
     if len(_analysis_cache) < _ANALYSIS_CACHE_MAX_SIZE:
         _analysis_cache[cache_key] = (result, time.time())
 
+    return result
+
+
+@router.post("/transits")
+@limiter.limit("20/minute")
+async def calculate_transits_endpoint(request: Request, payload: TransitsRequest, user = Depends(get_current_user)):
+    """
+    Транзиты на конкретный день (по умолчанию — сегодня; можно любой день
+    прошлого или будущего). Реальные позиции планет через Swiss Ephemeris,
+    наложенные на натальную карту: натальные дома транзитных планет +
+    аспекты к наталу (орб 2°, Луна 3°) + лунная фаза дня.
+    Требует авторизацию — доступно только для сохранённых карт.
+    """
+    lat, lon = _resolve_coordinates(payload.latitude, payload.longitude, payload.birth_place)
+    birth_datetime = _prepare_birth_datetime(payload.birth_date, payload.birth_time, payload.timezone)
+
+    try:
+        result = calculate_transits(
+            birth_date=birth_datetime,
+            birth_place=payload.birth_place or '',
+            target_date=payload.target_date,
+            lat=lat,
+            lon=lon,
+            timezone_str=payload.timezone,
+            house_system=payload.house_system or 'Placidus',
+            natal_override=payload.natal_chart,
+        )
+    except Exception as e:
+        print(f"[transits] calculation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Transits calculation error: {str(e)}")
+
+    return result
+
+
+@router.post("/analysis/transits")
+@limiter.limit("5/minute")
+async def transits_analysis_endpoint(request: Request, payload: TransitsAnalysisRequest, user = Depends(get_current_user)):
+    """
+    AI-анализ транзитов дня: RAG-поиск по тем же книгам + LLM
+    (шаблон 'transits', режимы simple/advanced, языки ru/en).
+
+    Кэш: in-memory по ключу birth_date|birth_place|date|mode|language.
+    """
+    from app.services.analysis_service import transits_analysis
+    from datetime import datetime as dt
+
+    # --- Транзиты: берём готовые из запроса или считаем на бэкенде ---
+    transits = payload.transit_data
+    if not transits:
+        if not payload.birth_date:
+            raise HTTPException(status_code=400, detail="Either 'transit_data' or birth data must be provided")
+        lat, lon = _resolve_coordinates(payload.latitude, payload.longitude, payload.birth_place)
+        birth_datetime = _prepare_birth_datetime(payload.birth_date, payload.birth_time, payload.timezone)
+        try:
+            transits = calculate_transits(
+                birth_date=birth_datetime,
+                birth_place=payload.birth_place or '',
+                target_date=payload.target_date,
+                lat=lat,
+                lon=lon,
+                timezone_str=payload.timezone,
+                house_system=payload.house_system or 'Placidus',
+                natal_override=payload.natal_chart,
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Transits calculation error: {str(e)}")
+
+    # --- Натальная карта для оверлея ---
+    # Берём ГОТОВУЮ натальную карту из chart_data (она пришла с фронта и уже
+    # содержит правильные дома — те же, что показывает натальный анализ).
+    # НЕ пересчитываем: пересчёт может дать другой ASC и сломать дома.
+    natal_chart = payload.natal_chart
+    if not natal_chart:
+        raise HTTPException(status_code=400, detail="natal_chart is required")
+
+    # --- Кэш (тот же механизм, что у /analysis/progressions) ---
+    meta = transits.get('meta', {})
+    period = transits.get('period', '')
+    cache_key = f"transits|{meta.get('birth_date')}|{meta.get('birth_place')}|{period}|{payload.mode}|{payload.language}"
+
+    if cache_key in _analysis_cache:
+        cached_result, timestamp = _analysis_cache[cache_key]
+        if time.time() - timestamp < _ANALYSIS_CACHE_TTL:
+            print(f"[CACHE] Returning cached transits analysis for {cache_key}")
+            return {
+                **cached_result,
+                "from_cache": True,
+                "cached_at": dt.fromtimestamp(timestamp).isoformat()
+            }
+        else:
+            del _analysis_cache[cache_key]
+
+    result = await transits_analysis(
+        natal_chart=natal_chart,
+        transits=transits,
+        language=payload.language,
+        top_k_per_book=payload.top_k_per_book,
+        mode=payload.mode or 'advanced',
+    )
+
+    # Прикладываем расчётные данные — фронтенд может показать их без второго запроса
+    result["transit_data"] = transits
+
+    _analysis_cache[cache_key] = (result, time.time())
+    return result
+
+
+def _chart_request_to_person(chart_req, name: Optional[str] = None) -> dict:
+    """ChartRequest → dict для calculate_progressed_synastry (единый формат партнёра)"""
+    lat, lon = _resolve_coordinates(chart_req.latitude, chart_req.longitude, chart_req.birth_place)
+    birth_dt = _prepare_birth_datetime(chart_req.birth_date, chart_req.birth_time, chart_req.timezone)
+    return {
+        'birth_date': birth_dt,
+        'birth_place': chart_req.birth_place or '',
+        'lat': lat,
+        'lon': lon,
+        'timezone': chart_req.timezone,
+        'name': name,
+    }
+
+
+@router.post("/progressed-synastry")
+@limiter.limit("15/minute")
+async def calculate_progressed_synastry_endpoint(request: Request, payload: ProgressedSynastryRequest, user = Depends(get_current_user)):
+    """
+    Прогрессивная синастрия: каждый партнёр прогрессируется методом «день за год»
+    на свой возраст на одну целевую дату (по умолчанию сегодня; можно любой день).
+    Возвращает три слоя: прогрессивную синастрию (прогр↔прогр), наложение на
+    натал (перекрёстно) и динамику относительно натальной синастрии.
+    Доступно только для сохранённых синастрических карт (требует авторизацию).
+    """
+    person1 = _chart_request_to_person(payload.chart1, getattr(payload.chart1, 'name', None))
+    person2 = _chart_request_to_person(payload.chart2, getattr(payload.chart2, 'name', None))
+
+    try:
+        result = calculate_progressed_synastry(
+            person1=person1,
+            person2=person2,
+            target_date=payload.target_date,
+            house_system=payload.house_system or 'Placidus',
+        )
+    except Exception as e:
+        print(f"[progressed_synastry] calculation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Progressed synastry calculation error: {str(e)}")
+
+    return result
+
+
+@router.post("/analysis/progressed-synastry")
+@limiter.limit("5/minute")
+async def progressed_synastry_analysis_endpoint(request: Request, payload: ProgressedSynastryAnalysisRequest, user = Depends(get_current_user)):
+    """
+    AI-анализ прогрессивной синастрии (RAG + LLM, шаблон 'progressed_synastry',
+    режимы simple/advanced, ru/en). Кэш по ключу
+    progsyn|p1|p2|date|mode|language (TTL как у остальных анализов).
+    """
+    from app.services.analysis_service import progressed_synastry_analysis
+    from datetime import datetime as dt
+
+    # --- Расчётные данные: готовые из запроса или пересчёт ---
+    progressed_synastry = payload.progressed_synastry_data
+    if not progressed_synastry:
+        if not payload.chart1 or not payload.chart2:
+            raise HTTPException(status_code=400, detail="Either 'progressed_synastry_data' or chart1+chart2 must be provided")
+        person1 = _chart_request_to_person(payload.chart1, getattr(payload.chart1, 'name', None))
+        person2 = _chart_request_to_person(payload.chart2, getattr(payload.chart2, 'name', None))
+        try:
+            progressed_synastry = calculate_progressed_synastry(
+                person1=person1, person2=person2,
+                target_date=payload.target_date,
+                house_system=payload.house_system or 'Placidus',
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Progressed synastry calculation error: {str(e)}")
+
+    # --- Кэш ---
+    period = progressed_synastry.get('period', '')
+    p1n = (progressed_synastry.get('person1') or {}).get('name', 'p1')
+    p2n = (progressed_synastry.get('person2') or {}).get('name', 'p2')
+    cache_key = f"progsyn|{p1n}|{p2n}|{period}|{payload.mode}|{payload.language}"
+
+    if cache_key in _analysis_cache:
+        cached_result, timestamp = _analysis_cache[cache_key]
+        if time.time() - timestamp < _ANALYSIS_CACHE_TTL:
+            print(f"[CACHE] Returning cached progressed synastry analysis for {cache_key}")
+            return {**cached_result, "from_cache": True, "cached_at": dt.fromtimestamp(timestamp).isoformat()}
+        else:
+            del _analysis_cache[cache_key]
+
+    result = await progressed_synastry_analysis(
+        progressed_synastry=progressed_synastry,
+        language=payload.language,
+        top_k_per_book=payload.top_k_per_book,
+        mode=payload.mode or 'advanced',
+    )
+
+    result["progressed_synastry_data"] = progressed_synastry
+    _analysis_cache[cache_key] = (result, time.time())
     return result

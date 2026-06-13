@@ -342,6 +342,61 @@ async def analyze_planet(
 #         return []
 
 
+
+# Приоритетные книги для прогностических методов (id из таблицы books):
+# 29 — "Predictive Astrology: The Eagle and the Lark" (Bernadette Brady) — прогрессии
+# 28 — "Planets in Transit: Life Cycles for Living" (Robert Hand) — транзиты
+PROGRESSIONS_PRIORITY_BOOK_ID = 29
+TRANSITS_PRIORITY_BOOK_ID = 28
+
+
+async def search_chunks_priority_book(
+    query: str,
+    priority_book_id: int,
+    top_k_priority: int = 4,
+    top_k_others: int = 4,
+) -> List[Dict[str, Any]]:
+    """
+    RAG с приоритетной книгой: сначала чанки из профильной книги метода
+    (фильтр book_id), затем дополнение из остальных книг. Приоритетные — первыми.
+    """
+    import asyncio as _asyncio
+    from supabase import create_client
+    from app.core.config import settings
+    from app.services.search_service import search_chunks_hybrid
+    from app.services.supabase_async import run_sync_in_thread
+
+    try:
+        priority_task = search_chunks_hybrid(query, top_k=top_k_priority, book_id=priority_book_id)
+        others_task = search_chunks_hybrid(query, top_k=top_k_others)
+        priority_chunks, other_chunks = await _asyncio.gather(priority_task, others_task)
+
+        # Названия книг
+        supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+        table_call = supabase.table("books").select("id, title")
+        books_response = await run_sync_in_thread(table_call.execute)
+        book_map = {b["id"]: b.get("title", "") for b in (books_response.data or [])}
+
+        # Приоритетные первыми, затем остальные; дедуп по id чанка
+        unique: List[Dict[str, Any]] = []
+        seen = set()
+        for chunk in (priority_chunks or []) + (other_chunks or []):
+            c_id = chunk.get("id")
+            if c_id and c_id in seen:
+                continue
+            if c_id:
+                seen.add(c_id)
+            chunk["book_title"] = book_map.get(chunk.get("book_id", ""), "")
+            unique.append(chunk)
+
+        n_priority = len(priority_chunks or [])
+        print(f"[priority_book_search] book {priority_book_id}: {n_priority} priority + {len(unique) - n_priority} others")
+        return unique
+    except Exception as e:
+        print(f"[priority_book_search] Error: {e}")
+        return []
+
+
 async def search_chunks_all_books(
     query: str,
     top_k_per_book: int = 3
@@ -638,12 +693,14 @@ async def progressions_analysis(
     PERSONAL_PLANETS = ["Sun", "Moon", "Mercury", "Venus", "Mars"]
 
     # --- Шаг 1: Параллельный RAG-поиск ---
+    # Профильная книга прогрессий — Brady "The Eagle and the Lark" (id=29):
+    # её чанки идут первыми, остальные книги — дополнение
     async def search_progressed_planet(planet_name: str, planet_data: Dict) -> tuple:
         sign = planet_data.get("sign", "")
         house = planet_data.get("natal_house", "")
         house_word = HOUSE_WORDS.get(house, str(house))
         query = f"progressed {planet_name.lower()} {sign.lower()} {house_word} house"
-        chunks = await search_chunks_all_books(query, top_k_per_book=top_k_per_book)
+        chunks = await search_chunks_priority_book(query, PROGRESSIONS_PRIORITY_BOOK_ID, top_k_priority=3, top_k_others=top_k_per_book)
         return planet_name, chunks
 
     async def search_aspect(asp: Dict) -> tuple:
@@ -651,13 +708,13 @@ async def progressions_analysis(
         p2 = asp.get("natal", asp.get("planet2", ""))
         asp_type = asp.get("aspect", "")
         query = f"progressed {p1.lower()} {asp_type.lower()} natal {p2.lower()}"
-        chunks = await search_chunks_all_books(query, top_k_per_book=2)
+        chunks = await search_chunks_priority_book(query, PROGRESSIONS_PRIORITY_BOOK_ID, top_k_priority=3, top_k_others=2)
         return f"{p1} {asp_type} {p2}", chunks
 
     async def search_general() -> tuple:
-        chunks = await search_chunks_all_books(
+        chunks = await search_chunks_priority_book(
             "secondary progressions progressed chart day for a year",
-            top_k_per_book=top_k_per_book
+            PROGRESSIONS_PRIORITY_BOOK_ID, top_k_priority=4, top_k_others=top_k_per_book
         )
         return "Secondary Progressions", chunks
 
@@ -665,9 +722,9 @@ async def progressions_analysis(
         phase = (progressions.get("lunar_phase") or {}).get("phase", "")
         if not phase:
             return "Lunar Phase", []
-        chunks = await search_chunks_all_books(
+        chunks = await search_chunks_priority_book(
             f"progressed lunar phase {phase.lower()} moon cycle",
-            top_k_per_book=top_k_per_book
+            PROGRESSIONS_PRIORITY_BOOK_ID, top_k_priority=3, top_k_others=top_k_per_book
         )
         return f"Progressed Lunar Phase: {phase}", chunks
 
@@ -848,6 +905,407 @@ async def progressions_analysis(
         },
         "language": language,
         "version": "progressions_v1_hybrid_rag"
+    }
+
+
+
+async def transits_analysis(
+    natal_chart: Dict[str, Any],
+    transits: Dict[str, Any],
+    language: str = "ru",
+    top_k_per_book: int = 2,
+    mode: str = 'advanced'
+) -> Dict[str, Any]:
+    """
+    AI-анализ транзитов дня — гибридный подход как у прогрессий:
+    - точечный RAG-поиск (транзитные планеты в натальных домах + аспекты к наталу)
+    - сборка структурированного промпта (шаблон 'transits', advanced/simple)
+    - один финальный вызов LLM + краткое summary
+    """
+    import asyncio
+    from app.services.llm_adapter import get_llm_adapter
+    from app.services.prompt_labels import get_labels
+    from app.services.prompt_templates import get_template
+
+    adapter = get_llm_adapter()
+    labels = get_labels(language)
+
+    t_planets = transits.get("transit_planets", {})
+    aspects = transits.get("aspects_to_natal", [])
+    natal_summary = transits.get("natal_summary", {})
+    natal_planets = (natal_chart or {}).get("planets", {})
+
+    # Медленные транзиты = главные темы периода; быстрые = окраска дня
+    slow_aspects = [a for a in aspects if a.get("is_slow")]
+    fast_aspects = [a for a in aspects if not a.get("is_slow")]
+
+    # --- Шаг 1: Параллельный RAG-поиск ---
+    async def search_transit_planet(planet_name: str, planet_data: Dict) -> tuple:
+        sign = planet_data.get("sign", "")
+        house = planet_data.get("natal_house", "")
+        house_word = HOUSE_WORDS.get(house, str(house))
+        query = f"transit {planet_name.lower()} {sign.lower()} {house_word} house"
+        chunks = await search_chunks_priority_book(query, TRANSITS_PRIORITY_BOOK_ID, top_k_priority=3, top_k_others=top_k_per_book)
+        return planet_name, chunks
+
+    async def search_aspect(asp: Dict) -> tuple:
+        p1 = asp.get("transit", asp.get("planet1", ""))
+        p2 = asp.get("natal", asp.get("planet2", ""))
+        asp_type = asp.get("aspect", "")
+        query = f"transit {p1.lower()} {asp_type.lower()} natal {p2.lower()}"
+        chunks = await search_chunks_priority_book(query, TRANSITS_PRIORITY_BOOK_ID, top_k_priority=3, top_k_others=2)
+        return f"{p1} {asp_type} {p2}", chunks
+
+    async def search_lunar_phase() -> tuple:
+        phase = (transits.get("lunar_phase") or {}).get("phase", "")
+        if not phase:
+            return "Lunar Phase", []
+        chunks = await search_chunks_priority_book(
+            f"lunar phase {phase.lower()} moon", TRANSITS_PRIORITY_BOOK_ID,
+            top_k_priority=2, top_k_others=top_k_per_book
+        )
+        return f"Lunar Phase: {phase}", chunks
+
+    # Планеты для поиска: медленные с аспектами + Луна и Солнце (день)
+    search_planet_names = []
+    for a in slow_aspects[:6]:
+        name = a.get("transit")
+        if name and name not in search_planet_names:
+            search_planet_names.append(name)
+    for name in ("Moon", "Sun"):
+        if name in t_planets and name not in search_planet_names:
+            search_planet_names.append(name)
+
+    planet_tasks = [
+        search_transit_planet(name, t_planets[name])
+        for name in search_planet_names if name in t_planets
+    ]
+    planet_tasks.append(search_lunar_phase())
+
+    # Аспекты: сначала все медленные, затем самые точные быстрые — до 12 запросов
+    aspect_pool = slow_aspects[:8] + sorted(fast_aspects, key=lambda x: x["orb"])[:4]
+    aspect_tasks = [search_aspect(asp) for asp in aspect_pool]
+
+    print(f"[transits_analysis] Parallel RAG: {len(planet_tasks)} planet queries, {len(aspect_tasks)} aspect queries")
+
+    planet_results = await asyncio.gather(*planet_tasks, return_exceptions=True)
+    aspect_results = await asyncio.gather(*aspect_tasks, return_exceptions=True)
+
+    # --- Шаг 2: Сборка структурированного промпта ---
+    template = get_template("transits", language, mode)
+
+    def fmt_aspect(asp: Dict) -> str:
+        p1 = asp.get("transit", asp.get("planet1", "?"))
+        p2 = asp.get("natal", asp.get("planet2", "?"))
+        orb_val = asp.get("orb", "?")
+        ret_mark = ""
+        if asp.get("is_return"):
+            ret_mark = " [ВОЗВРАТ ПЛАНЕТЫ!]" if language == 'ru' else " [PLANETARY RETURN!]"
+        if language == 'ru':
+            asp_name = asp.get("aspect_ru", asp.get("aspect", "?"))
+            applying_str = "сходящийся" if asp.get("applying") else "расходящийся"
+            return (f"Транзитный {p1} (в {asp.get('transit_sign', '?')}, идёт по натальному дому {asp.get('transit_house', '?')}) "
+                    f"{asp_name} натальный {p2} (в {asp.get('natal_sign', '?')}, дом {asp.get('natal_house', '?')}) "
+                    f"— орб {orb_val}°, {applying_str}{ret_mark}")
+        applying_str = "applying" if asp.get("applying") else "separating"
+        return (f"Transiting {p1} (in {asp.get('transit_sign', '?')}, moving through natal house {asp.get('transit_house', '?')}) "
+                f"{asp.get('aspect', '?')} natal {p2} (in {asp.get('natal_sign', '?')}, house {asp.get('natal_house', '?')}) "
+                f"— orb {orb_val}°, {applying_str}{ret_mark}")
+
+    slow_str = "\n".join(fmt_aspect(a) for a in slow_aspects) if slow_aspects else (
+        "Нет точных аспектов от медленных планет" if language == 'ru' else "No exact aspects from slow planets")
+    fast_str = "\n".join(fmt_aspect(a) for a in fast_aspects) if fast_aspects else (
+        "Нет точных аспектов от быстрых планет" if language == 'ru' else "No exact aspects from fast planets")
+    aspects_str = (
+        ("【МЕДЛЕННЫЕ ПЛАНЕТЫ — главные темы периода】\n" if language == 'ru' else "【SLOW PLANETS — main themes of the period】\n") + slow_str +
+        ("\n\n【БЫСТРЫЕ ПЛАНЕТЫ — окраска именно этого дня】\n" if language == 'ru' else "\n\n【FAST PLANETS — the flavor of this specific day】\n") + fast_str
+    )
+
+    # Фрагменты книг
+    planet_chunks_text = ""
+    for result in planet_results:
+        if isinstance(result, Exception):
+            continue
+        section_name, chunks = result
+        if chunks:
+            planet_chunks_text += f"\n\n【{section_name.upper()}】\n"
+            for i, chunk in enumerate(chunks, 1):
+                text = chunk.get("text", "")[:800]
+                book_title = chunk.get("book_title", "")
+                planet_chunks_text += f"[{i}] ({book_title}):\n{text}\n"
+
+    aspect_chunks_text = ""
+    for result in aspect_results:
+        if isinstance(result, Exception):
+            continue
+        asp_label, chunks = result
+        if chunks:
+            aspect_chunks_text += f"\n\n【АСПЕКТ: {asp_label}】\n"
+            for i, chunk in enumerate(chunks, 1):
+                text = chunk.get("text", "")[:600]
+                book_title = chunk.get("book_title", "")
+                aspect_chunks_text += f"[{i}] ({book_title}):\n{text}\n"
+
+    books_content = f"""
+=== ФРАГМЕНТЫ ПО ТРАНЗИТНЫМ ПЛАНЕТАМ (из всех книг) ===
+{planet_chunks_text}
+
+=== ФРАГМЕНТЫ ПО АСПЕКТАМ ТРАНЗИТОВ (из всех книг) ===
+{aspect_chunks_text}
+"""
+
+    prompt = template
+    prompt = prompt.replace("{aspects_list}", aspects_str)
+    prompt = prompt.replace("{books_content}", books_content)
+
+    # --- Данные транзитов ---
+    period = transits.get("period", "?")
+    prompt += f"\n\n=== ДАННЫЕ ТРАНЗИТОВ ==="
+    prompt += f"\nДень: {period}"
+
+    lunar_phase = transits.get("lunar_phase") or {}
+    if lunar_phase:
+        phase_name = lunar_phase.get("phase_ru" if language == 'ru' else "phase", "?")
+        prompt += f"\nЛУННАЯ ФАЗА ДНЯ: {phase_name} (угол Луна−Солнце {lunar_phase.get('angle', '?')}°)"
+
+    TRANSIT_ORDER = ["Moon", "Sun", "Mercury", "Venus", "Mars", "Jupiter", "Saturn",
+                     "Uranus", "Neptune", "Pluto", "NorthNode", "SouthNode", "Chiron", "Lilith"]
+    prompt += f"\n\n=== ТРАНЗИТНЫЕ ПЛАНЕТЫ (знак, градус, НАТАЛЬНЫЙ дом, по которому идёт планета) ==="
+    for planet_name in TRANSIT_ORDER:
+        planet_data = t_planets.get(planet_name)
+        if not planet_data:
+            continue
+        sign_ru = planet_data.get("sign_ru", planet_data.get("sign", "?"))
+        degree = planet_data.get("degree", "?")
+        house = planet_data.get("natal_house", "?")
+        rx_str = " (ретроградная)" if planet_data.get("is_retrograde") else ""
+        slow_str2 = " [медленная — фоновая тема]" if planet_data.get("is_slow") else ""
+        try:
+            degree_str = f"{float(degree):.1f}°"
+        except (TypeError, ValueError):
+            degree_str = f"{degree}°"
+        prompt += f"\n{planet_name}: {degree_str} {sign_ru}, идёт по натальному дому {house}{rx_str}{slow_str2}"
+
+    # Полная натальная карта — основа оверлея
+    prompt += f"\n\n=== НАТАЛЬНАЯ КАРТА (основа для оверлея) ==="
+    prompt += f"\nСолнце: {natal_summary.get('sun_sign_ru', natal_chart.get('sun_sign_ru', '?'))}"
+    prompt += f"\nЛуна: {natal_summary.get('moon_sign_ru', natal_chart.get('moon_sign_ru', '?'))}"
+    prompt += f"\nАсцендент: {natal_summary.get('ascendant_ru', natal_chart.get('ascendant_ru', '?'))}"
+    if natal_planets:
+        prompt += f"\nНатальные планеты (знак, дом):"
+        for n_name, n_data in natal_planets.items():
+            n_sign = n_data.get("sign_ru", n_data.get("sign", "?"))
+            n_house = n_data.get("house", "?")
+            n_rx = " R" if n_data.get("is_retrograde") else ""
+            prompt += f"\n  {n_name}: {n_sign}, дом {n_house}{n_rx}"
+
+    # --- Шаг 3: Один финальный вызов LLM ---
+    print(f"[transits_analysis] Sending final prompt to LLM (~{len(prompt)//4} tokens estimated)")
+
+    try:
+        full_analysis = await adapter.generate(prompt, language)
+    except Exception as e:
+        full_analysis = f"Ошибка анализа: {str(e)}"
+
+    # --- Шаг 4: Краткое резюме ---
+    summary = await generate_summary(full_analysis, language)
+
+    return {
+        "analysis": full_analysis,
+        "summary": summary,
+        "transits_summary": {
+            "period": period,
+            "lunar_phase": lunar_phase.get("phase"),
+            "lunar_phase_ru": lunar_phase.get("phase_ru"),
+            "slow_aspects_count": len(slow_aspects),
+            "fast_aspects_count": len(fast_aspects),
+            "returns": [a.get("transit") for a in aspects if a.get("is_return")],
+        },
+        "language": language,
+        "version": "transits_v1_hybrid_rag"
+    }
+
+
+
+async def progressed_synastry_analysis(
+    progressed_synastry: Dict[str, Any],
+    language: str = "ru",
+    top_k_per_book: int = 2,
+    mode: str = 'advanced'
+) -> Dict[str, Any]:
+    """
+    AI-анализ прогрессивной синастрии — три слоя:
+      1) прогрессивная синастрия (прогр A ↔ прогр B)
+      2) наложение на натал (прогр A → натал B и наоборот)
+      3) динамика относительно натальной синастрии
+    Приоритетная книга — Brady "The Eagle and the Lark" (id=29, прогностика).
+    """
+    import asyncio
+    from app.services.llm_adapter import get_llm_adapter
+    from app.services.prompt_templates import get_template
+
+    adapter = get_llm_adapter()
+
+    p1 = progressed_synastry.get("person1", {})
+    p2 = progressed_synastry.get("person2", {})
+    name1 = p1.get("name") or ("первый партнёр" if language == 'ru' else "the first partner")
+    name2 = p2.get("name") or ("второй партнёр" if language == 'ru' else "the second partner")
+
+    layer1 = progressed_synastry.get("progressed_synastry_aspects", [])
+    cross = progressed_synastry.get("cross_overlay", {})
+    prog1_to_natal2 = cross.get("prog1_to_natal2", [])
+    prog2_to_natal1 = cross.get("prog2_to_natal1", [])
+    dynamics = progressed_synastry.get("dynamics", {})
+
+    # --- Шаг 1: RAG-поиск (приоритет книги прогностики id=29) ---
+    async def search_aspect(asp: Dict, kind: str) -> tuple:
+        p_a = asp.get("planet1", "")
+        p_b = asp.get("planet2", "")
+        asp_type = asp.get("aspect", "")
+        query = f"progressed {p_a.lower()} {asp_type.lower()} {p_b.lower()} synastry relationship"
+        chunks = await search_chunks_priority_book(query, PROGRESSIONS_PRIORITY_BOOK_ID, top_k_priority=3, top_k_others=2)
+        return f"[{kind}] {p_a} {asp_type} {p_b}", chunks
+
+    async def search_lunar(person_label: str, phase: str) -> tuple:
+        if not phase:
+            return f"Lunar {person_label}", []
+        chunks = await search_chunks_priority_book(
+            f"progressed moon {phase.lower()} relationship synastry",
+            PROGRESSIONS_PRIORITY_BOOK_ID, top_k_priority=2, top_k_others=top_k_per_book
+        )
+        return f"Progressed Moon ({person_label}): {phase}", chunks
+
+    # Поиск по самым точным аспектам каждого слоя (ограничиваем число RPC)
+    tasks = []
+    for asp in layer1[:6]:
+        tasks.append(search_aspect(asp, "L1"))
+    for asp in prog1_to_natal2[:3]:
+        tasks.append(search_aspect(asp, "L2"))
+    for asp in prog2_to_natal1[:3]:
+        tasks.append(search_aspect(asp, "L2"))
+    ph1 = (p1.get("lunar_phase") or {}).get("phase", "")
+    ph2 = (p2.get("lunar_phase") or {}).get("phase", "")
+    tasks.append(search_lunar(name1, ph1))
+    tasks.append(search_lunar(name2, ph2))
+
+    print(f"[progressed_synastry_analysis] Parallel RAG: {len(tasks)} queries")
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # --- Шаг 2: Форматирование аспектов по слоям ---
+    def fmt(asp: Dict, cross_houses: bool = False) -> str:
+        p_a = asp.get("planet1", "?")
+        p_b = asp.get("planet2", "?")
+        orb_val = asp.get("orb", "?")
+        if language == 'ru':
+            asp_name = asp.get("aspect_ru", asp.get("aspect", "?"))
+            applying_str = "набирает силу" if asp.get("applying") else "завершается"
+            base = f"{p_a} ({asp.get('sign1', '?')}) {asp_name} {p_b} ({asp.get('sign2', '?')}) — орб {orb_val}°, {applying_str}"
+        else:
+            asp_name = asp.get("aspect", "?")
+            applying_str = "gaining strength" if asp.get("applying") else "wrapping up"
+            base = f"{p_a} ({asp.get('sign1', '?')}) {asp_name} {p_b} ({asp.get('sign2', '?')}) — orb {orb_val}°, {applying_str}"
+        h1 = asp.get("planet1_house_in_2")
+        h2 = asp.get("planet2_house_in_1")
+        houses = []
+        if h1:
+            houses.append(f"{p_a}→дом {h1}" if language == 'ru' else f"{p_a}→house {h1}")
+        if h2:
+            houses.append(f"{p_b}→дом {h2}" if language == 'ru' else f"{p_b}→house {h2}")
+        if houses:
+            base += " (" + ", ".join(houses) + ")"
+        return base
+
+    L = {
+        'ru': {
+            'l1': f"【СЛОЙ 1 — Прогрессивная синастрия: {name1} ↔ {name2}】",
+            'l2a': f"【СЛОЙ 2 — Прогрессии {name1} → натальная карта {name2}】",
+            'l2b': f"【СЛОЙ 2 — Прогрессии {name2} → натальная карта {name1}】",
+            'l3new': "【СЛОЙ 3 — НОВЫЕ аспекты (появились в прогрессии)】",
+            'l3fade': "【СЛОЙ 3 — Натальные аспекты, сейчас НЕ активные】",
+            'none': "(нет точных аспектов)",
+        },
+        'en': {
+            'l1': f"【LAYER 1 — Progressed synastry: {name1} ↔ {name2}】",
+            'l2a': f"【LAYER 2 — {name1}'s progressions → {name2}'s natal chart】",
+            'l2b': f"【LAYER 2 — {name2}'s progressions → {name1}'s natal chart】",
+            'l3new': "【LAYER 3 — NEW aspects (appeared in progression)】",
+            'l3fade': "【LAYER 3 — Natal aspects NOT active now】",
+            'none': "(no exact aspects)",
+        }
+    }[language if language in ('ru', 'en') else 'en']
+
+    def block(title, items, **kw):
+        body = "\n".join(fmt(a, **kw) for a in items) if items else L['none']
+        return f"{title}\n{body}"
+
+    aspects_list = "\n\n".join([
+        block(L['l1'], layer1, cross_houses=True),
+        block(L['l2a'], prog1_to_natal2),
+        block(L['l2b'], prog2_to_natal1),
+        block(L['l3new'], dynamics.get("new_aspects", []), cross_houses=True),
+        block(L['l3fade'], dynamics.get("faded_aspects", [])[:10]),
+    ])
+
+    # --- Шаг 3: Фрагменты книг ---
+    books_content = ""
+    for result in results:
+        if isinstance(result, Exception):
+            continue
+        label, chunks = result
+        if chunks:
+            books_content += f"\n\n【{label}】\n"
+            for i, chunk in enumerate(chunks, 1):
+                text = chunk.get("text", "")[:700]
+                book_title = chunk.get("book_title", "")
+                books_content += f"[{i}] ({book_title}):\n{text}\n"
+
+    # --- Шаг 4: Сборка промпта ---
+    template = get_template("progressed_synastry", language, mode)
+    prompt = template.replace("{aspects_list}", aspects_list).replace("{books_content}", books_content)
+
+    # Данные партнёров
+    prompt += f"\n\n=== ДАННЫЕ ПАРТНЁРОВ ==="
+    for label, person in ((name1, p1), (name2, p2)):
+        lp = person.get("lunar_phase") or {}
+        phase = lp.get("phase_ru" if language == 'ru' else "phase", "?")
+        ns = person.get("natal_summary") or {}
+        prompt += f"\n\n{label} (возраст {person.get('age_years', '?')}):"
+        prompt += f"\n  Прогрессивная лунная фаза: {phase}"
+        prog_planets = person.get("progressed_planets", {})
+        for key in ("Moon", "Sun", "Venus", "Mars", "Mercury"):
+            pd = prog_planets.get(key)
+            if pd:
+                sign = pd.get("sign_ru", pd.get("sign", "?"))
+                rx = " R" if pd.get("is_retrograde") else ""
+                prompt += f"\n  Прогр.{key}: {sign}{rx}"
+
+    dyn = dynamics
+    prompt += f"\n\n=== ДИНАМИКА: натальная синастрия {dyn.get('natal_total', '?')} аспектов → прогрессивная {dyn.get('progressed_total', '?')} ==="
+
+    # --- Шаг 5: LLM ---
+    print(f"[progressed_synastry_analysis] Final prompt ~{len(prompt)//4} tokens")
+    try:
+        full_analysis = await adapter.generate(prompt, language)
+    except Exception as e:
+        full_analysis = f"Ошибка анализа: {str(e)}"
+
+    summary = await generate_summary(full_analysis, language)
+
+    return {
+        "analysis": full_analysis,
+        "summary": summary,
+        "progressed_synastry_summary": {
+            "period": progressed_synastry.get("period"),
+            "person1_name": p1.get("name"),
+            "person2_name": p2.get("name"),
+            "person1_lunar_phase": (p1.get("lunar_phase") or {}).get("phase"),
+            "person2_lunar_phase": (p2.get("lunar_phase") or {}).get("phase"),
+            "layer1_aspects": len(layer1),
+            "new_aspects": len(dynamics.get("new_aspects", [])),
+            "faded_aspects": len(dynamics.get("faded_aspects", [])),
+        },
+        "language": language,
+        "version": "progressed_synastry_v1"
     }
 
 

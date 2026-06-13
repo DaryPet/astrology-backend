@@ -247,3 +247,82 @@ class ProgressionsAnalysisResponse(BaseModel):
     progressions_summary: Dict[str, Any]
     language: str
     created_at: datetime
+
+
+class TransitsRequest(BaseModel):
+    """Запрос на расчёт транзитов на конкретный день"""
+    birth_date: datetime
+    birth_time: Optional[str] = None
+    birth_place: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    timezone: Optional[str] = None
+    house_system: Optional[str] = "Placidus"
+    # День транзита (по умолчанию — сегодня); можно любой день прошлого/будущего
+    target_date: Optional[datetime] = None
+    # Готовая натальная карта из БД (planets+houses) — чтобы дома транзитных
+    # планет считались по ВЕРНЫМ натальным куспидам, а не по пересчитанным
+    natal_chart: Optional[Dict[str, Any]] = None
+
+
+class TransitsAnalysisRequest(BaseModel):
+    """Запрос на AI-анализ транзитов дня"""
+    # Предпочтительный путь: фронтенд передаёт готовые данные (без повторного расчёта)
+    natal_chart: Optional[Dict[str, Any]] = None    # chart_data натальной карты
+    transit_data: Optional[Dict[str, Any]] = None   # результат /api/transits
+
+    # Fallback: расчёт на бэкенде из данных рождения
+    birth_date: Optional[datetime] = None
+    birth_time: Optional[str] = None
+    birth_place: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    timezone: Optional[str] = None
+    house_system: Optional[str] = "Placidus"
+    target_date: Optional[datetime] = None
+
+    language: str = "ru"
+    mode: str = "advanced"  # simple | advanced
+    top_k_per_book: int = 2
+
+
+class TransitsAnalysisResponse(BaseModel):
+    analysis: str
+    summary: str
+    transits_summary: Optional[Dict[str, Any]] = None
+    transit_data: Optional[Dict[str, Any]] = None
+
+
+class ProgressedSynastryRequest(BaseModel):
+    """Запрос расчёта прогрессивной синастрии (два партнёра)"""
+    chart1: ChartRequest
+    chart2: ChartRequest
+    target_date: Optional[datetime] = None  # по умолчанию — сегодня; можно любой день
+    house_system: Optional[str] = "Placidus"
+
+
+class ProgressedSynastryAnalysisRequest(BaseModel):
+    """Запрос AI-анализа прогрессивной синастрии"""
+    # Предпочтительный путь: фронтенд передаёт готовые расчётные данные
+    progressed_synastry_data: Optional[Dict[str, Any]] = None
+    # Натальные карты партнёров (для слоёв 2 и 3) — chart_data из БД
+    natal_chart1: Optional[Dict[str, Any]] = None
+    natal_chart2: Optional[Dict[str, Any]] = None
+
+    # Fallback: пересчёт на бэкенде
+    chart1: Optional[ChartRequest] = None
+    chart2: Optional[ChartRequest] = None
+    target_date: Optional[datetime] = None
+    house_system: Optional[str] = "Placidus"
+
+    language: str = "ru"
+    mode: str = "advanced"  # simple | advanced
+    top_k_per_book: int = 2
+    relationship_context: Optional[str] = None
+
+
+class ProgressedSynastryAnalysisResponse(BaseModel):
+    analysis: str
+    summary: str
+    progressed_synastry_summary: Optional[Dict[str, Any]] = None
+    progressed_synastry_data: Optional[Dict[str, Any]] = None
