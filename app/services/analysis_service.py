@@ -914,13 +914,19 @@ async def transits_analysis(
     transits: Dict[str, Any],
     language: str = "ru",
     top_k_per_book: int = 2,
-    mode: str = 'advanced'
+    mode: str = 'advanced',
+    transit_place: Optional[str] = None,
+    transit_lat: Optional[float] = None,
+    transit_lon: Optional[float] = None,
 ) -> Dict[str, Any]:
     """
     AI-анализ транзитов дня — гибридный подход как у прогрессий:
     - точечный RAG-поиск (транзитные планеты в натальных домах + аспекты к наталу)
     - сборка структурированного промпта (шаблон 'transits', advanced/simple)
     - один финальный вызов LLM + краткое summary
+
+    transit_place/lat/lon — место, где человек находится в момент транзита.
+    Это важно для интерпретации транзитных домов и лунной фазы.
     """
     import asyncio
     from app.services.llm_adapter import get_llm_adapter
@@ -1062,6 +1068,15 @@ async def transits_analysis(
     period = transits.get("period", "?")
     prompt += f"\n\n=== ДАННЫЕ ТРАНЗИТОВ ==="
     prompt += f"\nДень: {period}"
+
+    # Информация о месте транзита
+    transit_summary = transits.get("transit_summary", {})
+    if transit_lat is not None and transit_lon is not None:
+        location_name = transit_place or "не указано"
+        if language == 'ru':
+            prompt += f"\nМесто транзита: {location_name} (координаты: {transit_lat:.4f}°, {transit_lon:.4f}°)"
+        else:
+            prompt += f"\nTransit location: {location_name} (coordinates: {transit_lat:.4f}°, {transit_lon:.4f}°)"
 
     lunar_phase = transits.get("lunar_phase") or {}
     if lunar_phase:

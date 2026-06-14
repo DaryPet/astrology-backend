@@ -263,6 +263,11 @@ class TransitsRequest(BaseModel):
     # Готовая натальная карта из БД (planets+houses) — чтобы дома транзитных
     # планет считались по ВЕРНЫМ натальным куспидам, а не по пересчитанным
     natal_chart: Optional[Dict[str, Any]] = None
+    # Место для расчёта транзитов (по умолчанию используются координаты натального места)
+    transit_place: Optional[str] = None
+    transit_latitude: Optional[float] = None
+    transit_longitude: Optional[float] = None
+    transit_timezone: Optional[str] = None
 
 
 class TransitsAnalysisRequest(BaseModel):
@@ -284,6 +289,12 @@ class TransitsAnalysisRequest(BaseModel):
     language: str = "ru"
     mode: str = "advanced"  # simple | advanced
     top_k_per_book: int = 2
+
+    # Место для расчёта транзитов
+    transit_place: Optional[str] = None
+    transit_latitude: Optional[float] = None
+    transit_longitude: Optional[float] = None
+    transit_timezone: Optional[str] = None
 
 
 class TransitsAnalysisResponse(BaseModel):

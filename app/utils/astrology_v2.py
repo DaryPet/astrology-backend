@@ -1042,6 +1042,9 @@ def calculate_transits(
     timezone_str: str = None,
     house_system: str = 'Placidus',
     natal_override: Optional[Dict[str, Any]] = None,
+    transit_lat: Optional[float] = None,
+    transit_lon: Optional[float] = None,
+    transit_place: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Транзиты на конкретный день: реальные позиции планет на target_date,
@@ -1051,9 +1054,14 @@ def calculate_transits(
     передана, её дома/планеты используются как есть (это гарантирует те же
     дома, что в натальном анализе). Иначе натал считается заново.
 
+    transit_lat/transit_lon — координаты места транзита. Если не указаны,
+    используются натальные координаты. Это важно: транзитные дома
+    определяются относительно места, где человек находится в момент транзита.
+
     Возвращает:
     - транзитные позиции планет (+ НАТАЛЬНЫЙ дом каждой транзитной планеты —
       какая сфера натальной жизни активирована)
+    - транзитные дома (дома, построенные на место транзита)
     - аспекты транзитных планет к натальным (тугие орбы, сходящийся/расходящийся)
     - лунную фазу дня (реальная фаза Луны)
     - период = YYYY-MM-DD (ключ кэширования анализа)
@@ -1074,15 +1082,27 @@ def calculate_transits(
         target_date = target_date.replace(hour=12)
     transit_jd = _datetime_to_utc_jd(target_date)
 
-    # Транзитные дома — дома, построенные на момент транзита по координатам места.
+    # Координаты места транзита: если не переданы — используем натальные
+    eff_transit_lat = transit_lat if transit_lat is not None else lat
+    eff_transit_lon = transit_lon if transit_lon is not None else lon
+    if eff_transit_lat is None:
+        eff_transit_lat = 0.0
+    if eff_transit_lon is None:
+        eff_transit_lon = 0.0
+
+    # Транзитные дома — дома, построенные на момент транзита по координатам места транзита.
     # Дают второй угол зрения: в каком ТРАНЗИТНОМ доме находится планета сейчас
     # (в дополнение к натальному дому, по которому она «идёт» относительно рождения).
     try:
-        transit_houses_data = calculate_houses(transit_jd, lat, lon, house_system)
+        transit_houses_data = calculate_houses(transit_jd, eff_transit_lat, eff_transit_lon, house_system)
         transit_houses = transit_houses_data['houses']
+        transit_ascendant = transit_houses_data['ascendant']
+        transit_mc = transit_houses_data['mc']
     except Exception as e:
         print(f"[transits] transit houses error: {e}")
         transit_houses = None
+        transit_ascendant = None
+        transit_mc = None
 
     # 3. Транзитные планеты
     transit_planets: Dict[str, Any] = {}
@@ -1225,6 +1245,15 @@ def calculate_transits(
 
     period = target_date.strftime('%Y-%m-%d')
 
+    # Информация о месте транзита для фронтенда
+    transit_location_info = None
+    if transit_lat is not None and transit_lon is not None:
+        transit_location_info = {
+            'latitude': transit_lat,
+            'longitude': transit_lon,
+            'place_name': transit_place or birth_place,
+        }
+
     return {
         'type': 'transits',
         'period': period,
@@ -1241,6 +1270,11 @@ def calculate_transits(
             'ascendant': natal['ascendant'],
             'ascendant_ru': natal['ascendant_ru'],
         },
+        'transit_summary': {
+            'ascendant': transit_ascendant,
+            'mc': transit_mc,
+            'location': transit_location_info,
+        },
         'meta': {
             'birth_date': birth_date.isoformat() if hasattr(birth_date, 'isoformat') else str(birth_date),
             'birth_place': birth_place,
@@ -1248,6 +1282,9 @@ def calculate_transits(
             'latitude': lat,
             'longitude': lon,
             'timezone': timezone_str,
+            'transit_latitude': transit_lat if transit_lat != lat else None,
+            'transit_longitude': transit_lon if transit_lon != lon else None,
+            'transit_place': transit_place,
         },
     }
 
