@@ -469,7 +469,7 @@ Write in English. Deep, detailed, simple.""",
 
 
 PROGRESSIONS_PROMPTS = {
-    'ru': """Ты эксперт по эволюционной астрологии (Джефф Грин, кармические узлы, трансформация души) и прогностическим методам. Твоя задача — глубокий анализ ВТОРИЧНЫХ ПРОГРЕССИЙ («день за год») для конкретного человека на текущий период его жизни.
+    'ru': """Ты эксперт по астрологии и прогностическим методам. Твоя задача — глубокий анализ ВТОРИЧНЫХ ПРОГРЕССИЙ («день за год») для конкретного человека на текущий период его жизни.
 
 ЧТО ТАКОЕ ВТОРИЧНЫЕ ПРОГРЕССИИ (для твоего понимания, не для пересказа):
 - Это символическое развёртывание натальной карты во времени: внутреннее созревание души, а не внешние события
@@ -517,7 +517,7 @@ PROGRESSIONS_PROMPTS = {
 
 Пиши на русском. Глубоко, тепло, конкретно.""",
 
-    'en': """You are an expert in EVOLUTIONARY ASTROLOGY (Jeff Green, karmic nodes, soul transformation) and predictive techniques. Your task is a deep analysis of SECONDARY PROGRESSIONS ("a day for a year") for a specific person for the current period of their life.
+    'en': """You are an expert in ASTROLOGY and predictive techniques. Your task is a deep analysis of SECONDARY PROGRESSIONS ("a day for a year") for a specific person for the current period of their life.
 
 WHAT SECONDARY PROGRESSIONS ARE (for your understanding, not for retelling):
 - A symbolic unfolding of the natal chart through time: inner maturation of the soul, not external events
@@ -591,22 +591,9 @@ def get_relationship_context_prompt(context: str, language: str = 'ru') -> str:
     return contexts.get(context, contexts.get('default', ''))
 
 
-# def get_template(name: str, language: str) -> str:
-#     """Получить промпт по имени с fallback"""
-#     templates = {
-#         'analysis': ANALYSIS_PROMPTS,
-#         'planet': PLANET_PROMPTS,
-#         'synthesis': SYNTHESIS_PROMPTS,
-#         'synastry': SYNASTRY_PROMPTS,
-#         'synastry_aspect': SYNASTRY_ASPECT_PROMPTS,
-#     }
-#     prompts = templates.get(name, ANALYSIS_PROMPTS)
-#     return prompts.get(language, prompts['en'])
-
-
 
 TRANSITS_PROMPTS = {
-    'ru': """Ты эксперт по эволюционной астрологии (Джефф Грин, кармические узлы, трансформация души) и прогностическим методам. Твоя задача — глубокий анализ ТРАНЗИТОВ на КОНКРЕТНЫЙ ДЕНЬ для конкретного человека.
+    'ru': """Ты эксперт по астрологии и прогностическим методам. Твоя задача — глубокий анализ ТРАНЗИТОВ на КОНКРЕТНЫЙ ДЕНЬ для конкретного человека.
 
 ЧТО ТАКОЕ ТРАНЗИТЫ (для твоего понимания, не для пересказа):
 - Это реальные положения планет в указанный день, наложенные на натальную карту человека
@@ -622,8 +609,9 @@ TRANSITS_PROMPTS = {
 ГЛАВНЫЙ ПРИНЦИП — ОВЕРЛЕЙ С НАТАЛОМ:
 Транзит НЕ существует сам по себе. Каждую транзитную позицию интерпретируй ЧЕРЕЗ натальную карту:
 - Транзитная планета в N-м НАТАЛЬНОМ доме = эта сфера натальной жизни сейчас «подсвечена»: скажи КАКАЯ сфера и ЧТО планета там делает
-- Аспект к натальной планете = активация того, что эта планета означает В ЭТОЙ КАРТЕ (смотри её натальный знак и дом из данных!): транзитный Сатурн к натальной Венере в 7 доме — про отношения и обязательства, а к Венере во 2 доме — про деньги и ценности
-- Сочетай ОБА конца аспекта: дом, ПО КОТОРОМУ идёт транзитная планета + дом натальной планеты = между какими сферами жизни протянута тема
+- Транзитный дом (transit_house) — где планета сейчас в транзитной карте: если человек в другом городе, транзитные дома другие! Это второй угол: что «происходит наружу» в транзите
+- Аспект к натальной планете = активация того, что эта планета означает В ЭТОЙ КАРТЕ (смотри её натальный знак и дом из данных!)
+- Сочетай натальный дом (откуда идёт) и транзитный дом (куда сейчас попадает) для полной картины
 
 ВАША ЗАДАЧА:
 1. Если в найденных фрагментах из книг есть релевантная информация по транзитам, планетам в домах или аспектам — используй её как ОСНОВУ, косвенно ссылаясь
@@ -656,7 +644,7 @@ TRANSITS_PROMPTS = {
 
 Пиши на русском. Глубоко, тепло, конкретно.""",
 
-    'en': """You are an expert in EVOLUTIONARY ASTROLOGY (Jeff Green, karmic nodes, soul transformation) and predictive techniques. Your task is a deep analysis of TRANSITS for a SPECIFIC DAY for a specific person.
+    'en': """You are an expert in ASTROLOGY and predictive techniques. Your task is a deep analysis of TRANSITS for a SPECIFIC DAY for a specific person.
 
 WHAT TRANSITS ARE (for your understanding, not for retelling):
 - The real positions of planets on the given day, overlaid on the person's natal chart
@@ -672,8 +660,9 @@ WHAT TRANSITS ARE (for your understanding, not for retelling):
 THE CORE PRINCIPLE — OVERLAY WITH THE NATAL CHART:
 A transit does NOT exist on its own. Interpret every transiting position THROUGH the natal chart:
 - A transiting planet in the Nth NATAL house = that area of natal life is "lit up" right now: say WHICH area and WHAT the planet is doing there
-- An aspect to a natal planet = activation of what that planet means IN THIS CHART (check its natal sign and house in the data!): transiting Saturn to natal Venus in the 7th house is about relationships and commitments, but to Venus in the 2nd house — about money and values
-- Combine BOTH ends of the aspect: the house the transiting planet is moving through + the natal planet's house = which life areas the theme stretches between
+- Transit house (transit_house) — where the planet currently sits in the transit chart: if the person is in a different city, transit houses differ! This is the second angle: what's happening "outwardly" in the transit
+- An aspect to a natal planet = activation of what that planet means IN THIS CHART (check its natal sign and house in the data!)
+- Combine the natal house (where the energy comes from) and transit house (where it currently manifests) for a complete picture
 
 YOUR TASK:
 1. If relevant information on transits, planets in houses or aspects is found in the book fragments — use it as the PRIMARY basis, implicitly referencing it

@@ -1077,6 +1077,16 @@ async def transits_analysis(
             prompt += f"\nМесто транзита: {location_name} (координаты: {transit_lat:.4f}°, {transit_lon:.4f}°)"
         else:
             prompt += f"\nTransit location: {location_name} (coordinates: {transit_lat:.4f}°, {transit_lon:.4f}°)"
+    
+    transit_asc = transit_summary.get("ascendant")
+    transit_mc = transit_summary.get("mc")
+    if transit_asc or transit_mc:
+        if language == 'ru':
+            prompt += f"\nТранзитный Асцендент: {transit_asc.get('sign_ru', transit_asc.get('sign', '?')) if transit_asc else '?'}"
+            prompt += f"\nТранзитный MC: {transit_mc.get('sign_ru', transit_mc.get('sign', '?')) if transit_mc else '?'}"
+        else:
+            prompt += f"\nTransiting Ascendant: {transit_asc.get('sign', '?') if transit_asc else '?'}"
+            prompt += f"\nTransiting MC: {transit_mc.get('sign', '?') if transit_mc else '?'}"
 
     lunar_phase = transits.get("lunar_phase") or {}
     if lunar_phase:
@@ -1085,7 +1095,7 @@ async def transits_analysis(
 
     TRANSIT_ORDER = ["Moon", "Sun", "Mercury", "Venus", "Mars", "Jupiter", "Saturn",
                      "Uranus", "Neptune", "Pluto", "NorthNode", "SouthNode", "Chiron", "Lilith"]
-    prompt += f"\n\n=== ТРАНЗИТНЫЕ ПЛАНЕТЫ (знак, градус, НАТАЛЬНЫЙ дом, по которому идёт планета) ==="
+    prompt += f"\n\n=== ТРАНЗИТНЫЕ ПЛАНЕТЫ (знак, градус, дома) ==="
     for planet_name in TRANSIT_ORDER:
         planet_data = t_planets.get(planet_name)
         if not planet_data:
@@ -1093,13 +1103,14 @@ async def transits_analysis(
         sign_ru = planet_data.get("sign_ru", planet_data.get("sign", "?"))
         degree = planet_data.get("degree", "?")
         house = planet_data.get("natal_house", "?")
+        transit_house = planet_data.get("transit_house", "?")
         rx_str = " (ретроградная)" if planet_data.get("is_retrograde") else ""
         slow_str2 = " [медленная — фоновая тема]" if planet_data.get("is_slow") else ""
         try:
             degree_str = f"{float(degree):.1f}°"
         except (TypeError, ValueError):
             degree_str = f"{degree}°"
-        prompt += f"\n{planet_name}: {degree_str} {sign_ru}, идёт по натальному дому {house}{rx_str}{slow_str2}"
+        prompt += f"\n{planet_name}: {degree_str} {sign_ru}, натальный дом {house}, транзитный дом {transit_house}{rx_str}{slow_str2}"
 
     # Полная натальная карта — основа оверлея
     prompt += f"\n\n=== НАТАЛЬНАЯ КАРТА (основа для оверлея) ==="
