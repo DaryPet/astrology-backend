@@ -1747,6 +1747,33 @@ def _resolve_coordinates(latitude: Optional[float], longitude: Optional[float], 
         )
 
 
+def _resolve_transit_coordinates(
+    transit_lat: Optional[float],
+    transit_lon: Optional[float],
+    transit_place: Optional[str],
+    natal_lat: Optional[float] = None,
+    natal_lon: Optional[float] = None
+) -> tuple:
+    """Координаты места транзита: переданные или геокодинг, иначе — натальные координаты"""
+    if transit_lat is not None and transit_lon is not None:
+        return transit_lat, transit_lon
+    if transit_place and transit_place.strip():
+        try:
+            return get_coordinates(transit_place)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot determine coordinates for transit location: '{transit_place}'. Error: {str(e)}"
+            )
+    # Fallback: используем натальные координаты
+    if natal_lat is not None and natal_lon is not None:
+        return natal_lat, natal_lon
+    raise HTTPException(
+        status_code=400,
+        detail="Transit location required: provide 'transit_latitude'/'transit_longitude' or 'transit_place'."
+    )
+
+
 @router.post("/progressions")
 @limiter.limit("15/minute")
 async def calculate_progressions_endpoint(request: Request, payload: ProgressionsRequest, user = Depends(get_current_user)):
@@ -1869,12 +1896,20 @@ async def calculate_transits_endpoint(request: Request, payload: TransitsRequest
     """
     Транзиты на конкретный день (по умолчанию — сегодня; можно любой день
     прошлого или будущего). Реальные позиции планет через Swiss Ephemeris,
-    наложенные на натальную карту: натальные дома транзитных планет +
-    аспекты к наталу (орб 2°, Луна 3°) + лунная фаза дня.
+    наложенные на натальную карту: натальные дома транзитных
+    планет считались по ВЕРНЫМ натальным куспидам, а не по пересчитанным.
+
+    Место транзита (transit_place/latitude/longitude) определяет транзитные дома
+    и лунную фазу — важно для корректной интерпретации в текущем месте пребывания.
     Требует авторизацию — доступно только для сохранённых карт.
     """
     lat, lon = _resolve_coordinates(payload.latitude, payload.longitude, payload.birth_place)
     birth_datetime = _prepare_birth_datetime(payload.birth_date, payload.birth_time, payload.timezone)
+
+    # Координаты места транзита (если не указаны — используем натальные)
+    transit_lat, transit_lon = _resolve_transit_coordinates(
+        payload.transit_latitude, payload.transit_longitude, payload.transit_place, lat, lon
+    )
 
     try:
         result = calculate_transits(
@@ -1886,6 +1921,8 @@ async def calculate_transits_endpoint(request: Request, payload: TransitsRequest
             timezone_str=payload.timezone,
             house_system=payload.house_system or 'Placidus',
             natal_override=payload.natal_chart,
+            transit_lat=transit_lat,
+            transit_lon=transit_lon,
         )
     except Exception as e:
         print(f"[transits] calculation error: {e}")
@@ -1902,17 +1939,30 @@ async def transits_analysis_endpoint(request: Request, payload: TransitsAnalysis
     (шаблон 'transits', режимы simple/advanced, языки ru/en).
 
     Кэш: in-memory по ключу birth_date|birth_place|date|mode|language.
+
+    Место транзита (transit_place/latitude/longitude) определяет транзитные дома
+    и лунную фазу — важно для корректной интерпретации в текущем месте пребывания.
     """
     from app.services.analysis_service import transits_analysis
     from datetime import datetime as dt
 
     # --- Транзиты: берём готовые из запроса или считаем на бэкенде ---
     transits = payload.transit_data
+    # Координаты места транзита (будут определены при необходимости)
+    transit_lat = payload.transit_latitude
+    transit_lon = payload.transit_longitude
+
     if not transits:
         if not payload.birth_date:
             raise HTTPException(status_code=400, detail="Either 'transit_data' or birth data must be provided")
         lat, lon = _resolve_coordinates(payload.latitude, payload.longitude, payload.birth_place)
         birth_datetime = _prepare_birth_datetime(payload.birth_date, payload.birth_time, payload.timezone)
+
+        # Координаты места транзита (если не указаны — используем натальные)
+        transit_lat, transit_lon = _resolve_transit_coordinates(
+            payload.transit_latitude, payload.transit_longitude, payload.transit_place, lat, lon
+        )
+
         try:
             transits = calculate_transits(
                 birth_date=birth_datetime,
@@ -1923,6 +1973,8 @@ async def transits_analysis_endpoint(request: Request, payload: TransitsAnalysis
                 timezone_str=payload.timezone,
                 house_system=payload.house_system or 'Placidus',
                 natal_override=payload.natal_chart,
+                transit_lat=transit_lat,
+                transit_lon=transit_lon,
             )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Transits calculation error: {str(e)}")
@@ -1938,7 +1990,8 @@ async def transits_analysis_endpoint(request: Request, payload: TransitsAnalysis
     # --- Кэш (тот же механизм, что у /analysis/progressions) ---
     meta = transits.get('meta', {})
     period = transits.get('period', '')
-    cache_key = f"transits|{meta.get('birth_date')}|{meta.get('birth_place')}|{period}|{payload.mode}|{payload.language}"
+    transit_loc = f"{payload.transit_latitude},{payload.transit_longitude}" if payload.transit_latitude else "natal"
+    cache_key = f"transits|{meta.get('birth_date')}|{meta.get('birth_place')}|{period}|{payload.mode}|{payload.language}|{transit_loc}"
 
     if cache_key in _analysis_cache:
         cached_result, timestamp = _analysis_cache[cache_key]
@@ -1958,6 +2011,9 @@ async def transits_analysis_endpoint(request: Request, payload: TransitsAnalysis
         language=payload.language,
         top_k_per_book=payload.top_k_per_book,
         mode=payload.mode or 'advanced',
+        transit_place=payload.transit_place,
+        transit_lat=transit_lat,
+        transit_lon=transit_lon,
     )
 
     # Прикладываем расчётные данные — фронтенд может показать их без второго запроса
