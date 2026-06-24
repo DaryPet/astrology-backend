@@ -267,7 +267,6 @@ class TransitsRequest(BaseModel):
     transit_place: Optional[str] = None
     transit_latitude: Optional[float] = None
     transit_longitude: Optional[float] = None
-    transit_timezone: Optional[str] = None
 
 
 class TransitsAnalysisRequest(BaseModel):
@@ -294,7 +293,6 @@ class TransitsAnalysisRequest(BaseModel):
     transit_place: Optional[str] = None
     transit_latitude: Optional[float] = None
     transit_longitude: Optional[float] = None
-    transit_timezone: Optional[str] = None
 
 
 class TransitsAnalysisResponse(BaseModel):

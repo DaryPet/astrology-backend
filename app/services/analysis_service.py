@@ -913,7 +913,7 @@ async def transits_analysis(
     natal_chart: Dict[str, Any],
     transits: Dict[str, Any],
     language: str = "ru",
-    top_k_per_book: int = 2,
+    top_k_per_book: int = 5,
     mode: str = 'advanced',
     transit_place: Optional[str] = None,
     transit_lat: Optional[float] = None,
@@ -974,7 +974,7 @@ async def transits_analysis(
 
     # Планеты для поиска: медленные с аспектами + Луна и Солнце (день)
     search_planet_names = []
-    for a in slow_aspects[:6]:
+    for a in slow_aspects:
         name = a.get("transit")
         if name and name not in search_planet_names:
             search_planet_names.append(name)
@@ -988,8 +988,8 @@ async def transits_analysis(
     ]
     planet_tasks.append(search_lunar_phase())
 
-    # Аспекты: сначала все медленные, затем самые точные быстрые — до 12 запросов
-    aspect_pool = slow_aspects[:8] + sorted(fast_aspects, key=lambda x: x["orb"])[:4]
+    # Аспекты: все медленные + все быстрые для полного анализа
+    aspect_pool = slow_aspects + fast_aspects
     aspect_tasks = [search_aspect(asp) for asp in aspect_pool]
 
     print(f"[transits_analysis] Parallel RAG: {len(planet_tasks)} planet queries, {len(aspect_tasks)} aspect queries")
