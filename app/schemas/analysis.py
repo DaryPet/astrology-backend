@@ -295,6 +295,14 @@ class TransitsAnalysisRequest(BaseModel):
     transit_longitude: Optional[float] = None
 
 
+class DailyForecastRequest(TransitsAnalysisRequest):
+    """Прогноз дня: те же входные данные, что у анализа транзитов,
+    плюс выбор LLM с фронтенда."""
+    llm_provider: Optional[str] = None  # claude | deepseek | gemini | openrouter; None = settings.LLM_PROVIDER
+    llm_model: Optional[str] = None     # слаг модели для openrouter
+    transit_timezone: Optional[str] = None  # IANA-таймзона места транзита: время трактуется как МЕСТНОЕ
+
+
 class TransitsAnalysisResponse(BaseModel):
     analysis: str
     summary: str
