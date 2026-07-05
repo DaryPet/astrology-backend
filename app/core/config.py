@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     GEMINI_API_KEY: Optional[str] = None
     DEEPSEEK_API_KEY: Optional[str] = None
+    OPENROUTER_API_KEY: Optional[str] = None
+    OPENROUTER_MODEL: str = "anthropic/claude-sonnet-4.5"  # дефолт если фронт не прислал model
     
     # Authentication settings (optional - for future use)
     SECRET_KEY: Optional[str] = None

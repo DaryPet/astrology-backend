@@ -18,7 +18,7 @@ from app.schemas.schemas import (
     QueryRequest, SynastryRequest, NatalChartRequest, NatalChartResponseFull,
     TransitRequest, SynastryRequestDirect, BookChunkResponse
 )
-from app.schemas.analysis import SynastryAnalysisRequest, ProgressionsRequest, ProgressionsAnalysisRequest, TransitsRequest, TransitsAnalysisRequest, ProgressedSynastryRequest, ProgressedSynastryAnalysisRequest
+from app.schemas.analysis import SynastryAnalysisRequest, ProgressionsRequest, ProgressionsAnalysisRequest, TransitsRequest, TransitsAnalysisRequest, ProgressedSynastryRequest, ProgressedSynastryAnalysisRequest, DailyForecastRequest
 from app.utils.astrology_v2 import (
     calculate_planet_positions, calculate_aspects,
     calculate_solar_return, calculate_synastry,
@@ -2017,6 +2017,100 @@ async def transits_analysis_endpoint(request: Request, payload: TransitsAnalysis
     )
 
     # Прикладываем расчётные данные — фронтенд может показать их без второго запроса
+    result["transit_data"] = transits
+
+    _analysis_cache[cache_key] = (result, time.time())
+    return result
+
+
+@router.post("/daily-forecast")
+@limiter.limit("5/minute")
+async def daily_forecast_endpoint(request: Request, payload: DailyForecastRequest, user = Depends(get_current_user)):
+    """
+    Прогноз дня: оценка 1-10 + категория + summary 3-5 предложений.
+    Расчёт: транзиты (calculate_transits) + аспекты к углам ASC/MC/DSC/IC
+    и Колесу Фортуны + детерминированный base_score; LLM корректирует в пределах +-1.
+    LLM выбирается с фронта (llm_provider/llm_model, включая OpenRouter).
+    """
+    from app.services.daily_forecast_service import daily_forecast_analysis
+    from datetime import datetime as dt
+
+    # БАГ 1 FIX: время транзита введено как МЕСТНОЕ время места транзита.
+    # Локализуем naive datetime по таймзоне места транзита (fallback — натальная);
+    # дальше _datetime_to_utc_jd корректно конвертирует aware datetime в UTC.
+    # Иначе "14:00 Торонто" и "14:00 Барселона" дали бы одинаковые позиции планет.
+    target_date = payload.target_date
+    if target_date is not None and target_date.tzinfo is None:
+        tz_name = payload.transit_timezone or payload.timezone
+        if tz_name:
+            try:
+                from zoneinfo import ZoneInfo
+                target_date = target_date.replace(tzinfo=ZoneInfo(tz_name))
+            except Exception as e:
+                print(f"[daily-forecast] transit timezone error: {e}")
+
+    # --- Транзиты: готовые из запроса или считаем (тот же путь, что /analysis/transits) ---
+    transits = payload.transit_data
+    transit_lat = payload.transit_latitude
+    transit_lon = payload.transit_longitude
+
+    if not transits:
+        if not payload.birth_date:
+            raise HTTPException(status_code=400, detail="Either 'transit_data' or birth data must be provided")
+        lat, lon = _resolve_coordinates(payload.latitude, payload.longitude, payload.birth_place)
+        birth_datetime = _prepare_birth_datetime(payload.birth_date, payload.birth_time, payload.timezone)
+        transit_lat, transit_lon = _resolve_transit_coordinates(
+            payload.transit_latitude, payload.transit_longitude, payload.transit_place, lat, lon
+        )
+        try:
+            transits = calculate_transits(
+                birth_date=birth_datetime,
+                birth_place=payload.birth_place or '',
+                target_date=target_date,
+                lat=lat,
+                lon=lon,
+                timezone_str=payload.timezone,
+                house_system=payload.house_system or 'Placidus',
+                natal_override=payload.natal_chart,
+                transit_lat=transit_lat,
+                transit_lon=transit_lon,
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Transits calculation error: {str(e)}")
+
+    natal_chart = payload.natal_chart
+    if not natal_chart:
+        raise HTTPException(status_code=400, detail="natal_chart is required")
+
+    # --- Кэш (тот же механизм, что /analysis/transits; ключ включает модель) ---
+    meta = transits.get('meta', {})
+    period = transits.get('period', '')
+    transit_loc = f"{transit_lat},{transit_lon}" if transit_lat is not None else "natal"
+    target_time = target_date.isoformat() if target_date else ''
+    cache_key = (
+        f"daily|{meta.get('birth_date')}|{meta.get('birth_place')}|{period}|{target_time}"
+        f"|{payload.language}|{transit_loc}|{payload.llm_provider}|{payload.llm_model}"
+    )
+
+    if cache_key in _analysis_cache:
+        cached_result, timestamp = _analysis_cache[cache_key]
+        if time.time() - timestamp < _ANALYSIS_CACHE_TTL:
+            print(f"[CACHE] Returning cached daily forecast for {cache_key}")
+            return {
+                **cached_result,
+                "from_cache": True,
+                "cached_at": dt.fromtimestamp(timestamp).isoformat()
+            }
+        else:
+            del _analysis_cache[cache_key]
+
+    result = await daily_forecast_analysis(
+        natal_chart=natal_chart,
+        transits=transits,
+        language=payload.language,
+        provider=payload.llm_provider,
+        model=payload.llm_model,
+    )
     result["transit_data"] = transits
 
     _analysis_cache[cache_key] = (result, time.time())

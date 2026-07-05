@@ -293,6 +293,65 @@ class DeepSeekAdapter(LLMAdapter):
         except Exception as e:
             yield f"Error: {str(e)}"
 
+class OpenRouterAdapter(LLMAdapter):
+    """Адаптер OpenRouter: OpenAI-совместимый API, любая модель по слагу"""
+
+    def __init__(self, model: Optional[str] = None):
+        self.model = model or settings.OPENROUTER_MODEL
+        self.client = None
+
+    def _get_client(self):
+        if self.client is None:
+            from openai import AsyncOpenAI
+            self.client = AsyncOpenAI(
+                api_key=settings.OPENROUTER_API_KEY,
+                base_url="https://openrouter.ai/api/v1",
+            )
+        return self.client
+
+    def _with_language(self, text: str, language: str) -> str:
+        if language and language != "en":
+            if language == "ru":
+                return "ОТВЕТЬ НА РУССКОМ ЯЗЫКЕ.\n\n" + text
+            return f"ОТВЕТЬ НА ЯЗЫКЕ: {language.upper()}.\n\n" + text
+        return text
+
+    async def generate(self, prompt: str, language: str = "en") -> str:
+        if not settings.OPENROUTER_API_KEY:
+            return "Error: OPENROUTER_API_KEY not configured"
+        try:
+            response = await self._get_client().chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": self._with_language(prompt, language)}],
+                temperature=0.3,
+                max_tokens=4096,
+                timeout=300,
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            return f"Error: {str(e)}"
+
+    async def generate_with_messages(self, messages: List[Dict[str, str]], language: str = "en") -> str:
+        if not settings.OPENROUTER_API_KEY:
+            return "Error: OPENROUTER_API_KEY not configured"
+        if language and language != "en" and messages:
+            messages = messages.copy()
+            last_msg = messages[-1].copy()
+            last_msg["content"] = self._with_language(last_msg.get("content", ""), language)
+            messages[-1] = last_msg
+        try:
+            response = await self._get_client().chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=0.3,
+                max_tokens=4096,
+                timeout=300,
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            return f"Error: {str(e)}"
+
+
 _adapters = {
     'deepseek': DeepSeekAdapter,
     'claude': ClaudeAdapter,
@@ -301,13 +360,17 @@ _adapters = {
 }
 
 
-def get_llm_adapter(provider: str = None) -> LLMAdapter:
-    """Получить адаптер для указанного LLM провайдера"""
+def get_llm_adapter(provider: str = None, model: str = None) -> LLMAdapter:
+    """Получить адаптер для указанного LLM провайдера.
+    model используется только для openrouter (слаг модели)."""
     if provider is None:
         provider = settings.LLM_PROVIDER
-    
+
     provider = provider.lower()
-    
+
+    if provider == 'openrouter':
+        return OpenRouterAdapter(model)
+
     adapter_class = _adapters.get(provider, FallbackAdapter)
     return adapter_class()
 
