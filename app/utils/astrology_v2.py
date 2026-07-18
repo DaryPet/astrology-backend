@@ -1275,6 +1275,9 @@ def calculate_transits(
             'mc': transit_mc,
             'location': transit_location_info,
         },
+        # Полная карта момента (12 куспидов со знаками) — нужна для хорарного
+        # определения значителей (Lord 1/7/10) в daily_forecast_service.
+        'transit_houses': transit_houses,
         'meta': {
             'birth_date': birth_date.isoformat() if hasattr(birth_date, 'isoformat') else str(birth_date),
             'birth_place': birth_place,

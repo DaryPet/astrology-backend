@@ -99,9 +99,14 @@ class ClaudeAdapter(LLMAdapter):
         return self._anthropic
     
     async def generate(self, prompt: str, language: str = "en") -> str:
+        import asyncio
         anthropic = self._get_anthropic()
         if not anthropic:
-            return "Claude not configured or anthropic package not installed"
+            # Fallback к DeepSeek если Claude недоступен
+            try:
+                return await DeepSeekAdapter().generate(prompt, language)
+            except Exception as e:
+                return f"Error: Claude fallback failed - {str(e)}"
         
         if language and language != "en":
             if language == "ru":
