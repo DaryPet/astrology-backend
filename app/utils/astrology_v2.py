@@ -1045,6 +1045,7 @@ def calculate_transits(
     transit_lat: Optional[float] = None,
     transit_lon: Optional[float] = None,
     transit_place: Optional[str] = None,
+    exact_time: bool = False,
 ) -> Dict[str, Any]:
     """
     Транзиты на конкретный день: реальные позиции планет на target_date,
@@ -1077,8 +1078,10 @@ def calculate_transits(
     # 2. День транзита (по умолчанию — сейчас, UTC; полдень для устойчивости позиций)
     if target_date is None:
         target_date = datetime.now(timezone.utc)
-    if target_date.hour == 0 and target_date.minute == 0:
-        # Дата без времени → берём полдень UTC (середина дня)
+    if not exact_time and target_date.hour == 0 and target_date.minute == 0:
+        # Дата без времени → берём полдень UTC (середина дня).
+        # exact_time=True (напр. точное время начала события) отключает
+        # эту эвристику — иначе полночные события сдвигались бы на 12ч.
         target_date = target_date.replace(hour=12)
     transit_jd = _datetime_to_utc_jd(target_date)
 
@@ -1275,6 +1278,9 @@ def calculate_transits(
             'mc': transit_mc,
             'location': transit_location_info,
         },
+        # Полная карта момента (12 куспидов со знаками) — нужна для хорарного
+        # определения значителей (Lord 1/7/10) в daily_forecast_service.
+        'transit_houses': transit_houses,
         'meta': {
             'birth_date': birth_date.isoformat() if hasattr(birth_date, 'isoformat') else str(birth_date),
             'birth_place': birth_place,

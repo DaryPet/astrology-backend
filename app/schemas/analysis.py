@@ -301,6 +301,10 @@ class DailyForecastRequest(TransitsAnalysisRequest):
     llm_provider: Optional[str] = None  # claude | deepseek | gemini | openrouter; None = settings.LLM_PROVIDER
     llm_model: Optional[str] = None     # слаг модели для openrouter
     transit_timezone: Optional[str] = None  # IANA-таймзона места транзита: время трактуется как МЕСТНОЕ
+    # Метод карты события (Frawley, Sports Astrology гл. 2): ход Луны зависит от спорта.
+    # Футбол 80+ мин = 5°, короткие форматы = 4°, однодневный крикет = 13°.
+    moon_range_degrees: float = Field(default=5.0, gt=0, le=30, allow_inf_nan=False)
+    extra_time_possible: bool = False   # +1° к ходу Луны, если возможно доп. время
 
 
 class TransitsAnalysisResponse(BaseModel):
