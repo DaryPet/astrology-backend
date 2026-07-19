@@ -2094,11 +2094,18 @@ async def daily_forecast_endpoint(request: Request, payload: DailyForecastReques
                 house_system=effective_house_system,  # ФРОУЛИ: Placidus для карты события (гл. 2)
                 transit_lat=transit_lat,
                 transit_lon=transit_lon,
+                exact_time=True,  # точное время начала матча — не сдвигать полночь на полдень
             )
         except HTTPException:
             raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Transits calculation error: {str(e)}")
+
+    # Без домов карту события судить нечем (весь метод строится на куспидах/Lords) —
+    # расчёт домов мог тихо провалиться (calculate_transits глотает ошибку house-calc
+    # для других эндпоинтов, где дома не обязательны) или прийти пустым в transit_data.
+    if not transits.get('transit_houses'):
+        raise HTTPException(status_code=502, detail="House calculation failed for the event chart — check coordinates/time")
 
     # natal_chart больше не обязателен: он шёл только в натальную сноску (личный
     # акцент для LLM) и на расчёт/скоринг карты события не влияет.
@@ -2112,6 +2119,7 @@ async def daily_forecast_endpoint(request: Request, payload: DailyForecastReques
     cache_key = (
         f"daily|{meta.get('birth_date')}|{meta.get('birth_place')}|{period}|{target_time}"
         f"|{payload.language}|{transit_loc}|{payload.llm_provider}|{payload.llm_model}|{effective_house_system}"
+        f"|{payload.moon_range_degrees}|{payload.extra_time_possible}"
     )
 
     if cache_key in _analysis_cache:

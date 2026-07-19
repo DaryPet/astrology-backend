@@ -99,7 +99,6 @@ class ClaudeAdapter(LLMAdapter):
         return self._anthropic
     
     async def generate(self, prompt: str, language: str = "en") -> str:
-        import asyncio
         anthropic = self._get_anthropic()
         if not anthropic:
             # Fallback к DeepSeek если Claude недоступен

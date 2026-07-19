@@ -120,12 +120,21 @@ HOUSE_STRENGTH = {h: 1.75 for h in ANGULAR_HOUSES}
 HOUSE_STRENGTH.update({h: -1.0 for h in CADENT_HOUSES})
 HOUSE_STRENGTH[EIGHTH_HOUSE] = -2.25
 HOUSE_STRENGTH.update({h: 0.0 for h in (2, 5, 11)})  # succedent (кроме 8-го) — нейтрально
-HOUSE_NICKNAME_RU = {6: 'болезни, слуги', 8: 'смерть', 12: 'тайные враги, заточение'}
+HOUSE_NICKNAME = {
+    'ru': {6: 'болезни, слуги', 8: 'смерть', 12: 'тайные враги, заточение'},
+    'en': {6: 'illness, servants', 8: 'death', 12: 'secret enemies, imprisonment'},
+}
 W_MIXED_RETROGRADE = -1.0
 
-DIGNITY_RU = {
-    'domicile': 'Обитель', 'exaltation': 'Экзальтация', 'detriment': 'Изгнание',
-    'fall': 'Падение', 'peregrine': 'Перегрин (нейтрально)',
+DIGNITY_LABEL = {
+    'ru': {
+        'domicile': 'Обитель', 'exaltation': 'Экзальтация', 'detriment': 'Изгнание',
+        'fall': 'Падение', 'peregrine': 'Перегрин (нейтрально)',
+    },
+    'en': {
+        'domicile': 'Domicile', 'exaltation': 'Exaltation', 'detriment': 'Detriment',
+        'fall': 'Fall', 'peregrine': 'Peregrine (neutral)',
+    },
 }
 DIGNITY_WARN = {'fall': '⚠️⚠️', 'detriment': '⚠️'}
 DIGNITY_STAR = {'domicile': '⭐⭐', 'exaltation': '⭐'}
@@ -147,6 +156,45 @@ PLANET_RU = {
 }
 
 OUTER_PLANETS = ('Uranus', 'Neptune', 'Pluto')
+
+ROLE_LABEL = {
+    'ru': {'favourite': 'Фаворит', 'underdog': 'Аутсайдер'},
+    'en': {'favourite': 'Favourite', 'underdog': 'Underdog'},
+}
+
+
+def _side_name(side_key: str, language: str) -> str:
+    return ROLE_LABEL.get(language, ROLE_LABEL['en'])[side_key]
+
+
+# Падежная форма (винительный/родительный — «за/против X»), нужна ТОЛЬКО в
+# русском («Сильно за Фаворита», «Против Аутсайдера»); в английском падежей
+# нет, «for/against the Favourite» используют ту же форму, что и именительная.
+_SIDE_OBJECT_FORM_RU = {'favourite': 'Фаворита', 'underdog': 'Аутсайдера'}
+
+
+def _side_object(side_key: str, language: str) -> str:
+    if language == 'ru':
+        return _SIDE_OBJECT_FORM_RU[side_key]
+    return _side_name(side_key, language)
+
+
+def _sign_label(sign: str, language: str) -> str:
+    """Внутренние значения знаков уже английские — для EN перевод не нужен."""
+    return SIGN_RU.get(sign, sign) if language == 'ru' else sign
+
+
+def _planet_label(planet: str, language: str) -> str:
+    """Внутренние значения планет уже английские — для EN перевод не нужен."""
+    return PLANET_RU.get(planet, planet) if language == 'ru' else planet
+
+
+def _dignity_label(dignity: str, language: str) -> str:
+    return DIGNITY_LABEL.get(language, DIGNITY_LABEL['en']).get(dignity, dignity)
+
+
+def _house_nickname(house_num: Optional[int], language: str) -> Optional[str]:
+    return HOUSE_NICKNAME.get(language, HOUSE_NICKNAME['en']).get(house_num)
 
 
 # ---------- утилиты ----------
@@ -192,10 +240,11 @@ class EventChart:
     """Разбор карты момента матча: значители, куспиды, Фортуна."""
 
     def __init__(self, transit_houses: Dict[Any, Any], transit_planets: Dict[str, Any],
-                 moon_range: float = MOON_RANGE_DEFAULT):
+                 moon_range: float = MOON_RANGE_DEFAULT, language: str = 'ru'):
         self.houses = transit_houses
         self.planets = transit_planets
         self.moon_range = moon_range
+        self.language = language
         self.notes: List[str] = []  # человекочитаемые пометки для листа суждения
 
         self.cusps: Dict[int, Optional[float]] = {
@@ -217,13 +266,21 @@ class EventChart:
                 dispositor = classical_ruler(moon.get('sign'))
                 self.lords[h] = dispositor
                 self.moon_substituted_for = h
-                self.notes.append(
-                    f"Луна правит {h}-м домом: дом представляет её диспозитор {dispositor}, "
-                    f"Луна остаётся «потоком событий»")
+                if self.language == 'ru':
+                    self.notes.append(
+                        f"Луна правит {h}-м домом: дом представляет её диспозитор {dispositor}, "
+                        f"Луна остаётся «потоком событий»")
+                else:
+                    self.notes.append(
+                        f"Moon rules house {h}: the house is represented by its dispositor "
+                        f"{dispositor}, Moon remains the 'flow of events'")
         for h in (10, 4):
             if self.lords.get(h) == 'Moon':
                 self.lords[h] = None
-                self.notes.append(f"Луна правит {h}-м домом успеха: обходимся без Lord {h}")
+                if self.language == 'ru':
+                    self.notes.append(f"Луна правит {h}-м домом успеха: обходимся без Lord {h}")
+                else:
+                    self.notes.append(f"Moon rules the success house {h}: proceeding without Lord {h}")
 
         # Конфликт ролей: одна планета правит домами обеих сторон или дом успеха
         # дублирует главный дом -> приоритет Lords 1/7, без Lords 10/4
@@ -231,13 +288,21 @@ class EventChart:
         main = {self.lords.get(1), self.lords.get(7)} - {None}
         for h in (10, 4):
             if self.lords.get(h) in main:
-                self.notes.append(
-                    f"Lord {h} ({self.lords[h]}) совпадает с главным значителем — "
-                    f"приоритет Lords 1/7, без Lord {h}")
+                if self.language == 'ru':
+                    self.notes.append(
+                        f"Lord {h} ({self.lords[h]}) совпадает с главным значителем — "
+                        f"приоритет Lords 1/7, без Lord {h}")
+                else:
+                    self.notes.append(
+                        f"Lord {h} ({self.lords[h]}) coincides with a main significator — "
+                        f"Lords 1/7 take priority, proceeding without Lord {h}")
                 self.lords[h] = None
         if self.lords.get(1) and self.lords.get(1) == self.lords.get(7):
             # Один управитель обоих главных домов (Рак/Козерог ASC после подмены и т.п.)
-            self.notes.append("Lord 1 и Lord 7 — одна планета: суждение ненадёжно")
+            if self.language == 'ru':
+                self.notes.append("Lord 1 и Lord 7 — одна планета: суждение ненадёжно")
+            else:
+                self.notes.append("Lord 1 and Lord 7 are the same planet: judgement unreliable")
 
         # --- Фортуна: ВСЕГДА дневная формула, «Do I reverse in night charts? NEVER!» ---
         moon, sun = self.planets.get('Moon'), self.planets.get('Sun')
@@ -301,7 +366,7 @@ def _lord_profile(chart: 'EventChart', lord_house: int) -> Optional[Dict[str, An
         'degree_in_sign': round(lon % 30, 2),
         'house': house_num,
         'house_strength': HOUSE_STRENGTH.get(house_num, 0.0) if house_num else 0.0,
-        'house_nickname': HOUSE_NICKNAME_RU.get(house_num),
+        'house_nickname': _house_nickname(house_num, chart.language),
         'dignity': essential_dignity(lord, sign),
         'retrograde': bool(data.get('is_retrograde')),
         'combust': combust_orb is not None and combust_orb <= COMBUST_ORB,
@@ -309,46 +374,70 @@ def _lord_profile(chart: 'EventChart', lord_house: int) -> Optional[Dict[str, An
     }
 
 
-def _house_label_ru(house_num: Optional[int]) -> str:
+def _house_label(house_num: Optional[int], language: str) -> str:
     """Короткая метка дома для сырого лога тестимоний (не для карточки —
-    там используется _house_phrase_ru)."""
+    там используется _house_phrase)."""
     if not house_num:
         return ""
-    nickname = HOUSE_NICKNAME_RU.get(house_num)
-    return f"дом {house_num}" + (f" («{nickname}»)" if nickname else "")
+    nickname = _house_nickname(house_num, language)
+    if language == 'ru':
+        return f"дом {house_num}" + (f" («{nickname}»)" if nickname else "")
+    return f"house {house_num}" + (f" ('{nickname}')" if nickname else "")
 
 
-def _house_phrase_ru(house_num: Optional[int], lord_house: int, planet_ru: str,
-                      own_side: str) -> Tuple[str, str]:
+def _house_phrase(house_num: Optional[int], lord_house: int, planet_label: str,
+                   own_side: str, language: str) -> Tuple[str, str]:
     """(описание, эффект) для показания «сила дома» значителя. Формулировки
     по образцу пользователя: succedent (кроме 8-го) — нейтрально «без
     бонуса»; кадентный — слабый минус; 8-й — «смерть», минус без усиления
     словом «сильно»; угловой — «сильно за», с пометкой «свой же!», если дом
     совпадает с номером значителя (Lord1 в 1-м / Lord7 в 7-м)."""
+    if language == 'ru':
+        if not house_num:
+            return (f"{planet_label}: дом неизвестен", "Нейтрально")
+        if house_num == EIGHTH_HOUSE:
+            return (f"{planet_label}: Дом 8 («смерть»)", f"Против {own_side}")
+        if house_num in CADENT_HOUSES:
+            return (f"{planet_label}: обычный кадентный (не «смерть»)", f"Слабо против {own_side}")
+        if house_num in ANGULAR_HOUSES:
+            own_house_suffix = " — свой же!" if house_num == lord_house else ""
+            return (f"{planet_label}: угловой {house_num}-й дом{own_house_suffix}",
+                    f"Сильно за {own_side}")
+        return (f"{planet_label}: succedent, без бонуса", "Нейтрально")
     if not house_num:
-        return (f"{planet_ru}: дом неизвестен", "Нейтрально")
+        return (f"{planet_label}: house unknown", "Neutral")
     if house_num == EIGHTH_HOUSE:
-        return (f"{planet_ru}: Дом 8 («смерть»)", f"Против {own_side}")
+        return (f"{planet_label}: House 8 ('death')", f"Against the {own_side}")
     if house_num in CADENT_HOUSES:
-        return (f"{planet_ru}: обычный кадентный (не «смерть»)", f"Слабо против {own_side}")
+        return (f"{planet_label}: ordinary cadent (not 'death')", f"Slightly against the {own_side}")
     if house_num in ANGULAR_HOUSES:
-        own_house_suffix = " — свой же!" if house_num == lord_house else ""
-        return (f"{planet_ru}: угловой {house_num}-й дом{own_house_suffix}",
-                f"Сильно за {own_side}")
-    return (f"{planet_ru}: succedent, без бонуса", "Нейтрально")
+        own_house_suffix = " — its own!" if house_num == lord_house else ""
+        return (f"{planet_label}: angular house {house_num}{own_house_suffix}",
+                f"Strongly for the {own_side}")
+    return (f"{planet_label}: succedent, no bonus", "Neutral")
 
 
-def _dignity_phrase_ru(dignity: str, planet_ru: str, own_side: str) -> Tuple[str, str]:
+def _dignity_phrase(dignity: str, planet_label: str, own_side: str, language: str) -> Tuple[str, str]:
     """(описание, эффект) для показания «достоинство» значителя."""
+    if language == 'ru':
+        if dignity == 'fall':
+            return (f"{planet_label} в Падении", f"Против {own_side}")
+        if dignity == 'detriment':
+            return (f"{planet_label} в Изгнании", f"Против {own_side}")
+        if dignity == 'domicile':
+            return (f"{planet_label} в собственной обители", f"За {own_side}")
+        if dignity == 'exaltation':
+            return (f"{planet_label} в Экзальтации", f"За {own_side}")
+        return (f"{planet_label}: перегрин", "Нейтрально")
     if dignity == 'fall':
-        return (f"{planet_ru} в Падении", f"Против {own_side}")
+        return (f"{planet_label} in Fall", f"Against the {own_side}")
     if dignity == 'detriment':
-        return (f"{planet_ru} в Изгнании", f"Против {own_side}")
+        return (f"{planet_label} in Detriment", f"Against the {own_side}")
     if dignity == 'domicile':
-        return (f"{planet_ru} в собственной обители", f"За {own_side}")
+        return (f"{planet_label} in its own domicile", f"For the {own_side}")
     if dignity == 'exaltation':
-        return (f"{planet_ru} в Экзальтации", f"За {own_side}")
-    return (f"{planet_ru}: перегрин", "Нейтрально")
+        return (f"{planet_label} in Exaltation", f"For the {own_side}")
+    return (f"{planet_label}: peregrine", "Neutral")
 
 
 def _mixed_method_testimonies(chart: 'EventChart', add) -> Dict[int, Dict[str, Any]]:
@@ -362,14 +451,15 @@ def _mixed_method_testimonies(chart: 'EventChart', add) -> Dict[int, Dict[str, A
     намеренно НЕ ищутся в книге (RAG) — см. daily_forecast_analysis, где
     book-only фильтр отсекает их перед поиском."""
     profiles: Dict[int, Dict[str, Any]] = {}
+    language = chart.language
     for lord_house in (1, 7):
         profile = _lord_profile(chart, lord_house)
         if not profile:
             continue
         side = chart.lord_side(lord_house)
-        own_side = 'Фаворита' if side > 0 else 'Аутсайдера'
-        own_side_dative = 'Фавориту' if side > 0 else 'Аутсайдеру'  # «минус» требует дательного
-        planet_ru = PLANET_RU.get(profile['planet'], profile['planet'])
+        side_key = 'favourite' if side > 0 else 'underdog'
+        own_side = _side_object(side_key, language)
+        planet_label = _planet_label(profile['planet'], language)
         label = f"{profile['planet']} [L{lord_house}]"
         showings: List[Dict[str, Any]] = []
 
@@ -379,9 +469,9 @@ def _mixed_method_testimonies(chart: 'EventChart', add) -> Dict[int, Dict[str, A
         house_num = profile['house']
         w = HOUSE_STRENGTH.get(house_num, 0.0) if house_num else 0.0
         if w:
-            add(label, 'house_strength', _house_label_ru(house_num),
+            add(label, 'house_strength', _house_label(house_num, language),
                 side * w, is_point=False, source='mixed')
-        desc, effect = _house_phrase_ru(house_num, lord_house, planet_ru, own_side)
+        desc, effect = _house_phrase(house_num, lord_house, planet_label, own_side, language)
         showings.append({
             'kind': 'house_strength', 'label_ru': desc,
             'warn': HOUSE_WARN.get(house_num, ''), 'star': HOUSE_STAR.get(house_num, ''),
@@ -393,7 +483,7 @@ def _mixed_method_testimonies(chart: 'EventChart', add) -> Dict[int, Dict[str, A
         w = W_MIXED_DIGNITY.get(dign, 0.0)
         if w:
             add(label, 'essential_dignity', dign, side * w, is_point=False, source='mixed')
-        desc, effect = _dignity_phrase_ru(dign, planet_ru, own_side)
+        desc, effect = _dignity_phrase(dign, planet_label, own_side, language)
         showings.append({
             'kind': 'dignity', 'label_ru': desc,
             'warn': DIGNITY_WARN.get(dign, ''), 'star': DIGNITY_STAR.get(dign, ''),
@@ -408,20 +498,34 @@ def _mixed_method_testimonies(chart: 'EventChart', add) -> Dict[int, Dict[str, A
         combust_w = 0.0
         if profile.get('combust'):
             combust_w = -W_COMBUSTION * _closeness(profile['combust_orb'], COMBUST_ORB)
+        combust_orb_val = profile.get('combust_orb') or 0
+        if language == 'ru':
+            combust_label = f"{planet_label}: сгорание ({combust_orb_val:.2f}°!)"
+            combust_effect = f"Сильно против {own_side}" if profile.get('combust') else None
+        else:
+            combust_label = f"{planet_label}: combustion ({combust_orb_val:.2f}°!)"
+            combust_effect = f"Strongly against the {own_side}" if profile.get('combust') else None
         showings.append({
-            'kind': 'combustion', 'label_ru': f"{planet_ru}: сгорание ({(profile.get('combust_orb') or 0):.2f}°!)",
+            'kind': 'combustion', 'label_ru': combust_label,
             'warn': '⚠️' if profile.get('combust') else '', 'star': '',
-            'effect': f"Сильно против {own_side}" if profile.get('combust') else None,
+            'effect': combust_effect,
             'weight': round(combust_w, 2),
         })
 
         retro_w = W_MIXED_RETROGRADE if profile['retrograde'] else 0.0
         if profile['retrograde']:
             add(label, 'retrograde', 'Rx', side * retro_w, is_point=False, source='mixed')
+        if language == 'ru':
+            own_side_dative = 'Фавориту' if side > 0 else 'Аутсайдеру'  # «минус» требует дательного
+            retro_label = f"{planet_label}: ретрограден"
+            retro_effect = f"Ещё минус {own_side_dative}" if profile['retrograde'] else None
+        else:
+            retro_label = f"{planet_label}: retrograde"
+            retro_effect = f"Extra minus for the {own_side}" if profile['retrograde'] else None
         showings.append({
-            'kind': 'retrograde', 'label_ru': f"{planet_ru}: ретрограден",
+            'kind': 'retrograde', 'label_ru': retro_label,
             'warn': '⚠️' if profile['retrograde'] else '', 'star': '',
-            'effect': f"Ещё минус {own_side_dative}" if profile['retrograde'] else None,
+            'effect': retro_effect,
             'weight': round(retro_w, 2),
             'value': profile['retrograde'],
         })
@@ -432,9 +536,41 @@ def _mixed_method_testimonies(chart: 'EventChart', add) -> Dict[int, Dict[str, A
     return profiles
 
 
-def _describe_testimony_ru(t: Dict[str, Any]) -> str:
+def _describe_testimony(t: Dict[str, Any], language: str) -> str:
     """Читаемое описание книжной (гл.2) тестимонии для показаний в карточке."""
     aspect, natal = t['aspect'], t['natal']
+    if language != 'ru':
+        if aspect == 'on_cusp':
+            return f"on the cusp of {natal} — controls the house"
+        if aspect == 'inside_enemy_house':
+            return f"inside {natal} — held prisoner"
+        if aspect == 'inside_own_house':
+            return f"in its own {natal} — strengthened"
+        if aspect == 'moon_final_aspect':
+            return f"final aspect: {natal}"
+        if aspect == 'moon_early_aspect':
+            return f"early aspect to {natal}"
+        if aspect == 'moon_on_cusp':
+            return f"Moon on the cusp of {natal} — flow of events toward this side"
+        if aspect == 'moon_inside_cusp':
+            return f"Moon inside {natal} — flow of events toward this side"
+        if aspect == 'fortuna_antiscion_cusp':
+            return f"antiscion of Fortuna at {natal}"
+        if aspect == 'fortuna_aspect':
+            return f"{natal} (Fortuna)"
+        if aspect in ('fortuna_dispositor', 'fortuna_dispositor_inside'):
+            return f"dispositor of Fortuna: {natal}"
+        if aspect == 'node_conjunction':
+            return f"on {natal}"
+        if aspect == 'combustion':
+            return f"combustion (orb {t['orb']}°)"
+        if aspect in ('pluto_on_cusp', 'pluto_fortuna'):
+            return f"Pluto: {natal}"
+        if aspect in ('uranus_to_mc', 'uranus_fortuna'):
+            return "Uranus applying"
+        if aspect == 'saturn_afflicts':
+            return "afflicted by Saturn"
+        return f"{aspect} → {natal}"
     house_natal = natal.replace('house ', 'дом ') if isinstance(natal, str) else natal
     if aspect == 'on_cusp':
         return f"на куспиде {house_natal} — контролирует дом"
@@ -446,6 +582,10 @@ def _describe_testimony_ru(t: Dict[str, Any]) -> str:
         return f"финальный аспект: {natal}"
     if aspect == 'moon_early_aspect':
         return f"ранний аспект к {natal}"
+    if aspect == 'moon_on_cusp':
+        return f"Луна на куспиде {house_natal} — поток событий к этой стороне"
+    if aspect == 'moon_inside_cusp':
+        return f"Луна внутри {house_natal} — поток событий к этой стороне"
     if aspect == 'fortuna_antiscion_cusp':
         return f"антисция Фортуны у {house_natal}"
     if aspect == 'fortuna_aspect':
@@ -465,24 +605,34 @@ def _describe_testimony_ru(t: Dict[str, Any]) -> str:
     return f"{aspect} → {natal}"
 
 
-def _mixed_effect_label(weight: float, own_side: str) -> str:
+def _mixed_effect_label(weight: float, own_side: str, language: str) -> str:
     """Обобщённая (не bespoke) формулировка эффекта — для книжных (гл.2)
     показаний значителя (on_cusp/moon_final_aspect/узлы/внешние планеты и
     т.п.), для которых нет отдельного шаблона фразы, в отличие от
-    dignity/house_strength (см. _dignity_phrase_ru/_house_phrase_ru)."""
+    dignity/house_strength (см. _dignity_phrase/_house_phrase)."""
+    if language == 'ru':
+        if weight >= 1.5:
+            return f"Сильно за {own_side}"
+        if weight > 0:
+            return f"За {own_side}"
+        if weight <= -1.5:
+            return f"Сильно против {own_side}"
+        if weight < 0:
+            return f"Против {own_side}"
+        return "Нейтрально"
     if weight >= 1.5:
-        return f"Сильно за {own_side}"
+        return f"Strongly for the {own_side}"
     if weight > 0:
-        return f"За {own_side}"
+        return f"For the {own_side}"
     if weight <= -1.5:
-        return f"Сильно против {own_side}"
+        return f"Strongly against the {own_side}"
     if weight < 0:
-        return f"Против {own_side}"
-    return "Нейтрально"
+        return f"Against the {own_side}"
+    return "Neutral"
 
 
 def _merged_showings(profile: Dict[str, Any], testimonies: List[Dict[str, Any]],
-                      side: int, own_side: str) -> List[Dict[str, Any]]:
+                      side: int, own_side: str, language: str) -> List[Dict[str, Any]]:
     """Показания для карточки: собственные (dignity/house_strength/retrograde,
     уже в profile['showings']) + релевантные книжные (гл.2) тестимонии этого
     же значителя (куспиды, комбустия, узлы, внешние планеты и т.п.)."""
@@ -497,9 +647,9 @@ def _merged_showings(profile: Dict[str, Any], testimonies: List[Dict[str, Any]],
             continue
         own_weight = t['weight'] * side  # разворачиваем к «за/против своей стороны»
         showings.append({
-            'kind': t['aspect'], 'label_ru': _describe_testimony_ru(t),
+            'kind': t['aspect'], 'label_ru': _describe_testimony(t, language),
             'warn': '⚠️' if own_weight < 0 else '', 'star': '⭐' if own_weight > 0 else '',
-            'effect': _mixed_effect_label(own_weight, own_side),
+            'effect': _mixed_effect_label(own_weight, own_side, language),
             'weight': round(own_weight, 2),
         })
     showings.sort(key=lambda s: abs(s['weight']), reverse=True)
@@ -527,15 +677,15 @@ def _all_planets_report(chart: 'EventChart') -> List[Dict[str, Any]]:
         combust = combust_orb is not None and combust_orb <= COMBUST_ORB
         warnings = sum([retro, combust, dignity in ('fall', 'detriment'), house_strength < 0])
         report.append({
-            'planet': planet, 'planet_ru': PLANET_RU.get(planet, planet),
+            'planet': planet, 'planet_ru': _planet_label(planet, chart.language),
             'symbol': PLANET_SYMBOLS.get(planet, ''),
-            'sign': sign, 'sign_ru': SIGN_RU.get(sign, sign),
+            'sign': sign, 'sign_ru': _sign_label(sign, chart.language),
             'sign_symbol': SIGN_SYMBOLS.get(sign, ''),
             'degree': round(lon % 30, 2),
-            'house': house_num, 'house_nickname': HOUSE_NICKNAME_RU.get(house_num),
+            'house': house_num, 'house_nickname': _house_nickname(house_num, chart.language),
             'retrograde': retro,
             'combust': combust, 'combust_orb': round(combust_orb, 2) if combust else None,
-            'dignity': dignity, 'dignity_ru': DIGNITY_RU.get(dignity, dignity),
+            'dignity': dignity, 'dignity_ru': _dignity_label(dignity, chart.language),
             'warnings': warnings,
         })
     return report
@@ -551,7 +701,7 @@ def _build_significator_card(chart: 'EventChart', mixed_profiles: Dict[int, Dict
     def _point(lon: float) -> Dict[str, Any]:
         sign = chart._sign_name(lon)
         return {
-            'sign': sign, 'sign_ru': SIGN_RU.get(sign, sign),
+            'sign': sign, 'sign_ru': _sign_label(sign, chart.language),
             'symbol': SIGN_SYMBOLS.get(sign, ''), 'degree': round(lon % 30, 2),
         }
 
@@ -561,14 +711,14 @@ def _build_significator_card(chart: 'EventChart', mixed_profiles: Dict[int, Dict
             return None
         planet = profile['planet']
         side = chart.lord_side(lord_house)
-        own_side = profile.get('own_side') or ('Фаворита' if side > 0 else 'Аутсайдера')
+        own_side = profile.get('own_side') or _side_object('favourite' if side > 0 else 'underdog', chart.language)
         house_num = profile['house']
         dignity = profile['dignity']
         return {
             'lord_house': lord_house,
-            'planet': planet, 'planet_ru': PLANET_RU.get(planet, planet),
+            'planet': planet, 'planet_ru': _planet_label(planet, chart.language),
             'symbol': PLANET_SYMBOLS.get(planet, ''),
-            'sign': profile['sign'], 'sign_ru': SIGN_RU.get(profile['sign'], profile['sign']),
+            'sign': profile['sign'], 'sign_ru': _sign_label(profile['sign'], chart.language),
             'sign_symbol': SIGN_SYMBOLS.get(profile['sign'], ''),
             'degree': profile['degree_in_sign'],
             'house': house_num, 'house_nickname': profile.get('house_nickname'),
@@ -576,12 +726,12 @@ def _build_significator_card(chart: 'EventChart', mixed_profiles: Dict[int, Dict
             # house_mark: единичный ⭐/⚠️ у «Дом N» в блоке «Планеты» (угловой/кадентный+8-й).
             'house_mark': HOUSE_STAR.get(house_num, '') or HOUSE_WARN.get(house_num, ''),
             'dignity': dignity,
-            'dignity_ru': DIGNITY_RU.get(dignity, dignity),
+            'dignity_ru': _dignity_label(dignity, chart.language),
             # dignity_mark: ⭐⭐/⭐/⚠️/⚠️⚠️ у названия достоинства (пусто при peregrine).
             'dignity_mark': DIGNITY_STAR.get(dignity, '') or DIGNITY_WARN.get(dignity, ''),
             'retrograde': profile['retrograde'],
             'combust': profile.get('combust', False),
-            'showings': _merged_showings(profile, testimonies, side, own_side),
+            'showings': _merged_showings(profile, testimonies, side, own_side, chart.language),
         }
 
     favourite = _side_card(1)
@@ -603,7 +753,62 @@ def _build_significator_card(chart: 'EventChart', mixed_profiles: Dict[int, Dict
         'underdog': underdog,
         'planets': _all_planets_report(chart),
         'mixed_winner': mixed_winner,
+        # Показания гл.2, НЕ привязанные к конкретному Lord1/Lord7 (финальный
+        # аспект Луны как «поток событий», антисция Фортуны у куспида, её
+        # диспозитор/узлы, внешние планеты на Фортуне/куспидах) — уже
+        # посчитаны в testimonies/base_score, здесь только делаем их видимыми.
+        'chart_wide': _chart_wide_showings(favourite, underdog, testimonies, chart.language),
     }
+
+
+def _global_effect_label(weight: float, language: str) -> str:
+    fav = _side_object('favourite', language)
+    ud = _side_object('underdog', language)
+    if language == 'ru':
+        if weight >= 1.5:
+            return f"Сильно за {fav}"
+        if weight > 0:
+            return f"За {fav}"
+        if weight <= -1.5:
+            return f"Сильно за {ud}"
+        if weight < 0:
+            return f"За {ud}"
+        return "Нейтрально"
+    if weight >= 1.5:
+        return f"Strongly for the {fav}"
+    if weight > 0:
+        return f"For the {fav}"
+    if weight <= -1.5:
+        return f"Strongly for the {ud}"
+    if weight < 0:
+        return f"For the {ud}"
+    return "Neutral"
+
+
+def _chart_wide_showings(favourite: Optional[Dict[str, Any]], underdog: Optional[Dict[str, Any]],
+                          testimonies: List[Dict[str, Any]], language: str) -> List[Dict[str, Any]]:
+    """Книжные (гл.2) показания карты, НЕ привязанные к Lord1/Lord7 напрямую
+    (их 'transit' не начинается с метки ни одного из значителей) — Луна,
+    Фортуна, узлы на Фортуне, внешние планеты и т.п. Знак веса глобальный:
+    + за Фаворита, − за Аутсайдера (та же конвенция, что и во всём листе)."""
+    prefixes = []
+    if favourite:
+        prefixes.append(f"{favourite['planet']} [L{favourite['lord_house']}")
+    if underdog:
+        prefixes.append(f"{underdog['planet']} [L{underdog['lord_house']}")
+    out: List[Dict[str, Any]] = []
+    for t in testimonies:
+        if t.get('source') == 'mixed':
+            continue
+        if any(t['transit'].startswith(p) for p in prefixes):
+            continue
+        out.append({
+            'label_ru': f"{t['transit']}: {_describe_testimony(t, language)}",
+            'effect': _global_effect_label(t['weight'], language),
+            'weight': t['weight'],
+        })
+    out.sort(key=lambda s: abs(s['weight']), reverse=True)
+    return out
 
 
 def judge_event_chart(
@@ -611,12 +816,14 @@ def judge_event_chart(
     transit_planets: Dict[str, Any],
     moon_range_degrees: float = MOON_RANGE_DEFAULT,
     extra_time_possible: bool = False,
+    language: str = 'ru',
 ) -> Dict[str, Any]:
     """Суждение карты события по чек-листу гл. 2. Возвращает base_score (1-10),
     testimonies (формат key_aspects фронтенда: transit/aspect/natal/orb/weight/is_point,
     weight>0 = за фаворита, <0 = за соперника) и лист суждения."""
     chart = EventChart(transit_houses, transit_planets,
-                       moon_range=moon_range_degrees + (1.0 if extra_time_possible else 0.0))
+                       moon_range=moon_range_degrees + (1.0 if extra_time_possible else 0.0),
+                       language=language)
 
     testimonies: List[Dict[str, Any]] = []
 
@@ -990,7 +1197,7 @@ def _fortuna_aspect_testimonies(chart: EventChart, lord: str, lord_house: int, a
                 if rel < 1e-6:
                     continue
                 if orb_now < travel_orb and _is_applying_to_point(
-                        lord_data, (olon + angle) % 360, 0):
+                        lord_data, olon, angle):
                     return True
         return False
 
@@ -1057,14 +1264,15 @@ def _outer_planet_testimonies(chart: EventChart, add) -> None:
         if chart.fortuna is not None:
             orb_c = _angle_diff(uranus_lon, chart.fortuna)
             orb_o = abs(_angle_diff(uranus_lon, chart.fortuna) - 180)
-            if orb_c <= OUTER_ORB:
+            if orb_c <= OUTER_ORB and _is_applying_to_point(uranus, chart.fortuna, 0):
                 add('Uranus', 'uranus_fortuna', 'conj Fortuna', W_URANUS * _closeness(orb_c, OUTER_ORB), orb_c)
-            elif orb_o <= OUTER_ORB:
+            elif orb_o <= OUTER_ORB and _is_applying_to_point(uranus, chart.fortuna, 180):
                 add('Uranus', 'uranus_fortuna', 'opp Fortuna', -W_URANUS * _closeness(orb_o, OUTER_ORB), orb_o)
             # opp антисции Фортуны — пример Super Bowl 2002 (за андердога)
-            orb_a = abs(_angle_diff(uranus_lon, chart.fortuna_antiscion) - 180)
-            if orb_a <= OUTER_ORB:
-                add('Uranus', 'uranus_fortuna', 'opp Fortuna(ant)', -W_URANUS * _closeness(orb_a, OUTER_ORB), orb_a)
+            if chart.fortuna_antiscion is not None:
+                orb_a = abs(_angle_diff(uranus_lon, chart.fortuna_antiscion) - 180)
+                if orb_a <= OUTER_ORB and _is_applying_to_point(uranus, chart.fortuna_antiscion, 180):
+                    add('Uranus', 'uranus_fortuna', 'opp Fortuna(ant)', -W_URANUS * _closeness(orb_a, OUTER_ORB), orb_a)
 
     # Сатурн-малефик (если не Lord 1/7): «afflicting whatever it touches».
     if 'Saturn' not in (chart.lords.get(1), chart.lords.get(7)):
@@ -1163,10 +1371,15 @@ def _split_sides(testimonies: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]
 # строятся напрямую из значений расчёта. См. plans/daily-forecast-hybrid-method.md.
 
 def _side_showings_list(side: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Только 4 гибридных показания значителя (дом/достоинство/сгорание/
-    ретро), в этом порядке, без книжных (гл.2) тестимоний — единый источник
-    для карточки (_showing_pairs_ru) и для короткой прозы (_side_narrative_ru),
-    чтобы они не расходились между собой."""
+    """Показания значителя для карточки и короткой прозы: сперва 4 гибридных
+    (дом/достоинство/сгорание/ретро, в этом фиксированном порядке — как в
+    эталонных примерах), затем ЛЮБЫЕ книжные (гл.2) тестимонии этого же
+    значителя (куспиды on_cusp/inside_enemy_house, узлы, аспекты к Фортуне и
+    т.п. — всё, что уже смёржено в side['showings'] через _merged_showings),
+    отсортированные по весу. Раньше книжные тестимонии тут отбрасывались —
+    это было моё собственное сужение по 4 эталонным примерам пользователя, а
+    не его требование; карта события не должна терять то, что реально в ней
+    есть, только потому что в конкретных примерах это не встретилось."""
     by_kind = {s['kind']: s for s in side['showings']
                if s['kind'] in ('house_strength', 'dignity', 'combustion', 'retrograde')}
     ordered: List[Dict[str, Any]] = []
@@ -1182,38 +1395,71 @@ def _side_showings_list(side: Dict[str, Any]) -> List[Dict[str, Any]]:
     retro_showing = by_kind.get('retrograde')
     if retro_showing and retro_showing.get('effect') is not None:
         ordered.append(retro_showing)
+
+    book_showings = [
+        s for s in side['showings']
+        if s['kind'] not in ('house_strength', 'dignity', 'combustion', 'retrograde')
+        and s.get('effect') is not None
+    ]
+    book_showings.sort(key=lambda s: abs(s['weight']), reverse=True)
+    ordered.extend(book_showings)
     return ordered
 
 
-def _side_narrative_ru(side: Optional[Dict[str, Any]], own_label: str) -> str:
+def _side_narrative(side: Optional[Dict[str, Any]], role: str, language: str) -> str:
+    own_label = _side_name(role, language)
     if not side:
-        return f"У {own_label.lower()} нет определённого значителя дома в этой карте."
-    nickname = f" («{side['house_nickname']}»)" if side.get('house_nickname') else ""
-    retro = ", ретрограден" if side['retrograde'] else ""
-    text = (f"{side['planet_ru']} ({own_label}), управитель дома {side['lord_house']}, находится в "
-            f"{side['sign_ru']} {side['degree']}°, дом {side['house']}{nickname}{retro}. "
-            f"Достоинство: {side['dignity_ru']}.")
+        if language == 'ru':
+            return f"У {own_label.lower()} нет определённого значителя дома в этой карте."
+        return f"The {own_label.lower()} has no clearly determined house significator in this chart."
+    if language == 'ru':
+        nickname = f" («{side['house_nickname']}»)" if side.get('house_nickname') else ""
+        retro = ", ретрограден" if side['retrograde'] else ""
+        text = (f"{side['planet_ru']} ({own_label}), управитель дома {side['lord_house']}, находится в "
+                f"{side['sign_ru']} {side['degree']}°, дом {side['house']}{nickname}{retro}. "
+                f"Достоинство: {side['dignity_ru']}.")
+    else:
+        nickname = f" ('{side['house_nickname']}')" if side.get('house_nickname') else ""
+        retro = ", retrograde" if side['retrograde'] else ""
+        text = (f"{side['planet_ru']} ({own_label}), ruler of house {side['lord_house']}, is in "
+                f"{side['sign_ru']} {side['degree']}°, house {side['house']}{nickname}{retro}. "
+                f"Dignity: {side['dignity_ru']}.")
     items = _side_showings_list(side)
     if items:
-        text += " Показания: " + "; ".join(
-            f"{s['label_ru']} — {s['effect']}" for s in items
-        ) + "."
+        if language == 'ru':
+            text += " Показания: " + "; ".join(
+                f"{s['label_ru']} — {s['effect']}" for s in items
+            ) + "."
+        else:
+            text += " Showings: " + "; ".join(
+                f"{s['label_ru']} — {s['effect']}" for s in items
+            ) + "."
     else:
-        text += " Значимых показаний нет — позиция нейтральна."
+        text += " Значимых показаний нет — позиция нейтральна." if language == 'ru' \
+            else " No significant showings — the position is neutral."
     return text
 
 
-def _verdict_narrative_ru(card: Optional[Dict[str, Any]]) -> str:
+def _verdict_narrative(card: Optional[Dict[str, Any]], language: str) -> str:
     """Короткий вердикт для поля verdict — та же карточно-скоуп-логика
     (_card_verdict), что и в детальной карточке, не общий judgement['match_type']."""
     decisive, winner, _diff = _card_verdict(card)
-    if winner is None:
-        headline = "Карта сбалансирована — вероятна ничья или непредсказуемый исход."
-    elif decisive:
-        headline = f"{_NOMINATIVE_RU[winner]} побеждает."
+    if language == 'ru':
+        if winner is None:
+            headline = "Карта сбалансирована — вероятна ничья или непредсказуемый исход."
+        elif decisive:
+            headline = f"{_side_name(winner, 'ru')} побеждает."
+        else:
+            _genitive = {'favourite': 'Фаворита', 'underdog': 'Аутсайдера'}
+            headline = f"Небольшой перевес {_genitive[winner]}."
     else:
-        headline = f"Небольшой перевес {_GENITIVE_RU[winner]}."
-    return headline + " " + _verdict_paragraph_ru(card)
+        if winner is None:
+            headline = "The chart is balanced — a draw or an unpredictable outcome is likely."
+        elif decisive:
+            headline = f"The {_side_name(winner, 'en').lower()} wins."
+        else:
+            headline = f"A slight edge to the {_side_name(winner, 'en').lower()}."
+    return headline + " " + _verdict_paragraph(card, language)
 
 
 # ---------- детальная карточка (формат «Сигнификаторы/Планеты/Показания/Вывод») ----------
@@ -1222,9 +1468,6 @@ def _verdict_narrative_ru(card: Optional[Dict[str, Any]]) -> str:
 # расчёт/скоринг здесь не участвует и не меняется. Хедер — только generic-
 # вариант («Event Chart · место · дата · время · Роли: Фаворит / Аутсайдер»):
 # имена игроков/спред/коэффициенты не входят в текущую схему запроса.
-
-_NOMINATIVE_RU = {'favourite': 'Фаворит', 'underdog': 'Аутсайдер'}
-_GENITIVE_RU = {'favourite': 'Фаворита', 'underdog': 'Аутсайдера'}
 
 # Пороги ИМЕННО для вывода карточки — НЕ те же, что у общего match_type
 # (judgement['match_type'], который считается по всему листу гл.2+гибрид).
@@ -1236,23 +1479,22 @@ CARD_EDGE_THRESHOLD = 0.3
 
 
 def _card_verdict(card: Optional[Dict[str, Any]]) -> Tuple[bool, Optional[str], float]:
-    """Вывод карточки считается ТОЛЬКО по 4 факторам, видимым в «Показания»
-    (дом/достоинство/сгорание/ретро Lord1 и Lord7) — НЕ по общему base_score/
-    match_type, куда подмешиваются куспиды/Луна/Фортуна/узлы/внешние планеты
-    (те влияют на общий расчёт, но не показаны в этой карточке и не должны
-    определять её собственный вывод — иначе вывод карточки перестаёт
-    соответствовать тому, что в ней реально показано).
+    """Вывод карточки считается по ВСЕМ показаниям, реально отображённым в
+    карточке: 4 гибридных фактора Lord1/Lord7 (дом/достоинство/сгорание/
+    ретро) + книжные (гл.2) тестимонии, привязанные к конкретному значителю
+    (куспиды, узлы, аспекты к Фортуне), + «Прочие показания карты» (Луна,
+    антисция Фортуны, её диспозитор, внешние планеты — chart_wide). Всё, что
+    показано в тексте, обязано учитываться и здесь — иначе вывод карточки
+    может противоречить собственным показаниям.
     Возвращает (decisive, winner['favourite'|'underdog'|None], diff)."""
     if not card or not card.get('favourite') or not card.get('underdog'):
         return False, None, 0.0
 
     def _net(side: Dict[str, Any]) -> float:
-        return sum(
-            s['weight'] for s in side['showings']
-            if s['kind'] in ('house_strength', 'dignity', 'combustion', 'retrograde')
-        )
+        return sum(s['weight'] for s in _side_showings_list(side))
 
-    diff = _net(card['favourite']) - _net(card['underdog'])
+    chart_wide_total = sum(s['weight'] for s in (card.get('chart_wide') or []))
+    diff = _net(card['favourite']) - _net(card['underdog']) + chart_wide_total
     if abs(diff) < CARD_EDGE_THRESHOLD:
         return False, None, diff
     winner = 'favourite' if diff > 0 else 'underdog'
@@ -1276,7 +1518,7 @@ def _card_match_type(card: Optional[Dict[str, Any]]) -> str:
     return 'underdog_win_likely' if decisive else 'underdog_edge'
 
 
-def _render_header_ru(transits: Dict[str, Any]) -> str:
+def _render_header(transits: Dict[str, Any], language: str) -> str:
     location = (transits.get('transit_summary') or {}).get('location') or {}
     place = location.get('place_name') or '—'
     date_part, time_part = '—', '—'
@@ -1292,150 +1534,173 @@ def _render_header_ru(transits: Dict[str, Any]) -> str:
         except ValueError:
             pass
     line1 = f"Event Chart · {place} · {date_part} · {time_part}"
-    line2 = "Плацидус · Kick-off · Роли: Фаворит / Аутсайдер"
+    line2 = "Плацидус · Kick-off · Роли: Фаворит / Аутсайдер" if language == 'ru' \
+        else "Placidus · Kick-off · Roles: Favourite / Underdog"
     return line1 + "\n" + line2
 
 
-def _planet_line_lord_ru(side: Dict[str, Any], role_ru: str) -> List[str]:
-    header = f"{side['symbol']} {side['planet_ru']} ({role_ru})"
+def _planet_line_lord(side: Dict[str, Any], role: str, language: str) -> List[str]:
+    role_label = _side_name(role, language)
+    header = f"{side['symbol']} {side['planet_ru']} ({role_label})"
     retro_mark = " ℞" if side['retrograde'] else ""
     dignity_part = f" · {side['dignity_ru']}" if side['dignity'] != 'peregrine' else ""
     dignity_mark = f" {side['dignity_mark']}" if side.get('dignity_mark') else ""
     house_mark = f" {side['house_mark']}" if side.get('house_mark') else ""
+    house_word = "Дом" if language == 'ru' else "House"
     detail = (f"{side['sign_symbol']} {side['degree']:.2f}°{retro_mark} · "
-              f"Дом {side['house']}{house_mark}{dignity_part}{dignity_mark}")
+              f"{house_word} {side['house']}{house_mark}{dignity_part}{dignity_mark}")
     return [header, detail]
 
 
-def _planet_line_plain_ru(p: Dict[str, Any]) -> List[str]:
+def _planet_line_plain(p: Dict[str, Any], language: str) -> List[str]:
     header = f"{p['symbol']} {p['planet_ru']}"
     retro_mark = " ℞" if p['retrograde'] else ""
-    detail = f"{p['sign_symbol']} {p['degree']:.2f}°{retro_mark} · Дом {p['house']}"
+    house_word = "Дом" if language == 'ru' else "House"
+    detail = f"{p['sign_symbol']} {p['degree']:.2f}°{retro_mark} · {house_word} {p['house']}"
     return [header, detail]
 
 
-def _showing_pairs_ru(side: Dict[str, Any]) -> List[str]:
+def _showing_pairs(side: Dict[str, Any]) -> List[str]:
     """Пары строк (описание, эффект) для блока «Показания» одного значителя:
     дом → достоинство (если не peregrine) → сгорание (если есть) → ретро
-    (если есть) — каждое отдельной строкой, а не сводкой. Только гибридные
-    показания значителя (house_strength/dignity/combustion/retrograde) —
-    остальные книжные (гл.2) тестимонии сюда НЕ входят, они относятся к
-    отдельному «расчётному листу», не к этой карточке. Порядок фиксирован
-    по kind явно (не по весу — side['showings'] может быть пересортирован,
-    см. _merged_showings)."""
-    by_kind = {s['kind']: s for s in side['showings']
-               if s['kind'] in ('house_strength', 'dignity', 'combustion', 'retrograde')}
+    (если есть), затем любые релевантные книжные (гл.2) тестимонии этого же
+    значителя (куспиды, узлы, аспекты к Фортуне и т.п.) — см.
+    _side_showings_list, единый источник и для карточки, и для короткой
+    прозы (favorite/opponent). Не принимает language — читает уже готовые
+    label_ru/effect, посчитанные с нужным языком на этапе сборки showings."""
     lines: List[str] = []
-    house_showing = by_kind.get('house_strength')
-    if house_showing and house_showing.get('effect') is not None:
-        lines += [house_showing['label_ru'], house_showing['effect']]
-    dignity_showing = by_kind.get('dignity')
-    if dignity_showing and side['dignity'] != 'peregrine' and dignity_showing.get('effect') is not None:
-        lines += [dignity_showing['label_ru'], dignity_showing['effect']]
-    combust_showing = by_kind.get('combustion')
-    if combust_showing and combust_showing.get('effect') is not None:
-        lines += [combust_showing['label_ru'], combust_showing['effect']]
-    retro_showing = by_kind.get('retrograde')
-    if retro_showing and retro_showing.get('effect') is not None:
-        lines += [retro_showing['label_ru'], retro_showing['effect']]
+    for s in _side_showings_list(side):
+        lines += [s['label_ru'], s['effect']]
     return lines
 
 
-def _retro_combust_summary_ru(fav: Optional[Dict[str, Any]],
-                               ud: Optional[Dict[str, Any]]) -> List[str]:
+def _retro_combust_summary(fav: Optional[Dict[str, Any]],
+                            ud: Optional[Dict[str, Any]], language: str) -> List[str]:
     """Fallback-строка «Ретро/сгорание: Нет ни у кого» — только если НИ У
     ОДНОГО значителя нет ни ретро, ни сожжения (иначе они уже показаны
-    отдельными строками в _showing_pairs_ru для каждого значителя)."""
+    отдельными строками в _showing_pairs для каждого значителя)."""
     for side in (fav, ud):
         if side and (side['retrograde'] or side.get('combust')):
             return []
-    return ["Ретро/сгорание", "Нет ни у кого"]
+    return ["Ретро/сгорание", "Нет ни у кого"] if language == 'ru' else ["Retro/combustion", "None"]
 
 
-def _verdict_paragraph_ru(card: Optional[Dict[str, Any]]) -> str:
+def _verdict_paragraph(card: Optional[Dict[str, Any]], language: str) -> str:
     """Самодостаточное объяснение вывода из ЭТОЙ карты (без сравнений с
     другими, неизвестными системе картами). Берёт готовые читаемые формулировки
     (label_ru/effect) из показаний карточки — НЕ сырые коды тестимоний, чтобы
     не утекали внутренние имена вроде «essential_dignity»."""
+    no_evidence = "Свидетельств в карте немного, перевес не выражен явно." if language == 'ru' \
+        else "There is little evidence in the chart — no clear edge either way."
     if not card or not card.get('favourite') or not card.get('underdog'):
-        return "Свидетельств в карте немного, перевес не выражен явно."
+        return no_evidence
     fav, ud = card['favourite'], card['underdog']
     ranked: List[Dict[str, Any]] = []
     for side in (fav, ud):
-        for s in side['showings']:
-            if s['kind'] not in ('house_strength', 'dignity', 'combustion', 'retrograde'):
-                continue
-            if s.get('effect') is None:
-                continue
-            if s['kind'] == 'dignity' and side['dignity'] == 'peregrine':
-                continue
-            ranked.append(s)
+        ranked.extend(_side_showings_list(side))
     ranked.sort(key=lambda s: abs(s['weight']), reverse=True)
     top = ranked[:2]
     if not top:
-        return "Свидетельств в карте немного, перевес не выражен явно."
-    text = "Решающие показания: " + "; ".join(
+        return no_evidence
+    lead = "Решающие показания: " if language == 'ru' else "Decisive showings: "
+    text = lead + "; ".join(
         f"{s['label_ru']} — {s['effect']}" for s in top
     ) + "."
     fh, uh = fav['house'], ud['house']
     if fh and fh == uh:
         nickname = fav.get('house_nickname')
-        label = f" («{nickname}»)" if nickname else ""
-        text += (f" Оба значителя делят дом {fh}{label} — этот фактор частично "
-                f"взаимно гасится, решают остальные повреждения и усиления.")
+        if language == 'ru':
+            label = f" («{nickname}»)" if nickname else ""
+            text += (f" Оба значителя делят дом {fh}{label} — этот фактор частично "
+                    f"взаимно гасится, решают остальные повреждения и усиления.")
+        else:
+            label = f" ('{nickname}')" if nickname else ""
+            text += (f" Both significators share house {fh}{label} — this factor partly "
+                    f"cancels out, the remaining afflictions/strengths decide.")
     return text
 
 
-def _render_card_text_ru(transits: Dict[str, Any], judgement: Dict[str, Any],
-                          card: Optional[Dict[str, Any]]) -> str:
+def _render_card_text(transits: Dict[str, Any], judgement: Dict[str, Any],
+                       card: Optional[Dict[str, Any]], language: str) -> str:
     """Полная текстовая карточка (Сигнификаторы/Планеты/Показания/Вывод) —
     формат по образцу пользователя. Fallback на короткий нарратив, если
     карта не построена (нет ASC/7-го куспида)."""
     if not card:
-        return _verdict_narrative_ru(card)
+        return _verdict_narrative(card, language)
 
     fav, ud = card.get('favourite'), card.get('underdog')
     asc, desc = card.get('asc'), card.get('desc')
 
-    lines: List[str] = [_render_header_ru(transits), "Сигнификаторы"]
-    if asc:
-        lines += ["АСЦ (1-й дом, Фаворит)", f"{asc['symbol']} {asc['sign_ru']} {asc['degree']:.2f}°"]
-    if desc:
-        lines += ["7-й дом (Аутсайдер)", f"{desc['symbol']} {desc['sign_ru']} {desc['degree']:.2f}°"]
-    if fav:
-        lines += ["Lord 1 = Фаворит", f"{fav['symbol']} {fav['planet_ru']}"]
-    if ud:
-        lines += ["Lord 7 = Аутсайдер", f"{ud['symbol']} {ud['planet_ru']}"]
+    if language == 'ru':
+        lines: List[str] = [_render_header(transits, language), "Сигнификаторы"]
+        if asc:
+            lines += ["АСЦ (1-й дом, Фаворит)", f"{asc['symbol']} {asc['sign_ru']} {asc['degree']:.2f}°"]
+        if desc:
+            lines += ["7-й дом (Аутсайдер)", f"{desc['symbol']} {desc['sign_ru']} {desc['degree']:.2f}°"]
+        if fav:
+            lines += ["Lord 1 = Фаворит", f"{fav['symbol']} {fav['planet_ru']}"]
+        if ud:
+            lines += ["Lord 7 = Аутсайдер", f"{ud['symbol']} {ud['planet_ru']}"]
+        lines.append("Планеты")
+    else:
+        lines = [_render_header(transits, language), "Significators"]
+        if asc:
+            lines += ["ASC (1st house, Favourite)", f"{asc['symbol']} {asc['sign_ru']} {asc['degree']:.2f}°"]
+        if desc:
+            lines += ["7th house (Underdog)", f"{desc['symbol']} {desc['sign_ru']} {desc['degree']:.2f}°"]
+        if fav:
+            lines += ["Lord 1 = Favourite", f"{fav['symbol']} {fav['planet_ru']}"]
+        if ud:
+            lines += ["Lord 7 = Underdog", f"{ud['symbol']} {ud['planet_ru']}"]
+        lines.append("Planets")
 
-    lines.append("Планеты")
     if fav:
-        lines += _planet_line_lord_ru(fav, 'Фаворит')
+        lines += _planet_line_lord(fav, 'favourite', language)
     if ud:
-        lines += _planet_line_lord_ru(ud, 'Аутсайдер')
+        lines += _planet_line_lord(ud, 'underdog', language)
     lord_planets = {p for p in (fav and fav['planet'], ud and ud['planet']) if p}
     for p in (card.get('planets') or []):
         if p['planet'] in lord_planets:
             continue
-        lines += _planet_line_plain_ru(p)
+        lines += _planet_line_plain(p, language)
 
-    lines.append("Показания")
+    lines.append("Показания" if language == 'ru' else "Showings")
     if fav:
-        lines += _showing_pairs_ru(fav)
+        lines += _showing_pairs(fav)
     if ud:
-        lines += _showing_pairs_ru(ud)
-    lines += _retro_combust_summary_ru(fav, ud)
+        lines += _showing_pairs(ud)
+    lines += _retro_combust_summary(fav, ud, language)
+
+    chart_wide = card.get('chart_wide') or []
+    if chart_wide:
+        lines.append("Прочие показания карты (Луна/Фортуна/узлы/внешние)" if language == 'ru'
+                      else "Other chart-wide showings (Moon/Fortuna/nodes/outer planets)")
+        for s in chart_wide:
+            lines += [s['label_ru'], s['effect']]
 
     decisive, winner, _diff = _card_verdict(card)
     emoji = '🏆' if decisive else '⚖️'
-    headline = f"{_NOMINATIVE_RU[winner]} побеждает" if (decisive and winner) else "случай пограничный"
-    lines.append(f"{emoji} Вывод: {headline}")
-    lines.append(_verdict_paragraph_ru(card))
-    if decisive and winner:
-        lines.append(f"Прогноз: {_NOMINATIVE_RU[winner]} выигрывает, случай однозначный")
-    elif winner:
-        lines.append(f"Лёгкий перевес {_GENITIVE_RU[winner]}, случай неочевидный")
+    if language == 'ru':
+        headline = f"{_side_name(winner, 'ru')} побеждает" if (decisive and winner) else "случай пограничный"
+        lines.append(f"{emoji} Вывод: {headline}")
+        lines.append(_verdict_paragraph(card, language))
+        if decisive and winner:
+            lines.append(f"Прогноз: {_side_name(winner, 'ru')} выигрывает, случай однозначный")
+        elif winner:
+            _genitive = {'favourite': 'Фаворита', 'underdog': 'Аутсайдера'}
+            lines.append(f"Лёгкий перевес {_genitive[winner]}, случай неочевидный")
+        else:
+            lines.append("Ничья вероятна, случай неочевидный")
     else:
-        lines.append("Ничья вероятна, случай неочевидный")
+        headline = f"The {_side_name(winner, 'en').lower()} wins" if (decisive and winner) else "borderline case"
+        lines.append(f"{emoji} Verdict: {headline}")
+        lines.append(_verdict_paragraph(card, language))
+        if decisive and winner:
+            lines.append(f"Forecast: the {_side_name(winner, 'en').lower()} wins, a clear-cut case")
+        elif winner:
+            lines.append(f"Slight edge to the {_side_name(winner, 'en').lower()}, not an obvious case")
+        else:
+            lines.append("A draw is likely, not an obvious case")
     return "\n".join(lines)
 
 
@@ -1454,10 +1719,12 @@ async def daily_forecast_analysis(
     transit_houses = transits.get('transit_houses') or {}
 
     if not transit_houses:
+        no_houses_note = 'нет transit_houses — нейтральная оценка' if language == 'ru' \
+            else 'no transit_houses — neutral score'
         judgement = {
             'base_score': 5.5, 'lord1': None, 'lord7': None, 'lord10': None, 'lord4': None,
             'testimonies': [], 'favourite_points': 0, 'underdog_points': 0,
-            'match_type': 'draw_likely', 'engine_notes': ['нет transit_houses — нейтральная оценка'],
+            'match_type': 'draw_likely', 'engine_notes': [no_houses_note],
             'mixed_profiles': {}, 'significator_card': None,
         }
     else:
@@ -1465,6 +1732,7 @@ async def daily_forecast_analysis(
             transit_houses, t_planets,
             moon_range_degrees=moon_range_degrees,
             extra_time_possible=extra_time_possible,
+            language=language,
         )
 
     base = judgement['base_score']  # внутренний расчёт (влияет на match_type), наружу не отдаётся
@@ -1491,8 +1759,14 @@ async def daily_forecast_analysis(
     # запрещает эти понятия для карты события, RAG вернул бы противоречащие
     # цитаты. См. plans/daily-forecast-hybrid-method.md.
     book_testimonies = [t for t in key_aspects if t.get('source', 'book') != 'mixed']
+    # Дедуп ПО ЗАПРОСУ до похода в RAG: разные тестимонии одного типа (напр. узел
+    # задел и Lord 1, и Lord 7) дают идентичный _testimony_query — незачем искать
+    # одно и то же в книге дважды (раньше дедуп был только на уже полученных чанках).
+    unique_by_query: Dict[str, Dict[str, Any]] = {}
+    for t in book_testimonies:
+        unique_by_query.setdefault(_testimony_query(t), t)
     rag_results = await asyncio.gather(
-        *[search_testimony(t) for t in book_testimonies], return_exceptions=True
+        *[search_testimony(t) for t in unique_by_query.values()], return_exceptions=True
     )
     # Дедуп чанков + бюджет символов: один фрагмент книги кладём в промпт один раз.
     CHUNK_CHARS = 1500
@@ -1549,10 +1823,10 @@ async def daily_forecast_analysis(
     # card_text — основной, подробный вывод (формат Сигнификаторы/Планеты/
     # Показания/Вывод). favorite/opponent/verdict — те же данные короткой
     # прозой, для фронтов, которые ещё читают эти отдельные поля.
-    card_text = _render_card_text_ru(transits, judgement, card)
-    favorite_text = _side_narrative_ru(card.get('favourite') if card else None, 'Фаворит')
-    opponent_text = _side_narrative_ru(card.get('underdog') if card else None, 'Аутсайдер')
-    verdict_text = _verdict_narrative_ru(card)
+    card_text = _render_card_text(transits, judgement, card, language)
+    favorite_text = _side_narrative(card.get('favourite') if card else None, 'favourite', language)
+    opponent_text = _side_narrative(card.get('underdog') if card else None, 'underdog', language)
+    verdict_text = _verdict_narrative(card, language)
     summary_text = card_text
     if personal_note:
         summary_text += f"\n\n{personal_note}"
