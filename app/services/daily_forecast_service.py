@@ -120,6 +120,14 @@ HOUSE_STRENGTH = {h: 1.75 for h in ANGULAR_HOUSES}
 HOUSE_STRENGTH.update({h: -1.0 for h in CADENT_HOUSES})
 HOUSE_STRENGTH[EIGHTH_HOUSE] = -2.25
 HOUSE_STRENGTH.update({h: 0.0 for h in (2, 5, 11)})  # succedent (кроме 8-го) — нейтрально
+# «Дом врага» — оговорка к угловому бонусу, без которой он неверен: «being in
+# an angle is like being in a castle. Unless it is your enemy's castle, in
+# which case you're in prison... Lord 1 in the 1st, 4th or 10th is very
+# strong, but in the 7th it is very weak» (Frawley, Sports Astrology, гл. 1 —
+# тот же источник, откуда взят весь гибридный слой). Плоская HOUSE_STRENGTH
+# давала Lord 1 в 7-м +1.75 вместо минуса и переворачивала вердикт.
+ENEMY_HOUSE = {1: 7, 7: 1}
+HOUSE_STRENGTH_ENEMY = -1.75
 HOUSE_NICKNAME = {
     'ru': {6: 'болезни, слуги', 8: 'смерть', 12: 'тайные враги, заточение'},
     'en': {6: 'illness, servants', 8: 'death', 12: 'secret enemies, imprisonment'},
@@ -365,7 +373,7 @@ def _lord_profile(chart: 'EventChart', lord_house: int) -> Optional[Dict[str, An
         'sign': sign,
         'degree_in_sign': round(lon % 30, 2),
         'house': house_num,
-        'house_strength': HOUSE_STRENGTH.get(house_num, 0.0) if house_num else 0.0,
+        'house_strength': _house_weight(house_num, lord_house),
         'house_nickname': _house_nickname(house_num, chart.language),
         'dignity': essential_dignity(lord, sign),
         'retrograde': bool(data.get('is_retrograde')),
@@ -385,6 +393,17 @@ def _house_label(house_num: Optional[int], language: str) -> str:
     return f"house {house_num}" + (f" ('{nickname}')" if nickname else "")
 
 
+def _house_weight(house_num: Optional[int], lord_house: Optional[int]) -> float:
+    """Вес дома для значителя, с оговоркой про дом врага (ENEMY_HOUSE).
+    lord_house=1|7 — чей это значитель; None — считать без оговорки (блок
+    «Планеты» для не-значителей, где понятия «свой/чужой» нет)."""
+    if not house_num:
+        return 0.0
+    if lord_house is not None and house_num == ENEMY_HOUSE.get(lord_house):
+        return HOUSE_STRENGTH_ENEMY
+    return HOUSE_STRENGTH.get(house_num, 0.0)
+
+
 def _house_phrase(house_num: Optional[int], lord_house: int, planet_label: str,
                    own_side: str, language: str) -> Tuple[str, str]:
     """(описание, эффект) для показания «сила дома» значителя. Формулировки
@@ -399,6 +418,9 @@ def _house_phrase(house_num: Optional[int], lord_house: int, planet_label: str,
             return (f"{planet_label}: Дом 8 («смерть»)", f"Против {own_side}")
         if house_num in CADENT_HOUSES:
             return (f"{planet_label}: обычный кадентный (не «смерть»)", f"Слабо против {own_side}")
+        if house_num == ENEMY_HOUSE.get(lord_house):
+            return (f"{planet_label}: {house_num}-й дом — дом врага",
+                    f"Сильно против {own_side}")
         if house_num in ANGULAR_HOUSES:
             own_house_suffix = " — свой же!" if house_num == lord_house else ""
             return (f"{planet_label}: угловой {house_num}-й дом{own_house_suffix}",
@@ -410,6 +432,9 @@ def _house_phrase(house_num: Optional[int], lord_house: int, planet_label: str,
         return (f"{planet_label}: House 8 ('death')", f"Against the {own_side}")
     if house_num in CADENT_HOUSES:
         return (f"{planet_label}: ordinary cadent (not 'death')", f"Slightly against the {own_side}")
+    if house_num == ENEMY_HOUSE.get(lord_house):
+        return (f"{planet_label}: house {house_num} — the enemy's house",
+                f"Strongly against the {own_side}")
     if house_num in ANGULAR_HOUSES:
         own_house_suffix = " — its own!" if house_num == lord_house else ""
         return (f"{planet_label}: angular house {house_num}{own_house_suffix}",
@@ -467,7 +492,7 @@ def _mixed_method_testimonies(chart: 'EventChart', add) -> Dict[int, Dict[str, A
         # эталонных примерах пользователя — «succedent, без бонуса» идёт
         # первой строкой, «в Падении/в обители» второй).
         house_num = profile['house']
-        w = HOUSE_STRENGTH.get(house_num, 0.0) if house_num else 0.0
+        w = _house_weight(house_num, lord_house)
         if w:
             add(label, 'house_strength', _house_label(house_num, language),
                 side * w, is_point=False, source='mixed')
@@ -660,6 +685,9 @@ def _all_planets_report(chart: 'EventChart') -> List[Dict[str, Any]]:
     """Позиции всех 7 традиционных планет — блок «Планеты» карточки.
     Информационно (не влияет на score вне Lord 1/7)."""
     sun_lon = chart.planet_lon('Sun')
+    # Оговорка про дом врага применима только к Lord 1/7 — для остальных планет
+    # «свой/чужой дом» не определено, они считаются по плоской HOUSE_STRENGTH.
+    lord_house_of = {p: h for h, p in chart.lords.items() if h in (1, 7) and p}
     report: List[Dict[str, Any]] = []
     for planet in ('Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'):
         data = chart.planets.get(planet)
@@ -671,7 +699,7 @@ def _all_planets_report(chart: 'EventChart') -> List[Dict[str, Any]]:
         sign = data.get('sign') or chart._sign_name(lon)
         house_num = data.get('transit_house')
         dignity = essential_dignity(planet, sign)
-        house_strength = HOUSE_STRENGTH.get(house_num, 0.0) if house_num else 0.0
+        house_strength = _house_weight(house_num, lord_house_of.get(planet))
         retro = bool(data.get('is_retrograde'))
         combust_orb = _angle_diff(lon, sun_lon) if (planet != 'Sun' and sun_lon is not None) else None
         combust = combust_orb is not None and combust_orb <= COMBUST_ORB
@@ -724,7 +752,8 @@ def _build_significator_card(chart: 'EventChart', mixed_profiles: Dict[int, Dict
             'house': house_num, 'house_nickname': profile.get('house_nickname'),
             'house_strength': profile['house_strength'],
             # house_mark: единичный ⭐/⚠️ у «Дом N» в блоке «Планеты» (угловой/кадентный+8-й).
-            'house_mark': HOUSE_STAR.get(house_num, '') or HOUSE_WARN.get(house_num, ''),
+            'house_mark': ('⚠️' if house_num == ENEMY_HOUSE.get(lord_house)
+                           else HOUSE_STAR.get(house_num, '') or HOUSE_WARN.get(house_num, '')),
             'dignity': dignity,
             'dignity_ru': _dignity_label(dignity, chart.language),
             # dignity_mark: ⭐⭐/⭐/⚠️/⚠️⚠️ у названия достоинства (пусто при peregrine).
@@ -736,29 +765,31 @@ def _build_significator_card(chart: 'EventChart', mixed_profiles: Dict[int, Dict
 
     favourite = _side_card(1)
     underdog = _side_card(7)
-    fav_weight = sum(s['weight'] for s in (favourite or {}).get('showings', []))
-    ud_weight = sum(s['weight'] for s in (underdog or {}).get('showings', []))
-    diff = fav_weight - ud_weight
-    if favourite is None or underdog is None or abs(diff) < 0.3:
-        mixed_winner = 'draw'
-    elif diff > 0:
-        mixed_winner = 'favourite'
-    else:
-        mixed_winner = 'underdog'
 
-    return {
+    card = {
         'asc': _point(chart.asc),
         'desc': _point(chart.cusps[7]),
         'favourite': favourite,
         'underdog': underdog,
         'planets': _all_planets_report(chart),
-        'mixed_winner': mixed_winner,
         # Показания гл.2, НЕ привязанные к конкретному Lord1/Lord7 (финальный
         # аспект Луны как «поток событий», антисция Фортуны у куспида, её
         # диспозитор/узлы, внешние планеты на Фортуне/куспидах) — уже
         # посчитаны в testimonies/base_score, здесь только делаем их видимыми.
         'chart_wide': _chart_wide_showings(favourite, underdog, testimonies, chart.language),
     }
+
+    # Победитель — ТОЛЬКО из _card_verdict, единого счётчика для всей карточки.
+    # Раньше здесь был собственный подсчёт (сумма side['showings'] с порогом
+    # 0.3), который игнорировал chart_wide (Луна/Фортуна/Плутон/узлы) и не знал
+    # порога уверенности CARD_DECISIVE_THRESHOLD. Из-за этого одна карточка
+    # могла одновременно писать «🏆 Фаворит побеждает» (по mixed_winner) и
+    # «Вероятна ничья» (по _card_verdict) — см. карту Любляны.
+    decisive, winner, diff = _card_verdict(card)
+    card['mixed_winner'] = winner or 'draw'
+    card['decisive'] = decisive
+    card['diff'] = round(diff, 2)
+    return card
 
 
 def _global_effect_label(weight: float, language: str) -> str:
@@ -1451,14 +1482,14 @@ def _verdict_narrative(card: Optional[Dict[str, Any]], language: str) -> str:
             headline = f"{_side_name(winner, 'ru')} побеждает."
         else:
             _genitive = {'favourite': 'Фаворита', 'underdog': 'Аутсайдера'}
-            headline = f"Небольшой перевес {_genitive[winner]}."
+            headline = f"Небольшой перевес {_genitive[winner]}, случай неочевиден."
     else:
         if winner is None:
             headline = "The chart is balanced — a draw or an unpredictable outcome is likely."
         elif decisive:
             headline = f"The {_side_name(winner, 'en').lower()} wins."
         else:
-            headline = f"A slight edge to the {_side_name(winner, 'en').lower()}."
+            headline = f"A slight edge to the {_side_name(winner, 'en').lower()} — not a clear-cut case."
     return headline + " " + _verdict_paragraph(card, language)
 
 
