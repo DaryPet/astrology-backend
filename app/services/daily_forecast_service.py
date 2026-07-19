@@ -305,6 +305,7 @@ def _lord_profile(chart: 'EventChart', lord_house: int) -> Optional[Dict[str, An
         'dignity': essential_dignity(lord, sign),
         'retrograde': bool(data.get('is_retrograde')),
         'combust': combust_orb is not None and combust_orb <= COMBUST_ORB,
+        'combust_orb': combust_orb if (combust_orb is not None and combust_orb <= COMBUST_ORB) else None,
     }
 
 
@@ -367,6 +368,7 @@ def _mixed_method_testimonies(chart: 'EventChart', add) -> Dict[int, Dict[str, A
             continue
         side = chart.lord_side(lord_house)
         own_side = 'Фаворита' if side > 0 else 'Аутсайдера'
+        own_side_dative = 'Фавориту' if side > 0 else 'Аутсайдеру'  # «минус» требует дательного
         planet_ru = PLANET_RU.get(profile['planet'], profile['planet'])
         label = f"{profile['planet']} [L{lord_house}]"
         showings: List[Dict[str, Any]] = []
@@ -399,13 +401,27 @@ def _mixed_method_testimonies(chart: 'EventChart', add) -> Dict[int, Dict[str, A
             'weight': round(w, 2),
         })
 
+        # Комбустия: УЖЕ добавлена в testimonies отдельно, книжным способом
+        # (секция E judge_event_chart, source='book') — здесь НЕ вызываем
+        # add() повторно (иначе задвоим вес в base_score), только строим
+        # показание для карточки с тем же весом, что и там.
+        combust_w = 0.0
+        if profile.get('combust'):
+            combust_w = -W_COMBUSTION * _closeness(profile['combust_orb'], COMBUST_ORB)
+        showings.append({
+            'kind': 'combustion', 'label_ru': f"{planet_ru}: сгорание ({(profile.get('combust_orb') or 0):.2f}°!)",
+            'warn': '⚠️' if profile.get('combust') else '', 'star': '',
+            'effect': f"Сильно против {own_side}" if profile.get('combust') else None,
+            'weight': round(combust_w, 2),
+        })
+
         retro_w = W_MIXED_RETROGRADE if profile['retrograde'] else 0.0
         if profile['retrograde']:
             add(label, 'retrograde', 'Rx', side * retro_w, is_point=False, source='mixed')
         showings.append({
-            'kind': 'retrograde', 'label_ru': 'ретроградность',
+            'kind': 'retrograde', 'label_ru': f"{planet_ru}: ретрограден",
             'warn': '⚠️' if profile['retrograde'] else '', 'star': '',
-            'effect': f"Против {own_side}" if profile['retrograde'] else None,
+            'effect': f"Ещё минус {own_side_dative}" if profile['retrograde'] else None,
             'weight': round(retro_w, 2),
             'value': profile['retrograde'],
         })
@@ -473,7 +489,11 @@ def _merged_showings(profile: Dict[str, Any], testimonies: List[Dict[str, Any]],
     showings = list(profile.get('showings') or [])
     prefix = f"{profile['planet']} [L{profile['lord_house']}"
     for t in testimonies:
-        if t.get('source') == 'mixed' or not t['transit'].startswith(prefix):
+        # 'mixed' (dignity/house_strength/retrograde) уже в profile['showings'].
+        # 'combustion' (книжная, source='book') — тоже уже там: гибридный слой
+        # строит собственное показание сгорания с тем же весом (см.
+        # _mixed_method_testimonies), чтобы не дублировать при merge.
+        if t.get('source') == 'mixed' or t['aspect'] == 'combustion' or not t['transit'].startswith(prefix):
             continue
         own_weight = t['weight'] * side  # разворачиваем к «за/против своей стороны»
         showings.append({
@@ -1142,13 +1162,27 @@ def _split_sides(testimonies: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]
 # с гибридными показаниями цитатами книги) — поэтому score/Показания/Вывод
 # строятся напрямую из значений расчёта. См. plans/daily-forecast-hybrid-method.md.
 
-_MATCH_TYPE_HEADLINE_RU = {
-    'comfortable_win': 'Фаворит уверенно побеждает.',
-    'advantage': 'Фаворит имеет небольшое преимущество.',
-    'draw_likely': 'Карта сбалансирована — вероятна ничья или непредсказуемый исход.',
-    'underdog_edge': 'У андердога небольшое преимущество.',
-    'underdog_win_likely': 'Андердог, скорее всего, побеждает.',
-}
+def _side_showings_list(side: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Только 4 гибридных показания значителя (дом/достоинство/сгорание/
+    ретро), в этом порядке, без книжных (гл.2) тестимоний — единый источник
+    для карточки (_showing_pairs_ru) и для короткой прозы (_side_narrative_ru),
+    чтобы они не расходились между собой."""
+    by_kind = {s['kind']: s for s in side['showings']
+               if s['kind'] in ('house_strength', 'dignity', 'combustion', 'retrograde')}
+    ordered: List[Dict[str, Any]] = []
+    house_showing = by_kind.get('house_strength')
+    if house_showing and house_showing.get('effect') is not None:
+        ordered.append(house_showing)
+    dignity_showing = by_kind.get('dignity')
+    if dignity_showing and side['dignity'] != 'peregrine' and dignity_showing.get('effect') is not None:
+        ordered.append(dignity_showing)
+    combust_showing = by_kind.get('combustion')
+    if combust_showing and combust_showing.get('effect') is not None:
+        ordered.append(combust_showing)
+    retro_showing = by_kind.get('retrograde')
+    if retro_showing and retro_showing.get('effect') is not None:
+        ordered.append(retro_showing)
+    return ordered
 
 
 def _side_narrative_ru(side: Optional[Dict[str, Any]], own_label: str) -> str:
@@ -1159,33 +1193,27 @@ def _side_narrative_ru(side: Optional[Dict[str, Any]], own_label: str) -> str:
     text = (f"{side['planet_ru']} ({own_label}), управитель дома {side['lord_house']}, находится в "
             f"{side['sign_ru']} {side['degree']}°, дом {side['house']}{nickname}{retro}. "
             f"Достоинство: {side['dignity_ru']}.")
-    top = [s for s in side['showings'] if s.get('weight')][:3]
-    if top:
+    items = _side_showings_list(side)
+    if items:
         text += " Показания: " + "; ".join(
-            s['label_ru'] + (f" — {s['effect']}" if s.get('effect') else '') for s in top
+            f"{s['label_ru']} — {s['effect']}" for s in items
         ) + "."
     else:
         text += " Значимых показаний нет — позиция нейтральна."
     return text
 
 
-def _verdict_narrative_ru(judgement: Dict[str, Any], card: Optional[Dict[str, Any]]) -> str:
-    headline = _MATCH_TYPE_HEADLINE_RU.get(judgement.get('match_type'), 'Исход неочевиден.')
-    testimonies = sorted(judgement.get('testimonies') or [], key=lambda t: abs(t['weight']), reverse=True)
-    decisive_text = ""
-    if testimonies:
-        decisive_text = " Решающие показания: " + "; ".join(
-            f"{t['transit']} ({_describe_testimony_ru(t)})" for t in testimonies[:2]
-        ) + "."
-    shared_house_text = ""
-    if card and card.get('favourite') and card.get('underdog'):
-        fh, uh = card['favourite']['house'], card['underdog']['house']
-        if fh and fh == uh:
-            nickname = card['favourite'].get('house_nickname')
-            label = f" («{nickname}»)" if nickname else ""
-            shared_house_text = (f" Оба значителя в доме {fh}{label} — этот фактор частично "
-                                 f"гасится, решают остальные повреждения и усиления.")
-    return headline + decisive_text + shared_house_text
+def _verdict_narrative_ru(card: Optional[Dict[str, Any]]) -> str:
+    """Короткий вердикт для поля verdict — та же карточно-скоуп-логика
+    (_card_verdict), что и в детальной карточке, не общий judgement['match_type']."""
+    decisive, winner, _diff = _card_verdict(card)
+    if winner is None:
+        headline = "Карта сбалансирована — вероятна ничья или непредсказуемый исход."
+    elif decisive:
+        headline = f"{_NOMINATIVE_RU[winner]} побеждает."
+    else:
+        headline = f"Небольшой перевес {_GENITIVE_RU[winner]}."
+    return headline + " " + _verdict_paragraph_ru(card)
 
 
 # ---------- детальная карточка (формат «Сигнификаторы/Планеты/Показания/Вывод») ----------
@@ -1197,15 +1225,55 @@ def _verdict_narrative_ru(judgement: Dict[str, Any], card: Optional[Dict[str, An
 
 _NOMINATIVE_RU = {'favourite': 'Фаворит', 'underdog': 'Аутсайдер'}
 _GENITIVE_RU = {'favourite': 'Фаворита', 'underdog': 'Аутсайдера'}
-_DECISIVE_MATCH_TYPES = {'comfortable_win', 'underdog_win_likely'}
+
+# Пороги ИМЕННО для вывода карточки — НЕ те же, что у общего match_type
+# (judgement['match_type'], который считается по всему листу гл.2+гибрид).
+# Подобраны и проверены на 4 эталонных примерах пользователя (Båstad,
+# Arlington, Umag, Юпитер/Меркурий): |diff| >= 1.5 -> решительный исход,
+# 0.3 <= |diff| < 1.5 -> лёгкий перевес, < 0.3 -> ничья/неочевидно.
+CARD_DECISIVE_THRESHOLD = 1.5
+CARD_EDGE_THRESHOLD = 0.3
 
 
-def _match_winner(match_type: Optional[str]) -> Optional[str]:
-    if match_type in ('comfortable_win', 'advantage'):
-        return 'favourite'
-    if match_type in ('underdog_win_likely', 'underdog_edge'):
-        return 'underdog'
-    return None  # draw_likely / неизвестно
+def _card_verdict(card: Optional[Dict[str, Any]]) -> Tuple[bool, Optional[str], float]:
+    """Вывод карточки считается ТОЛЬКО по 4 факторам, видимым в «Показания»
+    (дом/достоинство/сгорание/ретро Lord1 и Lord7) — НЕ по общему base_score/
+    match_type, куда подмешиваются куспиды/Луна/Фортуна/узлы/внешние планеты
+    (те влияют на общий расчёт, но не показаны в этой карточке и не должны
+    определять её собственный вывод — иначе вывод карточки перестаёт
+    соответствовать тому, что в ней реально показано).
+    Возвращает (decisive, winner['favourite'|'underdog'|None], diff)."""
+    if not card or not card.get('favourite') or not card.get('underdog'):
+        return False, None, 0.0
+
+    def _net(side: Dict[str, Any]) -> float:
+        return sum(
+            s['weight'] for s in side['showings']
+            if s['kind'] in ('house_strength', 'dignity', 'combustion', 'retrograde')
+        )
+
+    diff = _net(card['favourite']) - _net(card['underdog'])
+    if abs(diff) < CARD_EDGE_THRESHOLD:
+        return False, None, diff
+    winner = 'favourite' if diff > 0 else 'underdog'
+    decisive = abs(diff) >= CARD_DECISIVE_THRESHOLD
+    return decisive, winner, diff
+
+
+def _card_match_type(card: Optional[Dict[str, Any]]) -> str:
+    """match_type СТРОГО из карточного вердикта (_card_verdict) — тем же
+    словарём значений, что и раньше (comfortable_win/advantage/draw_likely/
+    underdog_edge/underdog_win_likely), чтобы существующие потребители поля
+    не ломались. Раньше это поле бралось из judgement['match_type'] (полный
+    расчёт гл.2+гибрид) — оно могло противоречить тексту карточки/verdict,
+    т.к. считалось по другому набору тестимоний. Теперь только один источник
+    правды: 4 фактора, реально показанные в карточке."""
+    decisive, winner, _diff = _card_verdict(card)
+    if winner is None:
+        return 'draw_likely'
+    if winner == 'favourite':
+        return 'comfortable_win' if decisive else 'advantage'
+    return 'underdog_win_likely' if decisive else 'underdog_edge'
 
 
 def _render_header_ru(transits: Dict[str, Any]) -> str:
@@ -1247,15 +1315,16 @@ def _planet_line_plain_ru(p: Dict[str, Any]) -> List[str]:
 
 
 def _showing_pairs_ru(side: Dict[str, Any]) -> List[str]:
-    """Пары строк (описание, эффект) для блока «Показания». Только гибридные
-    показания значителя (house_strength, dignity) — книжные (гл.2) тестимонии
-    сюда НЕ входят, они относятся к отдельному «расчётному листу», не к этой
-    карточке. Порядок фиксирован: дом ПЕРЕД достоинством (как в эталонных
-    примерах), а не по весу — side['showings'] может быть пересортирован
-    (см. _merged_showings), поэтому берём по kind явно, а не по порядку.
-    house — всегда (даже нейтральный succedent); dignity — только если не
-    peregrine; retrograde — отдельная сводная строка «Ретро/сгорание»."""
-    by_kind = {s['kind']: s for s in side['showings'] if s['kind'] in ('house_strength', 'dignity')}
+    """Пары строк (описание, эффект) для блока «Показания» одного значителя:
+    дом → достоинство (если не peregrine) → сгорание (если есть) → ретро
+    (если есть) — каждое отдельной строкой, а не сводкой. Только гибридные
+    показания значителя (house_strength/dignity/combustion/retrograde) —
+    остальные книжные (гл.2) тестимонии сюда НЕ входят, они относятся к
+    отдельному «расчётному листу», не к этой карточке. Порядок фиксирован
+    по kind явно (не по весу — side['showings'] может быть пересортирован,
+    см. _merged_showings)."""
+    by_kind = {s['kind']: s for s in side['showings']
+               if s['kind'] in ('house_strength', 'dignity', 'combustion', 'retrograde')}
     lines: List[str] = []
     house_showing = by_kind.get('house_strength')
     if house_showing and house_showing.get('effect') is not None:
@@ -1263,25 +1332,24 @@ def _showing_pairs_ru(side: Dict[str, Any]) -> List[str]:
     dignity_showing = by_kind.get('dignity')
     if dignity_showing and side['dignity'] != 'peregrine' and dignity_showing.get('effect') is not None:
         lines += [dignity_showing['label_ru'], dignity_showing['effect']]
+    combust_showing = by_kind.get('combustion')
+    if combust_showing and combust_showing.get('effect') is not None:
+        lines += [combust_showing['label_ru'], combust_showing['effect']]
+    retro_showing = by_kind.get('retrograde')
+    if retro_showing and retro_showing.get('effect') is not None:
+        lines += [retro_showing['label_ru'], retro_showing['effect']]
     return lines
 
 
 def _retro_combust_summary_ru(fav: Optional[Dict[str, Any]],
                                ud: Optional[Dict[str, Any]]) -> List[str]:
-    afflicted = []
+    """Fallback-строка «Ретро/сгорание: Нет ни у кого» — только если НИ У
+    ОДНОГО значителя нет ни ретро, ни сожжения (иначе они уже показаны
+    отдельными строками в _showing_pairs_ru для каждого значителя)."""
     for side in (fav, ud):
-        if not side:
-            continue
-        bits = []
-        if side['retrograde']:
-            bits.append('ретрограден')
-        if side.get('combust'):
-            bits.append('сожжён')
-        if bits:
-            afflicted.append(f"{side['planet_ru']}: {', '.join(bits)}")
-    if not afflicted:
-        return ["Ретро/сгорание", "Нет ни у кого"]
-    return ["Ретро/сгорание", "; ".join(afflicted)]
+        if side and (side['retrograde'] or side.get('combust')):
+            return []
+    return ["Ретро/сгорание", "Нет ни у кого"]
 
 
 def _verdict_paragraph_ru(card: Optional[Dict[str, Any]]) -> str:
@@ -1295,7 +1363,9 @@ def _verdict_paragraph_ru(card: Optional[Dict[str, Any]]) -> str:
     ranked: List[Dict[str, Any]] = []
     for side in (fav, ud):
         for s in side['showings']:
-            if s['kind'] not in ('house_strength', 'dignity') or s.get('effect') is None:
+            if s['kind'] not in ('house_strength', 'dignity', 'combustion', 'retrograde'):
+                continue
+            if s.get('effect') is None:
                 continue
             if s['kind'] == 'dignity' and side['dignity'] == 'peregrine':
                 continue
@@ -1322,7 +1392,7 @@ def _render_card_text_ru(transits: Dict[str, Any], judgement: Dict[str, Any],
     формат по образцу пользователя. Fallback на короткий нарратив, если
     карта не построена (нет ASC/7-го куспида)."""
     if not card:
-        return _verdict_narrative_ru(judgement, card)
+        return _verdict_narrative_ru(card)
 
     fav, ud = card.get('favourite'), card.get('underdog')
     asc, desc = card.get('asc'), card.get('desc')
@@ -1355,9 +1425,7 @@ def _render_card_text_ru(transits: Dict[str, Any], judgement: Dict[str, Any],
         lines += _showing_pairs_ru(ud)
     lines += _retro_combust_summary_ru(fav, ud)
 
-    match_type = judgement.get('match_type')
-    decisive = match_type in _DECISIVE_MATCH_TYPES
-    winner = _match_winner(match_type)
+    decisive, winner, _diff = _card_verdict(card)
     emoji = '🏆' if decisive else '⚖️'
     headline = f"{_NOMINATIVE_RU[winner]} побеждает" if (decisive and winner) else "случай пограничный"
     lines.append(f"{emoji} Вывод: {headline}")
@@ -1484,7 +1552,7 @@ async def daily_forecast_analysis(
     card_text = _render_card_text_ru(transits, judgement, card)
     favorite_text = _side_narrative_ru(card.get('favourite') if card else None, 'Фаворит')
     opponent_text = _side_narrative_ru(card.get('underdog') if card else None, 'Аутсайдер')
-    verdict_text = _verdict_narrative_ru(judgement, card)
+    verdict_text = _verdict_narrative_ru(card)
     summary_text = card_text
     if personal_note:
         summary_text += f"\n\n{personal_note}"
@@ -1528,7 +1596,13 @@ async def daily_forecast_analysis(
                 'testimonies': ud_list,
             },
         },
-        'match_type': judgement.get('match_type'),
+        # match_type — из карточного вердикта (_card_verdict), НЕ из полного
+        # judgement['match_type'] (гл.2+гибрид): иначе это поле могло
+        # противоречить тексту verdict/card_text, посчитанному по другому
+        # набору тестимоний. full_chart_match_type — старое значение, для
+        # отладки/сравнения, не для отображения пользователю.
+        'match_type': _card_match_type(card),
+        'full_chart_match_type': judgement.get('match_type'),
         'moon_report': judgement.get('moon_report'),
         'engine_notes': judgement.get('engine_notes'),
     }
