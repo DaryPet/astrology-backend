@@ -38,3 +38,12 @@ Thumbs.db
 # Ephemeris files (downloaded separately)
 ephe/
 openspec/
+tests/
+.claude/
+scripts/
+AGENTS.md
+CLAUDE.md
+INSIGHTS.md
+docs/
+plans/
+specs/

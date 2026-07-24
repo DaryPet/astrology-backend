@@ -254,9 +254,10 @@ class DeepSeekAdapter(LLMAdapter):
         try:
             response = await client.chat.completions.create(
                 # model="deepseek-chat",  # это DeepSeek V3
-                model="deepseek-v4-flash",  # это DeepSeek V4
+                # model="deepseek-v4-flash",  # это DeepSeek V4 Flash
+                model="deepseek-v4-pro",  # эксперимент: plans/synastry-before-batching.md — временно вернули flash, чтобы отделить model-effect от volume-effect (plans/synastry-aspect-type-verification.md, "Открытые вопросы")
                 messages=[{"role": "user", "content": prompt}],
-                temperature=1,
+                temperature=0.3,
                 # max_tokens=8000,
                 max_tokens=32768,
                 timeout=500,
@@ -264,29 +265,31 @@ class DeepSeekAdapter(LLMAdapter):
             return response.choices[0].message.content
         except Exception as e:
             return f"Error: {str(e)}"
-    
+
     async def generate_with_messages(self, messages, language: str = "en") -> str:
         client = self._get_client()
         try:
             response = await client.chat.completions.create(
-                model="deepseek-v4-flash",  # это DeepSeek V4 Flash
+                # model="deepseek-v4-flash",  # это DeepSeek V4 Flash
+                model="deepseek-v4-pro",  # эксперимент: plans/synastry-before-batching.md
                 messages=messages,
-                temperature=1,
+                temperature=0.3,
                 # max_tokens=32768,
                 timeout=500,
             )
             return response.choices[0].message.content
         except Exception as e:
             return f"Error: {str(e)}"
-    
+
     async def generate_stream(self, prompt: str, language: str = "en") -> AsyncGenerator[str, None]:
         """Стриминговый генератор для DeepSeek"""
         client = self._get_client()
         try:
             stream = await client.chat.completions.create(
-                model="deepseek-v4-flash",
+                # model="deepseek-v4-flash",
+                model="deepseek-v4-pro",  # эксперимент: plans/synastry-before-batching.md
                 messages=[{"role": "user", "content": prompt}],
-                temperature=1,
+                temperature=0.3,
                 max_tokens=32768,
                 timeout=500,
                 stream=True,
