@@ -41,6 +41,7 @@ openspec/
 tests/
 .claude/
 scripts/
+app/services/README.md
 AGENTS.md
 CLAUDE.md
 INSIGHTS.md
