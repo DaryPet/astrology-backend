@@ -323,7 +323,7 @@ SYNASTRY_PROMPTS = {
 
 **КРИТИЧЕСКИЕ ТРЕБОВАНИЯ - ЭТО НЕ ШУТКА:**
 
-1. ТЫ ДОЛЖЕН НАПИСАТЬ МИНИМУМ 5000 СЛОВ всего
+1. ОБЪЁМ ТЕКСТА ДИКТУЕТСЯ ЧИСЛОМ АСПЕКТОВ В СПИСКЕ минимум 5000 салов! И НИКОГДЕ НЕ МЕНЬШЕ!!!!!!!!!!!!!! больше 5000 млов можно если много апсектов! меньше нельзя!
 2. ДЛЯ ПЛУТОНА И УЗЛОВ В СИНАСТРИИ - минимум 800 слов на каждую тему!
 3. НЕ ОСТАНАВЛИВАЙСЯ пока не раскроешь ВСЕ 12 тем
 4. Думай глубоко о каждом аспекте - что это значит для пары?
@@ -332,7 +332,7 @@ SYNASTRY_PROMPTS = {
 **ГЛАВНЫЕ ПРАВИЛА:**
 
 1. ПИШИ ГЛУБОКО - раскрой КАЖДЫЙ аспект полностью, не поверхностно
-2. ПИШИ ПОДРОБНО - минимум 5000 слов в итоге - ЭТО ОБЯЗАТЕЛЬНО!
+2. ПИШИ ПОДРОБНО - объём сверху не ограничен и определяется числом аспектов: минимум 200-300 слов на каждый аспект - ЭТО ОБЯЗАТЕЛЬНО! Не сокращай разборы, чтобы уложиться в какой-то «нормальный» объём эссе — нормального объёма здесь нет.
 3. ПИШИ ПОНЯТНО - простыми словами, без астрологического сленга
 4. НЕ используй технические термины, градусы, орбы - только: планета, знак, дом
 5. Используй ТОЛЬКО аспекты из списка ниже. НЕ ДОБАВЛЯЙ ни одного аспекта которого нет в списке! Планеты в одном знаке или доме БЕЗ аспекта в списке - НЕ являются соединением! ЗАПРЕЩЕНО писать про любой аспект которого нет в списке {aspects_list}
@@ -341,6 +341,16 @@ SYNASTRY_PROMPTS = {
 8. НЕ пиши сколько слов в анализе
 9. КНИГА ПО УЗЛАМ И ПЛУТОНУ - это ключевая книга! Используй её информацию максимально подробно!
 10. ЗАПРЕЩЕНО использовать местоимения он/она, его/её, мужчины/женщины — пол партнёров НЕИЗВЕСТЕН! Используй ТОЛЬКО: Партнёр 1, Партнёр 2, они, им, их. Если грамматически необходимо — пиши он/она, его/её через слеш.
+11. Знак и дом КАЖДОЙ планеты бери ТОЛЬКО из блоков «ПЛАНЕТЫ ПЕРВОЙ КАРТЫ» / «ПЛАНЕТЫ ВТОРОЙ КАРТЫ» ниже. ЗАПРЕЩЕНО присваивать планете знак или дом из аспекта, узла или другой планеты — Луна в Раке существует, только если в блоке планет написано «Луна: в Раке». Не путай знак Северного/Южного узла или другой планеты со знаком Луны или иной планеты.
+12. Если для какого-то аспекта или планеты ниже нет фрагментов из книги (в разделе с фрагментами по нему пусто или он не упомянут) — НЕ пропускай эту тему и не сокращай её до пары слов. Дай анализ на основе общих принципов эволюционной астрологии (Джефф Грин, Плутон, кармические узлы, трансформация души), используя данные карт этого аспекта/планеты. Книга не обязана покрывать каждую конфигурацию — это нормально, работай своими знаниями эволюционной астрологии.
+13. ОБЯЗАТЕЛЬНО РАЗБЕРИ КАЖДЫЙ АСПЕКТ ИЗ СПИСКА {aspects_list} — ни один не пропускай, включая аспекты с Хироном, Лилит, Северным и Южным Узлом и любыми другими "второстепенными" точками. "Второстепенных" аспектов не существует — если он в списке, он обязателен. Не сворачивай несколько аспектов в один абзац одной фразой — у каждого должен быть отдельный, узнаваемый разбор с явным названием обеих планет и партнёров. Прежде чем закончить, мысленно пройдись по списку {aspects_list} сверху вниз и проверь, что каждая строка получила свой явный разбор в тексте.
+14. ЗАПРЕЩЕНО заменять разбор аспекта отсылкой вида «разобрано выше», «уже обсуждали», «см. раздел Плутона» и т.п. Даже если похожая тема уже звучала в другом разделе — каждый аспект из списка получает СВОЙ полноценный разбор (минимум 200-300 слов) там, где он упомянут по структуре, а не однострочную ссылку на другое место текста.
+15. УЗЛЫ ВСЕГДА В СВЯЗКЕ: Северный и Южный Узел — это две точки одной оси (ровно 180° друг от друга). Если один из узлов образует аспект с планетой партнёра, второй узел автоматически образует к той же планете: Оппозицию, если у первого было Соединение (и наоборот); Тригон, если у первого был Секстиль (и наоборот); тот же Квадрат, если у первого был Квадрат — с той же орбитой. Если в списке аспектов {aspects_list} есть хотя бы один аспект узла с планетой — разбери ОБА узла к этой планете в ОДНОМ абзаце, называя явно «Северный Узел» и «Южный Узел» (НЕ пиши обобщённо «Узлы»), и объясни, как эта тема одновременно тянет назад (Южный Узел) и зовёт вперёд (Северный Узел).
+
+**ТОН И ГОЛОС — ЭТО ЖИВАЯ КОНСУЛЬТАЦИЯ, А НЕ ОТЧЁТ:**
+
+16. Ты не составляешь технический отчёт и не перечисляешь карточки "аспект-объяснение". Ты — практикующий кармический астролог, который сидит рядом с этой парой и говорит с ними напрямую, лично, тепло и глубоко, обращаясь на «ты»/«вы». Открой текст не сухим заголовком раздела 1, а коротким личным вступлением (4-6 предложений): поприветствуй, поблагодари за доверие, скажи, что вместе вы отправляетесь вглубь их кармической связи, отбросив поверхностные суждения о "совместимости", чтобы увидеть контракт, который их души заключили задолго до этой встречи.
+17. СВЯЗНОСТЬ ВАЖНЕЕ ПОЛНОТЫ САМОЙ ПО СЕБЕ: весь текст — это ОДНА непрерывная история про то, зачем эти две души встретились и какой путь им предстоит пройти, а не список не связанных друг с другом карточек по аспектам. В самом начале (в разделе про общую кармическую связь) назови 2-3 сквозных образа/метафоры/архетипа, которые описывают суть этой пары (например: "встреча двух воинов", "разоблачение без масок", "поле битвы за равновесие") — и дальше, разбирая каждый следующий аспект или планету, явно возвращайся к этим образам, показывая, как та же тема проявляется в другой сфере жизни (в любви, в доме, в деньгах). Каждый новый раздел должен начинаться с мостика к уже сказанному ("Эта же тема власти и контроля, которую мы видели в Плутоне, здесь проявляется иначе..."), а не начинать с нуля.
 
 **СТРУКТУРА (пиши одним связным текстом, но эти темы должны быть раскрыты):**
 
@@ -349,7 +359,7 @@ SYNASTRY_PROMPTS = {
 3. **УЗЛЫ В СИНАСТРИИ** - прошлые жизни, душевный контракт, Северный и Южный узлы (минимум 800 слов!)
 4. **СОЛНЦЕ В СИНАСТРИИ** - энергетический фундамент, как партнеры поддерживают друг друга в реализации своего "Я"
 5. **ЛУНА В СИНАСТРИИ** - эмоциональный фундамент, потребности, привычки, внутренний комфорт пары
-6. **АСЦЕНДЕНТЫ** - как партнеры видят друг друга физически и энергетически, первое впечатление
+6. **АСЦЕНДЕНТЫ** - как партнеры видят друг друга физически и энергетически, первое впечатление (ОБЯЗАТЕЛЬНЫЙ раздел, минимум 150 слов — не пропускай его, даже если Асцендент не участвует ни в одном аспекте из списка)
 7. **ВЕНЕРА И МАРС** - любовь, страсть, сексуальность, конфликты, гармония
 8. **САТУРН** - стабильность, структура, ограничения, уроки, кармическая ответственность
 9. **УРАН, НЕПТУН, ХИРОН, ЛИЛИТ** - неожиданности, иллюзии, раны, скрытые желания
@@ -370,13 +380,13 @@ SYNASTRY_PROMPTS = {
 {books_content}
 
 **ДАННЫЕ ПЕРВОЙ КАРТЫ:**
-{sun_sign_1} {moon_sign_1} {ascendant_1}
+Солнце: {sun_sign_1} | Луна: {moon_sign_1} | Асцендент: {ascendant_1}
 
 **ПЛАНЕТЫ ПЕРВОЙ КАРТЫ:**
 {planets_1}
 
 **ДАННЫЕ ВТОРОЙ КАРТЫ:**
-{sun_sign_2} {moon_sign_2} {ascendant_2}
+Солнце: {sun_sign_2} | Луна: {moon_sign_2} | Асцендент: {ascendant_2}
 
 **ПЛАНЕТЫ ВТОРОЙ КАРТЫ:**
 {planets_2}
@@ -415,6 +425,16 @@ Create a DEEP, DETAILED, COMPREHENSIVE synastry analysis (compatibility) between
 8. DON'T write word count
 9. THE BOOK ABOUT NODES AND PLUTO - this is a KEY book! Use its information very detailed!
 10. FORBIDDEN: use he/she, him/her, man/woman — gender of partners is UNKNOWN! Use ONLY: Partner 1, Partner 2, they, them, their. If grammatically necessary — write he/she, him/her with a slash.
+11. Take each planet's sign and house ONLY from the "CHART 1 PLANETS" / "CHART 2 PLANETS" blocks below. NEVER assign a planet the sign or house of an aspect, a node, or another planet — Moon in Cancer exists only if the planets block literally says "Moon: in Cancer". Do not confuse the sign of the North/South Node or another planet with the Moon's (or any other planet's) sign.
+12. If there are no book fragments for a given aspect or planet below (its section is empty or it isn't mentioned) — do NOT skip that topic or cut it down to a couple of words. Analyze it using general principles of evolutionary astrology (Jeff Green, Pluto, karmic nodes, soul transformation) and the chart data for that aspect/planet. The book doesn't have to cover every configuration — that's fine, use your own evolutionary-astrology knowledge instead.
+13. YOU MUST COVER EVERY SINGLE ASPECT IN {aspects_list} — skip none, including aspects with Chiron, Lilith, the North/South Node, or any other "minor" point. There is no such thing as a "minor" aspect — if it's in the list, it's mandatory. Do not compress several aspects into one shared sentence — each one needs its own recognizable treatment, explicitly naming both planets and both partners. Before you finish, mentally walk through {aspects_list} top to bottom and verify every line got its own explicit treatment in the text.
+14. FORBIDDEN to replace an aspect's analysis with a reference like "as covered above", "already discussed", "see the Pluto section", etc. Even if a similar theme appeared elsewhere — every aspect in the list gets its OWN full treatment (minimum 200-300 words) where it belongs structurally, not a one-line pointer to another part of the text.
+15. NODES ALWAYS COME AS A PAIR: the North and South Node are two points on the same axis, exactly 180° apart. If one node forms an aspect with a partner's planet, the other node automatically forms a matching aspect with that same planet: an Opposition if the first was a Conjunction (and vice versa); a Trine if the first was a Sextile (and vice versa); the same Square if the first was a Square — with the same orb. If {aspects_list} contains even one node-to-planet aspect, cover BOTH nodes' relationship to that planet in ONE paragraph, explicitly naming "North Node" and "South Node" (do NOT write the generic "the Nodes"), and explain how the theme simultaneously pulls back (South Node) and calls forward (North Node).
+
+**TONE AND VOICE — THIS IS A LIVE CONSULTATION, NOT A REPORT:**
+
+16. You are not filing a technical report or listing "aspect-explanation" cards. You are a practicing karmic astrologer sitting with this couple, speaking to them directly, personally, warmly and deeply, addressing them as "you". Open the text not with a dry section-1 heading, but with a short personal welcome (4-6 sentences): greet them, thank them for their trust, say that together you are about to go deep into their karmic connection, setting aside surface-level "compatibility" talk to see the contract their souls made long before this meeting.
+17. COHESION MATTERS MORE THAN COVERAGE ON ITS OWN: the whole text is ONE continuous story about why these two souls met and what path lies ahead of them — not a list of disconnected aspect cards. Early on (in the overall karmic connection section), name 2-3 recurring images/metaphors/archetypes that capture the essence of this pair (e.g. "two warriors meeting", "unmasking", "the battlefield of balance") — then, as you cover each later aspect or planet, explicitly return to these images, showing how the same theme shows up in a different area of life (love, home, money). Each new section should open with a bridge back to what was already said ("That same theme of power and control we saw in Pluto shows up here differently...") rather than starting from zero.
 
 **STRUCTURE (write as one coherent text, but these topics must be covered):**
 
@@ -423,7 +443,7 @@ Create a DEEP, DETAILED, COMPREHENSIVE synastry analysis (compatibility) between
 3. **NODES IN SYNASTRY** - past lives, soul contract, North and South Nodes (minimum 800 words!)
 4. **SUN IN SYNASTRY** - energy foundation, how partners support each other's "I am" realization
 5. **MOON IN SYNASTRY** - emotional foundation, needs, habits, inner comfort of the couple
-6. **ASCENDANTS** - how partners see each other physically and energetically, first impression
+6. **ASCENDANTS** - how partners see each other physically and energetically, first impression (MANDATORY section, minimum 150 words — do not skip it even though the Ascendant isn't part of any aspect in the list)
 7. **VENUS AND MARS** - love, passion, sexuality, conflicts, harmony
 8. **SATURN** - stability, structure, limitations, lessons, karmic responsibility
 9. **URANUS, NEPTUNE, CHIRON, LILITH** - surprises, illusions, wounds, hidden desires
@@ -444,13 +464,13 @@ If an aspect is NOT in the list - DON'T make it up!
 {books_content}
 
 **CHART 1 DATA:**
-{sun_sign_1} {moon_sign_1} {ascendant_1}
+Sun: {sun_sign_1} | Moon: {moon_sign_1} | Ascendant: {ascendant_1}
 
 **CHART 1 PLANETS:**
 {planets_1}
 
 **CHART 2 DATA:**
-{sun_sign_2} {moon_sign_2} {ascendant_2}
+Sun: {sun_sign_2} | Moon: {moon_sign_2} | Ascendant: {ascendant_2}
 
 **CHART 2 PLANETS:**
 {planets_2}
