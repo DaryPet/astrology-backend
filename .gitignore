@@ -39,6 +39,24 @@ Thumbs.db
 ephe/
 openspec/
 .claude/
+
+# Event-chart eval run artifacts (regenerate via tests/eval_event.py)
+tests/reports/results.csv
+tests/reports/results_ablate_*.csv
+tests/reports/summary.md
+tests/reports/summary_ablate_*.md
+tests/reports/testimonies.csv
+tests/reports/testimonies_ablate_*.csv
+tests/reports/conclusion.md
+tests/data/geocode_cache.json
+tests/data/matches.json
+tests/reports/results_fixed.csv
+tests/reports/testimonies_fixed.csv
+tests/reports/summary_fixed.md
+tests/eval_event_fixed.py
+tests/eval_event.py
+tests/data/regression_snapshot.json
+app/services/event_chart_v2.py
 app/services/README.md
 AGENTS.md
 CLAUDE.md
@@ -46,3 +64,4 @@ INSIGHTS.md
 docs/
 plans/
 specs/
+tests/data/regression_snapshot.json

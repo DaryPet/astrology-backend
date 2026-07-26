@@ -33,8 +33,53 @@ PROMPT_LABELS = {
         'houses': 'ДОМА',
         'house_num': 'Дом',
         'pars_fortuna': 'Pars Fortuna',
+
+        # Блок данных прогрессий (progressions_analysis, analysis_service.py) —
+        # раньше был захардкожен по-русски независимо от language; ключи ниже
+        # чинят это для обоих языков (план:
+        # app/services/specs/progressions_synastry_pattern_plan.md).
+        'progressions_data_header': '=== ДАННЫЕ ВТОРИЧНЫХ ПРОГРЕССИЙ ===',
+        'age': 'Возраст',
+        'period': 'Период',
+        'house_word': 'дом',
+        'progressed_lunar_phase_label': 'ПРОГРЕССИВНАЯ ЛУННАЯ ФАЗА',
+        'moon_sun_angle_label': 'угол Луна−Солнце',
+        'progressed_ascendant_label': 'Прогрессивный Асцендент',
+        'progressed_mc_label': 'Прогрессивный MC',
+        'progressed_planets_header': '=== ПРОГРЕССИВНЫЕ ПЛАНЕТЫ (знак, градус, натальный дом, изменения) ===',
+        # Слой-маркеры для блока данных (не для вывода модели) — ставятся перед
+        # каждой строкой планеты, ЗАГЛАВНЫМИ, без склонения по роду планеты
+        # (тот же приём, что ПАРТНЕР1:/ПАРТНЕР2: в synastry_service.py).
+        'layer_progressed': 'ПРОГРЕССИВНАЯ',
+        'layer_natal': 'НАТАЛЬНАЯ',
+        'retrograde_inline': ' (ретроградная)',
+        'retrograde_short': ' R',
+        'changed_sign_marker': 'СМЕНИЛА ЗНАК (в натале была в {sign})',
+        'changed_house_marker': 'ПЕРЕШЛА В ДРУГОЙ ДОМ (в натале была в доме {house})',
+        'years_to_next_sign_marker': 'сменит знак примерно через {years} лет',
+        'natal_chart_overlay_header': '=== НАТАЛЬНАЯ КАРТА (основа для оверлея) ===',
+        'natal_planets_list_label': 'Натальные планеты (знак, дом):',
+
+        # Блок данных транзитов (transits_analysis, analysis_service.py) — та
+        # же причина и тот же план, что у прогрессий: раньше был захардкожен
+        # по-русски независимо от language.
+        'transits_data_header': '=== ДАННЫЕ ТРАНЗИТОВ ===',
+        'day_label': 'День',
+        'transit_place_label': 'Место транзита',
+        'not_specified': 'не указано',
+        'coordinates_label': 'координаты',
+        'transiting_ascendant_label': 'Транзитный Асцендент',
+        'transiting_mc_label': 'Транзитный MC',
+        'day_lunar_phase_label': 'ЛУННАЯ ФАЗА ДНЯ',
+        'transit_planets_header': '=== ТРАНЗИТНЫЕ ПЛАНЕТЫ (знак, градус, дома) ===',
+        # Слой-маркер для транзитного блока данных — тот же приём, что
+        # layer_progressed/layer_natal.
+        'layer_transit': 'ТРАНЗИТНАЯ',
+        'natal_house_word': 'натальный дом',
+        'transit_house_word': 'транзитный дом',
+        'slow_planet_marker': ' [медленная — фоновая тема]',
     },
-    
+
     'en': {
         'query': '=== USER QUERY ===',
         'natal_chart': '=== NATAL CHART ===',
@@ -67,6 +112,39 @@ PROMPT_LABELS = {
         'houses': 'HOUSES',
         'house_num': 'House',
         'pars_fortuna': 'Pars Fortuna',
+
+        'progressions_data_header': '=== SECONDARY PROGRESSIONS DATA ===',
+        'age': 'Age',
+        'period': 'Period',
+        'house_word': 'house',
+        'progressed_lunar_phase_label': 'PROGRESSED LUNAR PHASE',
+        'moon_sun_angle_label': 'Moon-Sun angle',
+        'progressed_ascendant_label': 'Progressed Ascendant',
+        'progressed_mc_label': 'Progressed MC',
+        'progressed_planets_header': '=== PROGRESSED PLANETS (sign, degree, natal house, changes) ===',
+        'layer_progressed': 'PROGRESSED',
+        'layer_natal': 'NATAL',
+        'retrograde_inline': ' (retrograde)',
+        'retrograde_short': ' R',
+        'changed_sign_marker': 'CHANGED SIGN (was in {sign} in the natal chart)',
+        'changed_house_marker': 'MOVED TO A DIFFERENT HOUSE (was in house {house} in the natal chart)',
+        'years_to_next_sign_marker': 'will change sign in about {years} years',
+        'natal_chart_overlay_header': '=== NATAL CHART (basis for the overlay) ===',
+        'natal_planets_list_label': 'Natal planets (sign, house):',
+
+        'transits_data_header': '=== TRANSITS DATA ===',
+        'day_label': 'Day',
+        'transit_place_label': 'Transit location',
+        'not_specified': 'not specified',
+        'coordinates_label': 'coordinates',
+        'transiting_ascendant_label': 'Transiting Ascendant',
+        'transiting_mc_label': 'Transiting MC',
+        'day_lunar_phase_label': "TODAY'S LUNAR PHASE",
+        'transit_planets_header': '=== TRANSITING PLANETS (sign, degree, houses) ===',
+        'layer_transit': 'TRANSITING',
+        'natal_house_word': 'natal house',
+        'transit_house_word': 'transit house',
+        'slow_planet_marker': ' [slow — background theme]',
     },
 }
 
