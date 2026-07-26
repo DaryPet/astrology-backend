@@ -49,6 +49,7 @@ tests/reports/testimonies.csv
 tests/reports/testimonies_ablate_*.csv
 tests/reports/conclusion.md
 tests/data/geocode_cache.json
+tests/data/matches.json
 app/services/README.md
 AGENTS.md
 CLAUDE.md
