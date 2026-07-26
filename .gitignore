@@ -55,6 +55,8 @@ tests/reports/testimonies_fixed.csv
 tests/reports/summary_fixed.md
 tests/eval_event_fixed.py
 tests/eval_event.py
+tests/data/regression_snapshot.json
+app/services/event_chart_v2.py
 app/services/README.md
 AGENTS.md
 CLAUDE.md
@@ -62,3 +64,4 @@ INSIGHTS.md
 docs/
 plans/
 specs/
+tests/data/regression_snapshot.json
