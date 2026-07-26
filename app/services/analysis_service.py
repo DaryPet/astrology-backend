@@ -1044,13 +1044,20 @@ async def transits_analysis(
     slow_aspects = [a for a in aspects if a.get("is_slow")]
     fast_aspects = [a for a in aspects if not a.get("is_slow")]
 
+    # Ограничивает число одновременных запросов к Supabase — та же причина,
+    # что у синастрии и прогрессий (synastry_service.py:599). У транзитов
+    # ищутся ВСЕ аспекты (aspect_pool ниже), запросов заметно больше, чем у
+    # прогрессий, — здесь семафор не страховка на будущее, а нужен уже сейчас.
+    search_semaphore = asyncio.Semaphore(12)
+
     # --- Шаг 1: Параллельный RAG-поиск ---
     async def search_transit_planet(planet_name: str, planet_data: Dict) -> tuple:
         sign = planet_data.get("sign", "")
         house = planet_data.get("natal_house", "")
         house_word = HOUSE_WORDS.get(house, str(house))
         query = f"transit {planet_name.lower()} {sign.lower()} {house_word} house"
-        chunks = await search_chunks_priority_book(query, TRANSITS_PRIORITY_BOOK_ID, top_k_priority=3, top_k_others=top_k_per_book)
+        async with search_semaphore:
+            chunks = await search_chunks_priority_book(query, TRANSITS_PRIORITY_BOOK_ID, top_k_priority=3, top_k_others=top_k_per_book)
         return planet_name, chunks
 
     async def search_aspect(asp: Dict) -> tuple:
@@ -1058,17 +1065,19 @@ async def transits_analysis(
         p2 = asp.get("natal", asp.get("planet2", ""))
         asp_type = asp.get("aspect", "")
         query = f"transit {p1.lower()} {asp_type.lower()} natal {p2.lower()}"
-        chunks = await search_chunks_priority_book(query, TRANSITS_PRIORITY_BOOK_ID, top_k_priority=3, top_k_others=2)
+        async with search_semaphore:
+            chunks = await search_chunks_priority_book(query, TRANSITS_PRIORITY_BOOK_ID, top_k_priority=3, top_k_others=2)
         return f"{p1} {asp_type} {p2}", chunks
 
     async def search_lunar_phase() -> tuple:
         phase = (transits.get("lunar_phase") or {}).get("phase", "")
         if not phase:
             return "Lunar Phase", []
-        chunks = await search_chunks_priority_book(
-            f"lunar phase {phase.lower()} moon", TRANSITS_PRIORITY_BOOK_ID,
-            top_k_priority=2, top_k_others=top_k_per_book
-        )
+        async with search_semaphore:
+            chunks = await search_chunks_priority_book(
+                f"lunar phase {phase.lower()} moon", TRANSITS_PRIORITY_BOOK_ID,
+                top_k_priority=2, top_k_others=top_k_per_book
+            )
         return f"Lunar Phase: {phase}", chunks
 
     # Планеты для поиска: медленные с аспектами + Луна и Солнце (день)
@@ -1099,22 +1108,39 @@ async def transits_analysis(
     # --- Шаг 2: Сборка структурированного промпта ---
     template = get_template("transits", language, mode)
 
+    # ВНИМАНИЕ на поле 'transit_house' здесь: в aspects_to_natal (calculate_transits,
+    # astrology_v2.py:1230) это НАТАЛЬНЫЙ дом транзитной планеты (по какому натальному
+    # дому она "идёт"), а НЕ дом в транзитной карте текущего места — тот лежит в
+    # 'transit_planet_transit_house' (:1232). Тот же ключ 'transit_house' в
+    # t_planets[X] (:1205 ниже) означает ДРУГОЕ — реальный транзитный дом. Не путать
+    # при чтении/правке — план: app/services/specs/transits_synastry_pattern_plan.md.
+    is_ru = language == 'ru'
+
     def fmt_aspect(asp: Dict) -> str:
         p1 = asp.get("transit", asp.get("planet1", "?"))
         p2 = asp.get("natal", asp.get("planet2", "?"))
+        p1_display = PLANET_RU.get(p1, p1) if is_ru else PLANET_EN.get(p1, p1)
+        p2_display = PLANET_RU.get(p2, p2) if is_ru else PLANET_EN.get(p2, p2)
         orb_val = asp.get("orb", "?")
+        natal_house_of_transit_planet = asp.get("transit_house", "?")  # см. комментарий выше
+        current_transit_house = asp.get("transit_planet_transit_house", "?")
+        transit_house_str = (
+            f", транзитный дом {current_transit_house}" if is_ru and current_transit_house != "?"
+            else f", transit house {current_transit_house}" if current_transit_house != "?"
+            else ""
+        )
         ret_mark = ""
         if asp.get("is_return"):
-            ret_mark = " [ВОЗВРАТ ПЛАНЕТЫ!]" if language == 'ru' else " [PLANETARY RETURN!]"
-        if language == 'ru':
+            ret_mark = " [ВОЗВРАТ ПЛАНЕТЫ!]" if is_ru else " [PLANETARY RETURN!]"
+        if is_ru:
             asp_name = asp.get("aspect_ru", asp.get("aspect", "?"))
             applying_str = "сходящийся" if asp.get("applying") else "расходящийся"
-            return (f"Транзитный {p1} (в {asp.get('transit_sign', '?')}, идёт по натальному дому {asp.get('transit_house', '?')}) "
-                    f"{asp_name} натальный {p2} (в {asp.get('natal_sign', '?')}, дом {asp.get('natal_house', '?')}) "
+            return (f"ТРАНЗИТНЫЙ:{p1_display} (в {asp.get('transit_sign', '?')}, идёт по натальному дому {natal_house_of_transit_planet}{transit_house_str}) "
+                    f"{asp_name} НАТАЛЬНЫЙ:{p2_display} (в {asp.get('natal_sign', '?')}, дом {asp.get('natal_house', '?')}) "
                     f"— орб {orb_val}°, {applying_str}{ret_mark}")
         applying_str = "applying" if asp.get("applying") else "separating"
-        return (f"Transiting {p1} (in {asp.get('transit_sign', '?')}, moving through natal house {asp.get('transit_house', '?')}) "
-                f"{asp.get('aspect', '?')} natal {p2} (in {asp.get('natal_sign', '?')}, house {asp.get('natal_house', '?')}) "
+        return (f"TRANSITING:{p1_display} (in {asp.get('transit_sign', '?')}, moving through natal house {natal_house_of_transit_planet}{transit_house_str}) "
+                f"{asp.get('aspect', '?')} NATAL:{p2_display} (in {asp.get('natal_sign', '?')}, house {asp.get('natal_house', '?')}) "
                 f"— orb {orb_val}°, {applying_str}{ret_mark}")
 
     slow_str = "\n".join(fmt_aspect(a) for a in slow_aspects) if slow_aspects else (
@@ -1164,73 +1190,127 @@ async def transits_analysis(
     prompt = prompt.replace("{books_content}", books_content)
 
     # --- Данные транзитов ---
+    # is_ru управляет и выбором sign/sign_ru, и подписями через labels — раньше
+    # весь этот блок (кроме места транзита и Asc/MC) был захардкожен по-русски
+    # независимо от language. План:
+    # app/services/specs/transits_synastry_pattern_plan.md.
     period = transits.get("period", "?")
-    prompt += f"\n\n=== ДАННЫЕ ТРАНЗИТОВ ==="
-    prompt += f"\nДень: {period}"
+    prompt += f"\n\n{labels['transits_data_header']}"
+    prompt += f"\n{labels['day_label']}: {period}"
 
     # Информация о месте транзита
     transit_summary = transits.get("transit_summary", {})
     if transit_lat is not None and transit_lon is not None:
-        location_name = transit_place or "не указано"
-        if language == 'ru':
-            prompt += f"\nМесто транзита: {location_name} (координаты: {transit_lat:.4f}°, {transit_lon:.4f}°)"
-        else:
-            prompt += f"\nTransit location: {location_name} (coordinates: {transit_lat:.4f}°, {transit_lon:.4f}°)"
-    
+        location_name = transit_place or labels['not_specified']
+        prompt += f"\n{labels['transit_place_label']}: {location_name} ({labels['coordinates_label']}: {transit_lat:.4f}°, {transit_lon:.4f}°)"
+
     transit_asc = transit_summary.get("ascendant")
     transit_mc = transit_summary.get("mc")
     if transit_asc or transit_mc:
-        if language == 'ru':
-            prompt += f"\nТранзитный Асцендент: {transit_asc.get('sign_ru', transit_asc.get('sign', '?')) if transit_asc else '?'}"
-            prompt += f"\nТранзитный MC: {transit_mc.get('sign_ru', transit_mc.get('sign', '?')) if transit_mc else '?'}"
-        else:
-            prompt += f"\nTransiting Ascendant: {transit_asc.get('sign', '?') if transit_asc else '?'}"
-            prompt += f"\nTransiting MC: {transit_mc.get('sign', '?') if transit_mc else '?'}"
+        asc_sign = (transit_asc.get("sign_ru" if is_ru else "sign", transit_asc.get("sign", "?")) if transit_asc else "?")
+        mc_sign = (transit_mc.get("sign_ru" if is_ru else "sign", transit_mc.get("sign", "?")) if transit_mc else "?")
+        prompt += f"\n{labels['transiting_ascendant_label']}: {asc_sign}"
+        prompt += f"\n{labels['transiting_mc_label']}: {mc_sign}"
 
     lunar_phase = transits.get("lunar_phase") or {}
     if lunar_phase:
-        phase_name = lunar_phase.get("phase_ru" if language == 'ru' else "phase", "?")
-        prompt += f"\nЛУННАЯ ФАЗА ДНЯ: {phase_name} (угол Луна−Солнце {lunar_phase.get('angle', '?')}°)"
+        phase_name = lunar_phase.get("phase_ru" if is_ru else "phase", "?")
+        prompt += f"\n{labels['day_lunar_phase_label']}: {phase_name} ({labels['moon_sun_angle_label']} {lunar_phase.get('angle', '?')}°)"
 
+    # Слой-префикс (ТРАНЗИТНАЯ:/TRANSITING:) перед КАЖДОЙ строкой планеты, а
+    # не только в заголовке блока — иначе find_fabricated_positions_layered
+    # ниже не сможет привязать позицию к слою по ближайшему маркеру.
     TRANSIT_ORDER = ["Moon", "Sun", "Mercury", "Venus", "Mars", "Jupiter", "Saturn",
                      "Uranus", "Neptune", "Pluto", "NorthNode", "SouthNode", "Chiron", "Lilith"]
-    prompt += f"\n\n=== ТРАНЗИТНЫЕ ПЛАНЕТЫ (знак, градус, дома) ==="
+    prompt += f"\n\n{labels['transit_planets_header']}"
     for planet_name in TRANSIT_ORDER:
         planet_data = t_planets.get(planet_name)
         if not planet_data:
             continue
-        sign_ru = planet_data.get("sign_ru", planet_data.get("sign", "?"))
+        planet_display = PLANET_RU.get(planet_name, planet_name) if is_ru else PLANET_EN.get(planet_name, planet_name)
+        sign_display = planet_data.get("sign_ru" if is_ru else "sign", planet_data.get("sign", "?"))
         degree = planet_data.get("degree", "?")
+        # Здесь 'natal_house'/'transit_house' в t_planets[X] — это НЕ те же
+        # величины, что одноимённые поля в aspects_to_natal (см. комментарий
+        # у fmt_aspect выше): здесь natal_house = натальный дом планеты,
+        # transit_house = реальный дом в транзитной карте текущего места.
         house = planet_data.get("natal_house", "?")
         transit_house = planet_data.get("transit_house", "?")
-        rx_str = " (ретроградная)" if planet_data.get("is_retrograde") else ""
-        slow_str2 = " [медленная — фоновая тема]" if planet_data.get("is_slow") else ""
+        rx_str = labels['retrograde_inline'] if planet_data.get("is_retrograde") else ""
+        slow_str2 = labels['slow_planet_marker'] if planet_data.get("is_slow") else ""
         try:
             degree_str = f"{float(degree):.1f}°"
         except (TypeError, ValueError):
             degree_str = f"{degree}°"
-        prompt += f"\n{planet_name}: {degree_str} {sign_ru}, натальный дом {house}, транзитный дом {transit_house}{rx_str}{slow_str2}"
+        prompt += (f"\n{labels['layer_transit']}: {planet_display}: {degree_str} {sign_display}, "
+                   f"{labels['natal_house_word']} {house}, {labels['transit_house_word']} {transit_house}{rx_str}{slow_str2}")
 
     # Полная натальная карта — основа оверлея
-    prompt += f"\n\n=== НАТАЛЬНАЯ КАРТА (основа для оверлея) ==="
-    prompt += f"\nСолнце: {natal_summary.get('sun_sign_ru', natal_chart.get('sun_sign_ru', '?'))}"
-    prompt += f"\nЛуна: {natal_summary.get('moon_sign_ru', natal_chart.get('moon_sign_ru', '?'))}"
-    prompt += f"\nАсцендент: {natal_summary.get('ascendant_ru', natal_chart.get('ascendant_ru', '?'))}"
+    prompt += f"\n\n{labels['natal_chart_overlay_header']}"
+    sun_display = PLANET_RU.get('Sun') if is_ru else PLANET_EN.get('Sun')
+    moon_display = PLANET_RU.get('Moon') if is_ru else PLANET_EN.get('Moon')
+    asc_display = PLANET_RU.get('Ascendant') if is_ru else PLANET_EN.get('Ascendant')
+    natal_sun_sign = natal_summary.get("sun_sign_ru" if is_ru else "sun_sign", natal_chart.get("sun_sign_ru" if is_ru else "sun_sign", "?"))
+    natal_moon_sign = natal_summary.get("moon_sign_ru" if is_ru else "moon_sign", natal_chart.get("moon_sign_ru" if is_ru else "moon_sign", "?"))
+    natal_asc_sign = natal_summary.get("ascendant_ru" if is_ru else "ascendant", natal_chart.get("ascendant_ru" if is_ru else "ascendant", "?"))
+    prompt += f"\n{labels['layer_natal']}: {sun_display}: {natal_sun_sign}"
+    prompt += f"\n{labels['layer_natal']}: {moon_display}: {natal_moon_sign}"
+    prompt += f"\n{labels['layer_natal']}: {asc_display}: {natal_asc_sign}"
     if natal_planets:
-        prompt += f"\nНатальные планеты (знак, дом):"
+        prompt += f"\n{labels['natal_planets_list_label']}"
         for n_name, n_data in natal_planets.items():
-            n_sign = n_data.get("sign_ru", n_data.get("sign", "?"))
+            n_display = PLANET_RU.get(n_name, n_name) if is_ru else PLANET_EN.get(n_name, n_name)
+            n_sign = n_data.get("sign_ru" if is_ru else "sign", n_data.get("sign", "?"))
             n_house = n_data.get("house", "?")
-            n_rx = " R" if n_data.get("is_retrograde") else ""
-            prompt += f"\n  {n_name}: {n_sign}, дом {n_house}{n_rx}"
+            n_rx = labels['retrograde_short'] if n_data.get("is_retrograde") else ""
+            prompt += f"\n  {labels['layer_natal']}: {n_display}: {n_sign}, {labels['house_word']} {n_house}{n_rx}"
 
     # --- Шаг 3: Один финальный вызов LLM ---
     print(f"[transits_analysis] Sending final prompt to LLM (~{len(prompt)//4} tokens estimated)")
 
+    # "Слои" для проверки текста после генерации — транзитная позиция vs
+    # натальная позиция ОДНОЙ И ТОЙ ЖЕ планеты (тот же паттерн, что у
+    # прогрессий, см. progressions_synastry_pattern_plan.md). Форма —
+    # {'planets': {...}, 'ascendant':, 'ascendant_ru':} — natal-слой передаётся
+    # как есть, transit строится из тех же полей transit_summary.
+    transit_chart_like = {
+        'planets': t_planets,
+        'ascendant': transit_asc.get('sign') if transit_asc else None,
+        'ascendant_ru': transit_asc.get('sign_ru') if transit_asc else None,
+    }
+    layers = {'transit': transit_chart_like, 'natal': natal_chart or {}}
+
     try:
         full_analysis = await adapter.generate(prompt, language)
+
+        if language in ('ru', 'en'):
+            # Позиции: чинится только то, что не существует НИ В ОДНОМ слое.
+            full_analysis, unresolved = fix_fabricated_positions_layered(
+                full_analysis, layers, language=language
+            )
+            if unresolved:
+                print(f"[transits_analysis] Unresolved position mismatches (left as-is): {unresolved}")
+
+            # Перепутанный слой — только лог, никогда не правится.
+            position_issues = find_fabricated_positions_layered(full_analysis, layers, language=language)
+            if position_issues.get('layer_confused'):
+                print(f"[transits_analysis] Layer-confused positions detected (not fixed): {position_issues['layer_confused']}")
+
+            # Только детекция — тип заявленного аспекта транзит→натал
+            # сверяется с реально посчитанным (aspects_to_natal).
+            fabricated_aspects = find_fabricated_aspect_types_layered(
+                full_analysis, aspects, language=language, layer_keys=('transit', 'natal')
+            )
+            if fabricated_aspects:
+                print(f"[transits_analysis] Fabricated aspect types detected (not fixed): {fabricated_aspects}")
+
+            # Только детекция, по прозе.
+            undercovered = find_undercovered_aspects_generic(full_analysis, aspects, language=language)
+            if undercovered:
+                print(f"[transits_analysis] Undercovered aspects detected (not filled): {undercovered}")
     except Exception as e:
         full_analysis = f"Ошибка анализа: {str(e)}"
+        print(f"[transits_analysis] LLM error: {e}")
 
     # --- Шаг 4: Краткое резюме ---
     summary = await generate_summary(full_analysis, language)

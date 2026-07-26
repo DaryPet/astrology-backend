@@ -16,6 +16,7 @@ import argparse
 import csv
 import json
 import sys
+import time
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -62,6 +63,9 @@ def resolve_coordinates(place: str, cache: Dict[str, List[float]]) -> Tuple[floa
         lat, lon = cache[key]
         return lat, lon
     from app.api.endpoints import get_coordinates  # lazy import: pulls in FastAPI
+    # Nominatim throttles at ~1 req/sec; without a pause between new (uncached)
+    # lookups a long dataset trips its 429 partway through the run.
+    time.sleep(1.5)
     lat, lon = get_coordinates(place)
     cache[key] = [lat, lon]
     return lat, lon

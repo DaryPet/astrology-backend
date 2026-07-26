@@ -43,8 +43,8 @@ PLANET_STEM_RU = {
     'Sun': r'Со?лнц\w*', 'Moon': r'Лун\w*', 'Mercury': r'Меркури\w*',
     'Venus': r'Венер\w*', 'Mars': r'Марс\w*', 'Jupiter': r'Юпитер\w*',
     'Saturn': r'Сатурн\w*', 'Uranus': r'Уран\w*', 'Neptune': r'Нептун\w*',
-    'Pluto': r'Плутон\w*', 'NorthNode': r'Северн\w*\s+[Уу]зл\w*',
-    'SouthNode': r'Южн\w*\s+[Уу]зл\w*', 'Chiron': r'Хирон\w*',
+    'Pluto': r'Плутон\w*', 'NorthNode': r'Северн\w*\s+[Уу]з(?:ел\w*|л\w*)',
+    'SouthNode': r'Южн\w*\s+[Уу]з(?:ел\w*|л\w*)', 'Chiron': r'Хирон\w*',
     'Lilith': r'Лилит\w*', 'Ascendant': r'Асцендент\w*',
 }
 
@@ -286,15 +286,36 @@ def _extract_layer_planet_signs(chart_like: Dict[str, Any], language: str) -> Di
 
 
 def _nearest_preceding_layer(preceding_text: str, language: str, layer_keys) -> Optional[str]:
-    """Ближайший к концу окна маркер одного из layer_keys, предшествующий найденной фразе."""
+    """
+    Ближайший маркер одного из layer_keys, предшествующий найденной фразе —
+    но только в ПРЕДЕЛАХ ТЕКУЩЕГО ПРЕДЛОЖЕНИЯ (после последней точки/!/? в
+    preceding_text), не по всему marker_window.
+
+    Без этого ограничения на живых прогонах (прогрессии и транзиты, см.
+    app/services/specs/*_synastry_pattern_plan.md) находились ложные
+    layer_confused: в предложении вида "Прогрессивная Луна секстиль натальный
+    Меркурий (...). Твои чувства (Луна в Овне/12 дом)..." маркер "натальный"
+    (относящийся к Меркурию) текстово ближе к повторному упоминанию "Луна в
+    Овне" во ВТОРОМ предложении, чем "Прогрессивная" из ПЕРВОГО — по всему
+    окну "ближайший" оказывался чужим. Ограничение текущим предложением не
+    даёт заглянуть в предыдущее предложение и подхватить чужой маркер; если в
+    текущем предложении маркера нет вообще — возвращаем None (как и раньше
+    для случая "не смогли атрибутировать"), а не гадаем.
+    """
     is_ru = language == 'ru'
     markers = LAYER_MARKER_PATTERNS['ru' if is_ru else 'en']
+
+    sentence_start = 0
+    for m in re.finditer(r'[.!?]\s+', preceding_text):
+        sentence_start = m.end()
+    current_sentence = preceding_text[sentence_start:]
+
     best_key, best_pos = None, -1
     for key in layer_keys:
         pattern = markers.get(key)
         if not pattern:
             continue
-        matches = list(re.finditer(pattern, preceding_text))
+        matches = list(re.finditer(pattern, current_sentence))
         if matches and matches[-1].start() > best_pos:
             best_pos = matches[-1].start()
             best_key = key
