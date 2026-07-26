@@ -8,6 +8,14 @@ from app.services.search_service import (
 from app.services.llm_adapter import generate_analysis, get_llm_adapter
 from app.services.prompt_labels import get_labels
 from app.services.prompt_templates import get_template
+from app.services.text_verification import (
+    PLANET_RU,
+    PLANET_EN,
+    find_fabricated_positions_layered,
+    fix_fabricated_positions_layered,
+    find_fabricated_aspect_types_layered,
+    find_undercovered_aspects_generic,
+)
 
 
 PLANET_TO_BOOK_ID = {
@@ -692,6 +700,14 @@ async def progressions_analysis(
     # В прогрессиях интерпретационно значимы личные планеты (внешние почти не двигаются)
     PERSONAL_PLANETS = ["Sun", "Moon", "Mercury", "Venus", "Mars"]
 
+    # Ограничивает число одновременных запросов к Supabase — та же причина,
+    # что у синастрии (full_synastry_analysis_v2, synastry_service.py:599):
+    # без него asyncio.gather запускает все задачи разом, а пул потоков под
+    # run_sync_in_thread это не выдерживает при большом числе аспектов.
+    # Здесь это на будущее — аспектов в прогрессиях обычно мало (орб 1.5°),
+    # но срез aspects[:10] ниже снят, и семафор — дешёвая страховка от роста.
+    search_semaphore = asyncio.Semaphore(12)
+
     # --- Шаг 1: Параллельный RAG-поиск ---
     # Профильная книга прогрессий — Brady "The Eagle and the Lark" (id=29):
     # её чанки идут первыми, остальные книги — дополнение
@@ -700,7 +716,8 @@ async def progressions_analysis(
         house = planet_data.get("natal_house", "")
         house_word = HOUSE_WORDS.get(house, str(house))
         query = f"progressed {planet_name.lower()} {sign.lower()} {house_word} house"
-        chunks = await search_chunks_priority_book(query, PROGRESSIONS_PRIORITY_BOOK_ID, top_k_priority=3, top_k_others=top_k_per_book)
+        async with search_semaphore:
+            chunks = await search_chunks_priority_book(query, PROGRESSIONS_PRIORITY_BOOK_ID, top_k_priority=3, top_k_others=top_k_per_book)
         return planet_name, chunks
 
     async def search_aspect(asp: Dict) -> tuple:
@@ -708,24 +725,27 @@ async def progressions_analysis(
         p2 = asp.get("natal", asp.get("planet2", ""))
         asp_type = asp.get("aspect", "")
         query = f"progressed {p1.lower()} {asp_type.lower()} natal {p2.lower()}"
-        chunks = await search_chunks_priority_book(query, PROGRESSIONS_PRIORITY_BOOK_ID, top_k_priority=3, top_k_others=2)
+        async with search_semaphore:
+            chunks = await search_chunks_priority_book(query, PROGRESSIONS_PRIORITY_BOOK_ID, top_k_priority=3, top_k_others=2)
         return f"{p1} {asp_type} {p2}", chunks
 
     async def search_general() -> tuple:
-        chunks = await search_chunks_priority_book(
-            "secondary progressions progressed chart day for a year",
-            PROGRESSIONS_PRIORITY_BOOK_ID, top_k_priority=4, top_k_others=top_k_per_book
-        )
+        async with search_semaphore:
+            chunks = await search_chunks_priority_book(
+                "secondary progressions progressed chart day for a year",
+                PROGRESSIONS_PRIORITY_BOOK_ID, top_k_priority=4, top_k_others=top_k_per_book
+            )
         return "Secondary Progressions", chunks
 
     async def search_lunar_phase() -> tuple:
         phase = (progressions.get("lunar_phase") or {}).get("phase", "")
         if not phase:
             return "Lunar Phase", []
-        chunks = await search_chunks_priority_book(
-            f"progressed lunar phase {phase.lower()} moon cycle",
-            PROGRESSIONS_PRIORITY_BOOK_ID, top_k_priority=3, top_k_others=top_k_per_book
-        )
+        async with search_semaphore:
+            chunks = await search_chunks_priority_book(
+                f"progressed lunar phase {phase.lower()} moon cycle",
+                PROGRESSIONS_PRIORITY_BOOK_ID, top_k_priority=3, top_k_others=top_k_per_book
+            )
         return f"Progressed Lunar Phase: {phase}", chunks
 
     planet_tasks = [
@@ -739,7 +759,12 @@ async def progressions_analysis(
     planet_tasks.append(search_general())
     planet_tasks.append(search_lunar_phase())
 
-    aspect_tasks = [search_aspect(asp) for asp in aspects[:10]]
+    # Раньше был срез aspects[:10], а промпт при этом требовал "раскрывай ВСЕ"
+    # аспекты из aspects_list (который строится из ПОЛНОГО списка ниже) — для
+    # аспектов после 10-го чанков не было вообще. Аспектов в прогрессиях мало
+    # (орб 1.5°), так что снятие среза не даёт взрывного роста промпта, как
+    # могло бы быть у синастрии с её 44-64 аспектами.
+    aspect_tasks = [search_aspect(asp) for asp in aspects]
 
     print(f"[progressions_analysis] Parallel RAG: {len(planet_tasks)} planet queries, {len(aspect_tasks)} aspect queries")
 
@@ -759,18 +784,29 @@ async def progressions_analysis(
         n_house = asp.get("natal_house", "?")
         p_house = asp.get("progressed_house", "?")
         if language == 'ru':
+            # Явный слой-префикс (ПРОГРЕССИВНЫЙ:/НАТАЛЬНЫЙ:, заглавными, без
+            # склонения по роду планеты — тот же приём, что ПАРТНЕР1:/ПАРТНЕР2:
+            # в synastry_service.py) + переведённое имя планеты: раньше здесь
+            # был необъявленный внутренний ключ ("Прогрессивный Moon"), а не
+            # отображаемое имя. Разграничивает прогрессивную и натальную
+            # позицию ОДНОЙ И ТОЙ ЖЕ планеты — план:
+            # app/services/specs/progressions_synastry_pattern_plan.md.
+            p1_display = PLANET_RU.get(p1, p1)
+            p2_display = PLANET_RU.get(p2, p2)
             asp_name = asp.get("aspect_ru", asp.get("aspect", "?"))
             applying_str = "сходящийся" if asp.get("applying") else "расходящийся"
             aspects_list.append(
-                f"Прогрессивный {p1} (в {asp.get('progressed_sign', '?')}, натальный дом {p_house}) "
-                f"{asp_name} натальный {p2} (в {asp.get('natal_sign', '?')}, дом {n_house}) "
+                f"ПРОГРЕССИВНЫЙ:{p1_display} (в {asp.get('progressed_sign', '?')}, натальный дом {p_house}) "
+                f"{asp_name} НАТАЛЬНЫЙ:{p2_display} (в {asp.get('natal_sign', '?')}, дом {n_house}) "
                 f"— орб {orb_val}°, {applying_str}"
             )
         else:
+            p1_display = PLANET_EN.get(p1, p1)
+            p2_display = PLANET_EN.get(p2, p2)
             applying_str = "applying" if asp.get("applying") else "separating"
             aspects_list.append(
-                f"Progressed {p1} (in {asp.get('progressed_sign', '?')}, natal house {p_house}) "
-                f"{asp.get('aspect', '?')} natal {p2} (in {asp.get('natal_sign', '?')}, house {n_house}) "
+                f"PROGRESSED:{p1_display} (in {asp.get('progressed_sign', '?')}, natal house {p_house}) "
+                f"{asp.get('aspect', '?')} NATAL:{p2_display} (in {asp.get('natal_sign', '?')}, house {n_house}) "
                 f"— orb {orb_val}°, {applying_str}"
             )
     aspects_str = "\n".join(aspects_list) if aspects_list else (
@@ -816,70 +852,133 @@ async def progressions_analysis(
     prompt = prompt.replace("{books_content}", books_content)
 
     # --- Данные прогрессий ---
+    # is_ru управляет и выбором sign/sign_ru, и подписями через labels — раньше
+    # весь этот блок был захардкожен по-русски НЕЗАВИСИМО от language (шаблон
+    # выше уже двуязычный, а данные — нет). План:
+    # app/services/specs/progressions_synastry_pattern_plan.md.
+    is_ru = language == 'ru'
     age = progressions.get("age_years", "?")
     period = progressions.get("period", "?")
 
-    prompt += f"\n\n=== ДАННЫЕ ВТОРИЧНЫХ ПРОГРЕССИЙ ==="
-    prompt += f"\nВозраст: {age}"
-    prompt += f"\nПериод: {period}"
+    prompt += f"\n\n{labels['progressions_data_header']}"
+    prompt += f"\n{labels['age']}: {age}"
+    prompt += f"\n{labels['period']}: {period}"
 
     # Прогрессивная лунная фаза — этап ~30-летнего цикла, главный контекст всего анализа
     lunar_phase = progressions.get("lunar_phase") or {}
     if lunar_phase:
-        phase_name = lunar_phase.get("phase_ru" if language == 'ru' else "phase", "?")
-        prompt += f"\nПРОГРЕССИВНАЯ ЛУННАЯ ФАЗА: {phase_name} (угол Луна−Солнце {lunar_phase.get('angle', '?')}°)"
+        phase_name = lunar_phase.get("phase_ru" if is_ru else "phase", "?")
+        prompt += f"\n{labels['progressed_lunar_phase_label']}: {phase_name} ({labels['moon_sun_angle_label']} {lunar_phase.get('angle', '?')}°)"
 
     prog_asc = progressions.get("progressed_ascendant", {})
     prog_mc = progressions.get("progressed_mc", {})
     if prog_asc:
-        prompt += f"\nПрогрессивный Асцендент: {prog_asc.get('sign_ru', prog_asc.get('sign', '?'))}"
+        asc_sign = prog_asc.get("sign_ru" if is_ru else "sign", prog_asc.get("sign", "?"))
+        prompt += f"\n{labels['progressed_ascendant_label']}: {asc_sign}"
     if prog_mc:
-        prompt += f"\nПрогрессивный MC: {prog_mc.get('sign_ru', prog_mc.get('sign', '?'))}"
+        mc_sign = prog_mc.get("sign_ru" if is_ru else "sign", prog_mc.get("sign", "?"))
+        prompt += f"\n{labels['progressed_mc_label']}: {mc_sign}"
 
-    prompt += f"\n\n=== ПРОГРЕССИВНЫЕ ПЛАНЕТЫ (знак, градус, натальный дом, изменения) ==="
+    # Слой-префикс (ПРОГРЕССИВНАЯ:/PROGRESSED:) перед КАЖДОЙ строкой планеты, а
+    # не только в заголовке блока — иначе find_fabricated_positions_layered
+    # ниже не сможет привязать позицию к слою по ближайшему маркеру.
+    prompt += f"\n\n{labels['progressed_planets_header']}"
     for planet_name in PERSONAL_PLANETS + [n for n in prog_planets if n not in PERSONAL_PLANETS]:
         planet_data = prog_planets.get(planet_name)
         if not planet_data:
             continue
-        sign_ru = planet_data.get("sign_ru", planet_data.get("sign", "?"))
+        planet_display = PLANET_RU.get(planet_name, planet_name) if is_ru else PLANET_EN.get(planet_name, planet_name)
+        sign_display = planet_data.get("sign_ru" if is_ru else "sign", planet_data.get("sign", "?"))
         degree = planet_data.get("degree", "?")
         house = planet_data.get("natal_house", "?")
-        rx_str = " (ретроградная)" if planet_data.get("is_retrograde") else ""
+        rx_str = labels['retrograde_inline'] if planet_data.get("is_retrograde") else ""
         markers = []
         if planet_data.get("changed_sign") and planet_data.get("natal_sign"):
-            natal_sign_ru = natal_planets.get(planet_name, {}).get("sign_ru", planet_data.get("natal_sign"))
-            markers.append(f"СМЕНИЛА ЗНАК (в натале была в {natal_sign_ru})")
+            natal_planet_data = natal_planets.get(planet_name, {})
+            natal_sign_display = natal_planet_data.get("sign_ru" if is_ru else "sign", planet_data.get("natal_sign"))
+            markers.append(labels['changed_sign_marker'].format(sign=natal_sign_display))
         if planet_data.get("changed_house") and planet_data.get("natal_planet_house"):
-            markers.append(f"ПЕРЕШЛА В ДРУГОЙ ДОМ (в натале была в доме {planet_data['natal_planet_house']})")
+            markers.append(labels['changed_house_marker'].format(house=planet_data['natal_planet_house']))
         if planet_data.get("years_to_next_sign") is not None:
-            markers.append(f"сменит знак примерно через {planet_data['years_to_next_sign']} лет")
+            markers.append(labels['years_to_next_sign_marker'].format(years=planet_data['years_to_next_sign']))
         markers_str = " — " + "; ".join(markers) if markers else ""
         try:
             degree_str = f"{float(degree):.1f}°"
         except (TypeError, ValueError):
             degree_str = f"{degree}°"
-        prompt += f"\n{planet_name}: {degree_str} {sign_ru}, {labels.get('house', 'дом')} {house}{rx_str}{markers_str}"
+        prompt += f"\n{labels['layer_progressed']}: {planet_display}: {degree_str} {sign_display}, {labels['house_word']} {house}{rx_str}{markers_str}"
 
     # Полная натальная карта — без неё невозможен оверлей «прогрессия поверх натала»
-    prompt += f"\n\n=== НАТАЛЬНАЯ КАРТА (основа для оверлея) ==="
-    prompt += f"\nСолнце: {natal_summary.get('sun_sign_ru', natal_chart.get('sun_sign_ru', '?'))}"
-    prompt += f"\nЛуна: {natal_summary.get('moon_sign_ru', natal_chart.get('moon_sign_ru', '?'))}"
-    prompt += f"\nАсцендент: {natal_summary.get('ascendant_ru', natal_chart.get('ascendant_ru', '?'))}"
+    prompt += f"\n\n{labels['natal_chart_overlay_header']}"
+    sun_display = PLANET_RU.get('Sun') if is_ru else PLANET_EN.get('Sun')
+    moon_display = PLANET_RU.get('Moon') if is_ru else PLANET_EN.get('Moon')
+    asc_display = PLANET_RU.get('Ascendant') if is_ru else PLANET_EN.get('Ascendant')
+    natal_sun_sign = natal_summary.get("sun_sign_ru" if is_ru else "sun_sign", natal_chart.get("sun_sign_ru" if is_ru else "sun_sign", "?"))
+    natal_moon_sign = natal_summary.get("moon_sign_ru" if is_ru else "moon_sign", natal_chart.get("moon_sign_ru" if is_ru else "moon_sign", "?"))
+    natal_asc_sign = natal_summary.get("ascendant_ru" if is_ru else "ascendant", natal_chart.get("ascendant_ru" if is_ru else "ascendant", "?"))
+    prompt += f"\n{labels['layer_natal']}: {sun_display}: {natal_sun_sign}"
+    prompt += f"\n{labels['layer_natal']}: {moon_display}: {natal_moon_sign}"
+    prompt += f"\n{labels['layer_natal']}: {asc_display}: {natal_asc_sign}"
     if natal_planets:
-        prompt += f"\nНатальные планеты (знак, дом):"
+        prompt += f"\n{labels['natal_planets_list_label']}"
         for n_name, n_data in natal_planets.items():
-            n_sign = n_data.get("sign_ru", n_data.get("sign", "?"))
+            n_display = PLANET_RU.get(n_name, n_name) if is_ru else PLANET_EN.get(n_name, n_name)
+            n_sign = n_data.get("sign_ru" if is_ru else "sign", n_data.get("sign", "?"))
             n_house = n_data.get("house", "?")
-            n_rx = " R" if n_data.get("is_retrograde") else ""
-            prompt += f"\n  {n_name}: {n_sign}, дом {n_house}{n_rx}"
+            n_rx = labels['retrograde_short'] if n_data.get("is_retrograde") else ""
+            prompt += f"\n  {labels['layer_natal']}: {n_display}: {n_sign}, {labels['house_word']} {n_house}{n_rx}"
 
     # --- Шаг 3: Один финальный вызов LLM ---
     print(f"[progressions_analysis] Sending final prompt to LLM (~{len(prompt)//4} tokens estimated)")
 
+    # "Слои" для проверки текста после генерации — прогрессивная позиция vs
+    # натальная позиция ОДНОЙ И ТОЙ ЖЕ планеты (обобщение "Партнёр 1/2" из
+    # synastry_service.py на text_verification.py). Форма — {'planets': {...},
+    # 'ascendant':, 'ascendant_ru':} — та же, что у natal_chart, поэтому
+    # natal-слой передаётся как есть, а progressed строится из тех же полей.
+    progressed_chart_like = {
+        'planets': prog_planets,
+        'ascendant': prog_asc.get('sign'),
+        'ascendant_ru': prog_asc.get('sign_ru'),
+    }
+    layers = {'progressed': progressed_chart_like, 'natal': natal_chart or {}}
+
     try:
         full_analysis = await adapter.generate(prompt, language)
+
+        if language in ('ru', 'en'):
+            # Позиции: чинится только то, что не существует НИ В ОДНОМ слое —
+            # то же самое, что fix_fabricated_planet_positions в синастрии
+            # (union-проверка), обобщённое на слои. План:
+            # app/services/specs/progressions_synastry_pattern_plan.md.
+            full_analysis, unresolved = fix_fabricated_positions_layered(
+                full_analysis, layers, language=language
+            )
+            if unresolved:
+                print(f"[progressions_analysis] Unresolved position mismatches (left as-is): {unresolved}")
+
+            # Перепутанный слой (знак верен, но не для того слоя, что назвал
+            # маркер) — только лог, никогда не правится (см. докстринг
+            # find_fabricated_positions_layered).
+            position_issues = find_fabricated_positions_layered(full_analysis, layers, language=language)
+            if position_issues.get('layer_confused'):
+                print(f"[progressions_analysis] Layer-confused positions detected (not fixed): {position_issues['layer_confused']}")
+
+            # Только детекция — тип заявленного аспекта прогрессия→натал
+            # сверяется с реально посчитанным (aspects_to_natal).
+            fabricated_aspects = find_fabricated_aspect_types_layered(
+                full_analysis, aspects, language=language, layer_keys=('progressed', 'natal')
+            )
+            if fabricated_aspects:
+                print(f"[progressions_analysis] Fabricated aspect types detected (not fixed): {fabricated_aspects}")
+
+            # Только детекция, по прозе — текст не трогаем и не дописываем.
+            undercovered = find_undercovered_aspects_generic(full_analysis, aspects, language=language)
+            if undercovered:
+                print(f"[progressions_analysis] Undercovered aspects detected (not filled): {undercovered}")
     except Exception as e:
         full_analysis = f"Ошибка анализа: {str(e)}"
+        print(f"[progressions_analysis] LLM error: {e}")
 
     # --- Шаг 4: Краткое резюме ---
     summary = await generate_summary(full_analysis, language)

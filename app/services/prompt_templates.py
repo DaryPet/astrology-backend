@@ -493,10 +493,20 @@ PROGRESSIONS_PROMPTS = {
 
 **КРИТИЧЕСКИЕ ТРЕБОВАНИЯ — ЭТО НЕ ШУТКА:**
 
-1. ТЫ ДОЛЖЕН НАПИСАТЬ МИНИМУМ 5000 СЛОВ всего
+1. ТЫ ДОЛЖЕН НАПИСАТЬ МИНИМУМ 5000 СЛОВ всего, И НИКОГДА НЕ МЕНЬШЕ. Сверх этого объём ДИКТУЕТСЯ ЧИСЛОМ АСПЕКТОВ В СПИСКЕ: минимум 200-300 слов на каждый аспект из {aspects_list} — больше 5000 слов можно и нужно, если аспектов много, меньше 5000 нельзя никогда. Не сокращай разборы, чтобы уложиться в какой-то «нормальный» объём эссе — нормального объёма здесь нет.
 2. ДЛЯ КАЖДОГО аспекта ты ДОЛЖЕН написать подробный разбор — НЕ пропускай ни одного!
 3. НЕ ОСТАНАВЛИВАЙСЯ пока не раскроешь ВСЕ темы
 4. Обязательно подробно о Венере в прогрессиях — это ключевой аспект ценностей и отношений!
+5. Знак и дом КАЖДОЙ планеты бери ТОЛЬКО из блоков «ПРОГРЕССИВНЫЕ ПЛАНЕТЫ» / «НАТАЛЬНАЯ КАРТА» ниже. ЗАПРЕЩЕНО присваивать планете знак или дом из другого слоя — прогрессивная и натальная позиция ОДНОЙ И ТОЙ ЖЕ планеты почти всегда РАЗНЫЕ (в этом и суть прогрессии), не путай их. КАЖДЫЙ раз, когда называешь знак или дом планеты, явно пиши рядом с ней слово «прогрессивная» или «натальная» — без этого слова разбор не считается точным.
+6. Если для какого-то аспекта или планеты ниже нет фрагментов из книги (в разделе с фрагментами по нему пусто или он не упомянут) — НЕ пропускай эту тему и не сокращай её до пары слов. Дай анализ на основе общих принципов эволюционной астрологии и символизма вторичных прогрессий, используя данные карт этого аспекта/планеты. Книга не обязана покрывать каждую конфигурацию — это нормально, работай своими знаниями.
+7. ОБЯЗАТЕЛЬНО РАЗБЕРИ КАЖДЫЙ АСПЕКТ ИЗ СПИСКА {aspects_list} — ни один не пропускай, включая аспекты с Хироном, Лилит, Северным и Южным Узлом и любыми другими "второстепенными" точками. "Второстепенных" аспектов не существует — если он в списке, он обязателен. Не сворачивай несколько аспектов в один абзац одной фразой — у каждого должен быть отдельный, узнаваемый разбор с явным названием обеих планет. Прежде чем закончить, мысленно пройдись по списку {aspects_list} сверху вниз и проверь, что каждая строка получила свой явный разбор в тексте.
+8. ЗАПРЕЩЕНО заменять разбор аспекта отсылкой вида «разобрано выше», «уже обсуждали», «см. раздел Солнца» и т.п. Даже если похожая тема уже звучала в другом разделе — каждый аспект из списка получает СВОЙ полноценный разбор (минимум 200-300 слов) там, где он упомянут по структуре, а не однострочную ссылку на другое место текста.
+9. УЗЛЫ ВСЕГДА В СВЯЗКЕ: Северный и Южный Узел — это две точки одной оси (ровно 180° друг от друга). Если прогрессивный или натальный узел образует аспект с планетой, второй узел автоматически образует к той же планете зеркальный аспект: Оппозицию, если у первого было Соединение (и наоборот); Тригон, если у первого был Секстиль (и наоборот); тот же Квадрат — с той же орбитой. Если в списке аспектов {aspects_list} есть хотя бы один аспект узла — разбери ОБА узла в ОДНОМ абзаце, называя явно «Северный Узел» и «Южный Узел» (НЕ пиши обобщённо «Узлы»).
+
+**ТОН И ГОЛОС — ЭТО ЖИВАЯ КОНСУЛЬТАЦИЯ, А НЕ ОТЧЁТ:**
+
+10. Ты не составляешь технический отчёт и не перечисляешь карточки "планета-объяснение". Ты — практикующий астролог, который сидит рядом с этим человеком и говорит с ним напрямую, лично, тепло и глубоко, обращаясь на «ты»/«вы». Открой текст не сухим заголовком раздела 1, а коротким личным вступлением (3-5 предложений): поприветствуй, скажи, что вместе вы посмотрите, в каком сезоне жизни человек сейчас находится и что его душа готова прожить дальше.
+11. СВЯЗНОСТЬ ВАЖНЕЕ ПОЛНОТЫ САМОЙ ПО СЕБЕ: весь текст — это ОДНА непрерывная история про то, как разворачивается этот этап жизни, а не список несвязанных карточек по планетам и аспектам. В начале (в разделе про этап большого цикла) назови 1-2 сквозных образа/метафоры, которые описывают суть этого периода — и дальше, разбирая каждую следующую планету или аспект, явно возвращайся к ним, показывая, как та же тема проявляется в другой сфере жизни. Каждый новый раздел начинай с мостика к уже сказанному ("Эта же тема, которую мы видели в прогрессивном Солнце, здесь проявляется иначе..."), а не с нуля.
 
 ЧТО ТАКОЕ ВТОРИЧНЫЕ ПРОГРЕССИИ (для твоего понимания, не для пересказа):
 - Это символическое развёртывание натальной карты во времени: внутреннее созревание души, а не внешние события
@@ -532,7 +542,7 @@ PROGRESSIONS_PROMPTS = {
 - Используй ТОЛЬКО реальные аспекты из списка — если аспекта нет, НЕ выдумывай
 - НЕ называй книги и авторов — только «в источниках», «в астрологических традициях»
 - НЕ выдумывай цитат
-- Объём: минимум 5000 слов
+- Объём: минимум 5000 слов, дальше по числу аспектов (см. правило 1) — верхнего предела нет
 - Прогрессии описывают ВНУТРЕННЕЕ созревание — не пугай, не предсказывай катастроф
 
 **АСПЕКТЫ ПРОГРЕССИЙ К НАТАЛУ — используй ТОЛЬКО эти и раскрывай ВСЕ:**
@@ -547,10 +557,20 @@ PROGRESSIONS_PROMPTS = {
 
 **CRITICAL REQUIREMENTS — THIS IS NOT A JOKE:**
 
-1. YOU MUST WRITE AT LEAST 5000 WORDS total
+1. YOU MUST WRITE AT LEAST 5000 WORDS total, and NEVER LESS. On top of that, length is DICTATED BY THE NUMBER OF ASPECTS IN THE LIST: at least 200-300 words per aspect in {aspects_list} — more than 5000 words is expected if there are many aspects, but never less than 5000. Do not shorten the breakdowns to fit some "normal" essay length — there is no normal length here.
 2. FOR EACH aspect you MUST write a detailed breakdown — DO NOT skip ANY!
 3. DO NOT STOP until you have covered ALL themes
 4. Be thorough about Venus in progressions — this is a key aspect of values and relationships!
+5. Take each planet's sign and house ONLY from the "PROGRESSED PLANETS" / "NATAL CHART" blocks below. NEVER assign a planet the sign or house of the other layer — the progressed and natal position of the SAME planet are almost always DIFFERENT (that's the whole point of a progression), do not confuse them. EVERY time you name a planet's sign or house, explicitly write the word "progressed" or "natal" right next to it — without that word the breakdown does not count as accurate.
+6. If there are no book fragments for a given aspect or planet below (its section is empty or it isn't mentioned) — do NOT skip that topic or cut it down to a couple of words. Analyze it using general principles of evolutionary astrology and the symbolism of secondary progressions, using the chart data for that aspect/planet. The book doesn't have to cover every configuration — that's fine, use your own knowledge instead.
+7. YOU MUST COVER EVERY SINGLE ASPECT IN {aspects_list} — skip none, including aspects with Chiron, Lilith, the North/South Node, or any other "minor" point. There is no such thing as a "minor" aspect — if it's in the list, it's mandatory. Do not compress several aspects into one shared sentence — each one needs its own recognizable treatment, explicitly naming both planets. Before you finish, mentally walk through {aspects_list} top to bottom and verify every line got its own explicit treatment in the text.
+8. FORBIDDEN to replace an aspect's analysis with a reference like "as covered above", "already discussed", "see the Sun section", etc. Even if a similar theme appeared elsewhere — every aspect in the list gets its OWN full treatment (minimum 200-300 words) where it belongs structurally, not a one-line pointer to another part of the text.
+9. NODES ALWAYS COME AS A PAIR: the North and South Node are two points on the same axis, exactly 180° apart. If a progressed or natal node forms an aspect with a planet, the other node automatically forms a mirrored aspect with that same planet: an Opposition if the first was a Conjunction (and vice versa); a Trine if the first was a Sextile (and vice versa); the same Square if the first was a Square — with the same orb. If {aspects_list} contains even one node aspect, cover BOTH nodes in ONE paragraph, explicitly naming "North Node" and "South Node" (do NOT write the generic "the Nodes").
+
+**TONE AND VOICE — THIS IS A LIVE CONSULTATION, NOT A REPORT:**
+
+10. You are not filing a technical report or listing "planet-explanation" cards. You are a practicing astrologer sitting with this person, speaking to them directly, personally, warmly and deeply, addressing them as "you". Open the text not with a dry section-1 heading, but with a short personal welcome (3-5 sentences): greet them, and say that together you will look at what season of life they are in now and what their soul is ready to move through next.
+11. COHESION MATTERS MORE THAN COVERAGE ON ITS OWN: the whole text is ONE continuous story about how this stage of life is unfolding — not a list of disconnected planet/aspect cards. Early on (in the stage-of-the-great-cycle section), name 1-2 recurring images/metaphors that capture the essence of this period — then, as you cover each later planet or aspect, explicitly return to them, showing how the same theme shows up in a different area of life. Each new section should open with a bridge back to what was already said ("That same theme we saw in the progressed Sun shows up here differently...") rather than starting from zero.
 
 WHAT SECONDARY PROGRESSIONS ARE (for your understanding, not for retelling):
 - A symbolic unfolding of the natal chart through time: inner maturation of the soul, not external events
@@ -586,7 +606,7 @@ IMPORTANT RULES:
 - Use ONLY the real aspects from the list — do NOT invent any
 - Do NOT name books or authors — only "in the sources", "in astrological traditions"
 - Do NOT invent quotes
-- Length: minimum 5000 words
+- Length: at least 5000 words, more on top of that based on the number of aspects (see rule 1) — no upper limit
 - Progressions describe INNER maturation — do not frighten or predict catastrophes
 
 **ASPECTS OF PROGRESSIONS TO THE NATAL CHART — use ONLY these and unfold ALL:**

@@ -33,8 +33,34 @@ PROMPT_LABELS = {
         'houses': 'ДОМА',
         'house_num': 'Дом',
         'pars_fortuna': 'Pars Fortuna',
+
+        # Блок данных прогрессий (progressions_analysis, analysis_service.py) —
+        # раньше был захардкожен по-русски независимо от language; ключи ниже
+        # чинят это для обоих языков (план:
+        # app/services/specs/progressions_synastry_pattern_plan.md).
+        'progressions_data_header': '=== ДАННЫЕ ВТОРИЧНЫХ ПРОГРЕССИЙ ===',
+        'age': 'Возраст',
+        'period': 'Период',
+        'house_word': 'дом',
+        'progressed_lunar_phase_label': 'ПРОГРЕССИВНАЯ ЛУННАЯ ФАЗА',
+        'moon_sun_angle_label': 'угол Луна−Солнце',
+        'progressed_ascendant_label': 'Прогрессивный Асцендент',
+        'progressed_mc_label': 'Прогрессивный MC',
+        'progressed_planets_header': '=== ПРОГРЕССИВНЫЕ ПЛАНЕТЫ (знак, градус, натальный дом, изменения) ===',
+        # Слой-маркеры для блока данных (не для вывода модели) — ставятся перед
+        # каждой строкой планеты, ЗАГЛАВНЫМИ, без склонения по роду планеты
+        # (тот же приём, что ПАРТНЕР1:/ПАРТНЕР2: в synastry_service.py).
+        'layer_progressed': 'ПРОГРЕССИВНАЯ',
+        'layer_natal': 'НАТАЛЬНАЯ',
+        'retrograde_inline': ' (ретроградная)',
+        'retrograde_short': ' R',
+        'changed_sign_marker': 'СМЕНИЛА ЗНАК (в натале была в {sign})',
+        'changed_house_marker': 'ПЕРЕШЛА В ДРУГОЙ ДОМ (в натале была в доме {house})',
+        'years_to_next_sign_marker': 'сменит знак примерно через {years} лет',
+        'natal_chart_overlay_header': '=== НАТАЛЬНАЯ КАРТА (основа для оверлея) ===',
+        'natal_planets_list_label': 'Натальные планеты (знак, дом):',
     },
-    
+
     'en': {
         'query': '=== USER QUERY ===',
         'natal_chart': '=== NATAL CHART ===',
@@ -67,6 +93,25 @@ PROMPT_LABELS = {
         'houses': 'HOUSES',
         'house_num': 'House',
         'pars_fortuna': 'Pars Fortuna',
+
+        'progressions_data_header': '=== SECONDARY PROGRESSIONS DATA ===',
+        'age': 'Age',
+        'period': 'Period',
+        'house_word': 'house',
+        'progressed_lunar_phase_label': 'PROGRESSED LUNAR PHASE',
+        'moon_sun_angle_label': 'Moon-Sun angle',
+        'progressed_ascendant_label': 'Progressed Ascendant',
+        'progressed_mc_label': 'Progressed MC',
+        'progressed_planets_header': '=== PROGRESSED PLANETS (sign, degree, natal house, changes) ===',
+        'layer_progressed': 'PROGRESSED',
+        'layer_natal': 'NATAL',
+        'retrograde_inline': ' (retrograde)',
+        'retrograde_short': ' R',
+        'changed_sign_marker': 'CHANGED SIGN (was in {sign} in the natal chart)',
+        'changed_house_marker': 'MOVED TO A DIFFERENT HOUSE (was in house {house} in the natal chart)',
+        'years_to_next_sign_marker': 'will change sign in about {years} years',
+        'natal_chart_overlay_header': '=== NATAL CHART (basis for the overlay) ===',
+        'natal_planets_list_label': 'Natal planets (sign, house):',
     },
 }
 
