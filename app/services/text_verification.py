@@ -45,7 +45,7 @@ PLANET_STEM_RU = {
     'Saturn': r'Сатурн\w*', 'Uranus': r'Уран\w*', 'Neptune': r'Нептун\w*',
     'Pluto': r'Плутон\w*', 'NorthNode': r'Северн\w*\s+[Уу]з(?:ел\w*|л\w*)',
     'SouthNode': r'Южн\w*\s+[Уу]з(?:ел\w*|л\w*)', 'Chiron': r'Хирон\w*',
-    'Lilith': r'Лилит\w*', 'Ascendant': r'Асцендент\w*',
+    'Lilith': r'Лилит\w*', 'Ascendant': r'Асцендент\w*', 'Vertex': r'Вертекс\w*',
 }
 
 # Стемы аспектов — та же причина: "в оппозиции", "Соединение", "секстиле" —
@@ -78,7 +78,7 @@ PLANET_STEM_EN = {
     'Saturn': r'\bSaturn\b', 'Uranus': r'\bUranus\b', 'Neptune': r'\bNeptune\b',
     'Pluto': r'\bPluto\b', 'NorthNode': r'\bNorth\s+Node\b',
     'SouthNode': r'\bSouth\s+Node\b', 'Chiron': r'\bChiron\b',
-    'Lilith': r'\bLilith\b', 'Ascendant': r'\bAscendant\b',
+    'Lilith': r'\bLilith\b', 'Ascendant': r'\bAscendant\b', 'Vertex': r'\bVertex\b',
 }
 
 ASPECT_STEM_EN = {
@@ -116,7 +116,7 @@ PLANET_RU = {
     'Saturn': 'Сатурн', 'Uranus': 'Уран', 'Neptune': 'Нептун',
     'Pluto': 'Плутон', 'NorthNode': 'Северный Узел',
     'SouthNode': 'Южный Узел', 'Chiron': 'Хирон',
-    'Lilith': 'Лилит', 'Ascendant': 'Асцендент',
+    'Lilith': 'Лилит', 'Ascendant': 'Асцендент', 'Vertex': 'Вертекс',
 }
 
 # Английские имена планет в тексте LLM совпадают с этими значениями буквально
@@ -128,7 +128,7 @@ PLANET_EN = {
     'Saturn': 'Saturn', 'Uranus': 'Uranus', 'Neptune': 'Neptune',
     'Pluto': 'Pluto', 'NorthNode': 'North Node',
     'SouthNode': 'South Node', 'Chiron': 'Chiron',
-    'Lilith': 'Lilith', 'Ascendant': 'Ascendant',
+    'Lilith': 'Lilith', 'Ascendant': 'Ascendant', 'Vertex': 'Vertex',
 }
 
 

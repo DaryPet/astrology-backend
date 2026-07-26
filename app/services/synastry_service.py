@@ -29,7 +29,7 @@ PLANET_RU = {
     'Saturn': 'Сатурн', 'Uranus': 'Уран', 'Neptune': 'Нептун',
     'Pluto': 'Плутон', 'NorthNode': 'Северный Узел',
     'SouthNode': 'Южный Узел', 'Chiron': 'Хирон',
-    'Lilith': 'Лилит', 'Ascendant': 'Асцендент',
+    'Lilith': 'Лилит', 'Ascendant': 'Асцендент', 'Vertex': 'Вертекс',
 }
 
 # Английские имена планет в тексте LLM совпадают с этими значениями буквально
@@ -41,7 +41,7 @@ PLANET_EN = {
     'Saturn': 'Saturn', 'Uranus': 'Uranus', 'Neptune': 'Neptune',
     'Pluto': 'Pluto', 'NorthNode': 'North Node',
     'SouthNode': 'South Node', 'Chiron': 'Chiron',
-    'Lilith': 'Lilith', 'Ascendant': 'Ascendant',
+    'Lilith': 'Lilith', 'Ascendant': 'Ascendant', 'Vertex': 'Vertex',
 }
 
 
