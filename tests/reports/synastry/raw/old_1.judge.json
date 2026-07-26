@@ -1,0 +1,96 @@
+{
+  "per_aspect": [
+    {
+      "aspect": "Меркурий Соединение Южный Узел (орб 4.23°)",
+      "fidelity": "unsupported",
+      "depth": "substantive",
+      "note": "Конкретный разбор домов и знаков, но без прямой поддержки из фрагментов."
+    },
+    {
+      "aspect": "Нептун Соединение Южный Узел (орб 3.17°)",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    },
+    {
+      "aspect": "Меркурий Оппозиция Северный Узел (орб 4.23°)",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    },
+    {
+      "aspect": "Плутон Оппозиция Хирон (орб 4.45°)",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    },
+    {
+      "aspect": "Солнце Тригон Меркурий (орб 5.84°)",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    },
+    {
+      "aspect": "Луна Тригон Южный Узел (орб 0.83°)",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    },
+    {
+      "aspect": "Венера Тригон Марс (орб 0.19°)",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    },
+    {
+      "aspect": "Сатурн Тригон Хирон (орб 4.59°)",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    },
+    {
+      "aspect": "Нептун Тригон Солнце (орб 1.25°)",
+      "fidelity": "missing",
+      "depth": "missing"
+    },
+    {
+      "aspect": "Солнце Квадрат Плутон (орб 0.23°)",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    },
+    {
+      "aspect": "Венера Квадрат Плутон (орб 5.71°)",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    },
+    {
+      "aspect": "Уран Квадрат Марс (орб 5.61°)",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    },
+    {
+      "aspect": "Северный Узел Квадрат Хирон (орб 5.3°)",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    },
+    {
+      "aspect": "Хирон Квадрат Сатурн (орб 4.35°)",
+      "fidelity": "missing",
+      "depth": "missing"
+    },
+    {
+      "aspect": "Венера Секстиль Венера (орб 3.57°)",
+      "fidelity": "contradicted",
+      "depth": "generic",
+      "note": "Анализ не соответствует аспекту, описанному в тексте."
+    },
+    {
+      "aspect": "Марс Секстиль Плутон (орб 5.34°)",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    },
+    {
+      "aspect": "Плутон Секстиль Южный Узел (орб 1.7°)",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    }
+  ],
+  "book_fidelity_score": 2,
+  "depth_score": 2,
+  "overall_notes": "Большинство аспектов разобраны шаблонно и без конкретной поддержки из фрагментов книги. Некоторые аспекты вообще не разобраны или противоречат заявленному аспекту.",
+  "_sample_size": 17,
+  "_judge_model": "gpt-4o"
+}

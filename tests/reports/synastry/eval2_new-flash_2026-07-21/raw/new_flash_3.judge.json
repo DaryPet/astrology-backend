@@ -1,0 +1,97 @@
+{
+  "per_aspect": [
+    {
+      "aspect": "Меркурий Соединение Южный Узел",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Нептун Соединение Южный Узел",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Меркурий Оппозиция Северный Узел",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Плутон Оппозиция Хирон",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Солнце Тригон Меркурий",
+      "fidelity": "missing",
+      "depth": "missing"
+    },
+    {
+      "aspect": "Луна Тригон Южный Узел",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Венера Тригон Марс",
+      "fidelity": "missing",
+      "depth": "missing"
+    },
+    {
+      "aspect": "Сатурн Тригон Хирон",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    },
+    {
+      "aspect": "Нептун Тригон Солнце",
+      "fidelity": "missing",
+      "depth": "missing",
+      "note": "найденный текст про другую пару (Нептун-Сатурн квадрат), не про эту"
+    },
+    {
+      "aspect": "Солнце Квадрат Плутон",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Венера Квадрат Плутон",
+      "fidelity": "missing",
+      "depth": "missing"
+    },
+    {
+      "aspect": "Уран Квадрат Марс",
+      "fidelity": "missing",
+      "depth": "missing"
+    },
+    {
+      "aspect": "Северный Узел Квадрат Хирон",
+      "fidelity": "missing",
+      "depth": "missing",
+      "note": "найденный текст про обратную пару (Хирон-Северный Узел соединение), не про эту"
+    },
+    {
+      "aspect": "Хирон Квадрат Сатурн",
+      "fidelity": "missing",
+      "depth": "missing",
+      "note": "дублирует контент про Сатурн-Хирон тригон, не свою пару"
+    },
+    {
+      "aspect": "Венера Секстиль Венера",
+      "fidelity": "missing",
+      "depth": "missing"
+    },
+    {
+      "aspect": "Марс Секстиль Плутон",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Плутон Секстиль Южный Узел",
+      "fidelity": "missing",
+      "depth": "missing"
+    }
+  ],
+  "book_fidelity_score": 2,
+  "depth_score": 2,
+  "overall_notes": "Заметно более тонкий прогон — почти половина выборки (8/17) реально пропущена в тексте, ещё 3 — контент найден не по своей паре (издержка экстрактора на плотных узловых блоках). Там, где аспект реально разобран — качество не хуже других прогонов, просто разобрано заметно меньше аспектов.",
+  "_sample_size": 17,
+  "_judge_model": "claude-sonnet-5 (человеческое чтение агентом, не API-вызов)"
+}

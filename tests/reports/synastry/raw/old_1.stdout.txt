@@ -1,0 +1,84 @@
+Swiss Ephemeris path: '/private/tmp/claude-501/-Users-usuario-Desktop-GitHub-astro-DAVIN-astrology-backend/7c98f8b1-aa50-4d21-914a-828288a75285/scratchpad/synastry-old-fcca162/app/../ephe'
+[full_synastry_analysis_v2] Total aspects: 51, top aspects: 5
+[HYBRID SEARCH] Query: Mercury Conjunction SouthNode synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Mars Conjunction Lilith synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Sun synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Moon synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Neptune Conjunction SouthNode synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: SouthNode synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Saturn Conjunction SouthNode synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Saturn synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Venus synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Ascendant synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Mars synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: NorthNode synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Lilith Conjunction Jupiter synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Jupiter synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: NorthNode synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Pluto synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: SouthNode synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Venus synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Saturn synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Sun synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Moon synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Pluto synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Ascendant synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Mars synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Jupiter synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[full_synastry_analysis_v2] RAG search completed. Tasks: 25
+[full_synastry_analysis_v2] Sending prompt to LLM (~6922 tokens estimated)
+[runner:old] done in 183.6s, 47386 chars, error=None
+
+--- stderr ---
+/Users/usuario/Desktop/GitHub/astro_DAVIN/astrology-backend/venv/lib/python3.9/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(

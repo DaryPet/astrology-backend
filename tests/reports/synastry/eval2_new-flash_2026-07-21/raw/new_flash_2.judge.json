@@ -1,0 +1,96 @@
+{
+  "per_aspect": [
+    {
+      "aspect": "Меркурий Соединение Южный Узел",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Нептун Соединение Южный Узел",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Меркурий Оппозиция Северный Узел",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Плутон Оппозиция Хирон",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Солнце Тригон Меркурий",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    },
+    {
+      "aspect": "Луна Тригон Южный Узел",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    },
+    {
+      "aspect": "Венера Тригон Марс",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    },
+    {
+      "aspect": "Сатурн Тригон Хирон",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    },
+    {
+      "aspect": "Нептун Тригон Солнце",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    },
+    {
+      "aspect": "Солнце Квадрат Плутон",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Венера Квадрат Плутон",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Уран Квадрат Марс",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Северный Узел Квадрат Хирон",
+      "fidelity": "missing",
+      "depth": "missing",
+      "note": "найденный блок реально про другую пару (Плутон-Северный Узел тригон), не про эту"
+    },
+    {
+      "aspect": "Хирон Квадрат Сатурн",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    },
+    {
+      "aspect": "Венера Секстиль Венера",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    },
+    {
+      "aspect": "Марс Секстиль Плутон",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Плутон Секстиль Южный Узел",
+      "fidelity": "missing",
+      "depth": "missing",
+      "note": "тот же блок не по теме, что и для Северный Узел-Хирон выше"
+    }
+  ],
+  "book_fidelity_score": 2,
+  "depth_score": 3,
+  "overall_notes": "Самый насыщенный из трёх прогонов — почти все аспекты разобраны развёрнуто, с конкретными домами/знаками. Как и везде, book fidelity низкая (0 grounded) — разбор идёт по общим принципам эволюционной астрологии, книга ничего прямо не подтверждает и не опровергает. 2 расхождения — не модель, а мой экстрактор абзаца зацепил не тот блок (узлы+Хирон densely упомянуты вместе).",
+  "_sample_size": 17,
+  "_judge_model": "claude-sonnet-5 (человеческое чтение агентом, не API-вызов)"
+}

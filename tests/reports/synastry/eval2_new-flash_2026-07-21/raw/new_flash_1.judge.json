@@ -1,0 +1,98 @@
+{
+  "per_aspect": [
+    {
+      "aspect": "Меркурий Соединение Южный Узел",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Нептун Соединение Южный Узел",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Меркурий Оппозиция Северный Узел",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Плутон Оппозиция Хирон",
+      "fidelity": "unsupported",
+      "depth": "generic",
+      "note": "короткая формулировка"
+    },
+    {
+      "aspect": "Солнце Тригон Меркурий",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Луна Тригон Южный Узел",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Венера Тригон Марс",
+      "fidelity": "unsupported",
+      "depth": "substantive",
+      "note": "модель на секунду путает, кому какая планета, сама себя поправляет прямо в тексте — заметно, но не искажает итог"
+    },
+    {
+      "aspect": "Сатурн Тригон Хирон",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Нептун Тригон Солнце",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Солнце Квадрат Плутон",
+      "fidelity": "missing",
+      "depth": "missing"
+    },
+    {
+      "aspect": "Венера Квадрат Плутон",
+      "fidelity": "unsupported",
+      "depth": "generic",
+      "note": "просто отсылка \"уже обсуждали\", без нового содержания"
+    },
+    {
+      "aspect": "Уран Квадрат Марс",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Северный Узел Квадрат Хирон",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Хирон Квадрат Сатурн",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Венера Секстиль Венера",
+      "fidelity": "unsupported",
+      "depth": "substantive"
+    },
+    {
+      "aspect": "Марс Секстиль Плутон",
+      "fidelity": "missing",
+      "depth": "missing",
+      "note": "найденный абзац на самом деле про домовый оверлей (4 планеты сразу), не про эту конкретную пару"
+    },
+    {
+      "aspect": "Плутон Секстиль Южный Узел",
+      "fidelity": "missing",
+      "depth": "missing"
+    }
+  ],
+  "book_fidelity_score": 2,
+  "depth_score": 3,
+  "overall_notes": "Ни разу не подтверждено книгой напрямую (grounded=0), но и не противоречит — почти всё \"правдоподобно, но не проверено\". Большинство аспектов разобраны конкретно (дом/знак называются), не шаблонно. 2 из 17 — контент не по теме (домовый оверлей вместо аспекта).",
+  "_sample_size": 17,
+  "_judge_model": "claude-sonnet-5 (человеческое чтение агентом, не API-вызов)"
+}

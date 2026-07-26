@@ -1,0 +1,164 @@
+[
+  {
+    "anchor": "Pluto",
+    "planet": "Sun",
+    "first_ontopic_rank": 4,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "Pluto",
+    "planet": "Moon",
+    "first_ontopic_rank": 1,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "Pluto",
+    "planet": "Mercury",
+    "first_ontopic_rank": 3,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "Pluto",
+    "planet": "Venus",
+    "first_ontopic_rank": 1,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "Pluto",
+    "planet": "Mars",
+    "first_ontopic_rank": 1,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "Pluto",
+    "planet": "Jupiter",
+    "first_ontopic_rank": 2,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "Pluto",
+    "planet": "Saturn",
+    "first_ontopic_rank": 1,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "Moon",
+    "planet": "Sun",
+    "first_ontopic_rank": 1,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "Moon",
+    "planet": "Mercury",
+    "first_ontopic_rank": 1,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "Moon",
+    "planet": "Venus",
+    "first_ontopic_rank": 1,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "Moon",
+    "planet": "Mars",
+    "first_ontopic_rank": 1,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "Moon",
+    "planet": "Jupiter",
+    "first_ontopic_rank": 1,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "Moon",
+    "planet": "Saturn",
+    "first_ontopic_rank": 1,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "NorthNode",
+    "planet": "Sun",
+    "first_ontopic_rank": 10,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "NorthNode",
+    "planet": "Moon",
+    "first_ontopic_rank": 1,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "NorthNode",
+    "planet": "Mercury",
+    "first_ontopic_rank": 1,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "NorthNode",
+    "planet": "Venus",
+    "first_ontopic_rank": 3,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "NorthNode",
+    "planet": "Mars",
+    "first_ontopic_rank": 1,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "NorthNode",
+    "planet": "Jupiter",
+    "first_ontopic_rank": 1,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "NorthNode",
+    "planet": "Saturn",
+    "first_ontopic_rank": 2,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "SouthNode",
+    "planet": "Sun",
+    "first_ontopic_rank": 1,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "SouthNode",
+    "planet": "Moon",
+    "first_ontopic_rank": 1,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "SouthNode",
+    "planet": "Mercury",
+    "first_ontopic_rank": 1,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "SouthNode",
+    "planet": "Venus",
+    "first_ontopic_rank": 1,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "SouthNode",
+    "planet": "Mars",
+    "first_ontopic_rank": 1,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "SouthNode",
+    "planet": "Jupiter",
+    "first_ontopic_rank": 1,
+    "chunks_checked": 10
+  },
+  {
+    "anchor": "SouthNode",
+    "planet": "Saturn",
+    "first_ontopic_rank": 2,
+    "chunks_checked": 10
+  }
+]
