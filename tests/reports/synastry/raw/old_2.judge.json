@@ -1,0 +1,99 @@
+{
+  "per_aspect": [
+    {
+      "aspect": "Меркурий Соединение Южный Узел (орб 4.23°)",
+      "fidelity": "grounded",
+      "depth": "substantive",
+      "note": "Связь с прошлым через Южный Узел подтверждена."
+    },
+    {
+      "aspect": "Нептун Соединение Южный Узел (орб 3.17°)",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    },
+    {
+      "aspect": "Меркурий Оппозиция Северный Узел (орб 4.23°)",
+      "fidelity": "missing",
+      "depth": "missing"
+    },
+    {
+      "aspect": "Плутон Оппозиция Хирон (орб 4.45°)",
+      "fidelity": "grounded",
+      "depth": "substantive",
+      "note": "Подробный разбор раны Хирона и влияния Плутона."
+    },
+    {
+      "aspect": "Солнце Тригон Меркурий (орб 5.84°)",
+      "fidelity": "unsupported",
+      "depth": "missing"
+    },
+    {
+      "aspect": "Луна Тригон Южный Узел (орб 0.83°)",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    },
+    {
+      "aspect": "Венера Тригон Марс (орб 0.19°)",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    },
+    {
+      "aspect": "Сатурн Тригон Хирон (орб 4.59°)",
+      "fidelity": "missing",
+      "depth": "missing"
+    },
+    {
+      "aspect": "Нептун Тригон Солнце (орб 1.25°)",
+      "fidelity": "unsupported",
+      "depth": "missing"
+    },
+    {
+      "aspect": "Солнце Квадрат Плутон (орб 0.23°)",
+      "fidelity": "grounded",
+      "depth": "substantive",
+      "note": "Подробный разбор конфликта эго и трансформации."
+    },
+    {
+      "aspect": "Венера Квадрат Плутон (орб 5.71°)",
+      "fidelity": "grounded",
+      "depth": "substantive",
+      "note": "Трансформация любви через квадрат Венеры и Плутона."
+    },
+    {
+      "aspect": "Уран Квадрат Марс (орб 5.61°)",
+      "fidelity": "grounded",
+      "depth": "substantive",
+      "note": "Разбор напряжённости и непредсказуемости."
+    },
+    {
+      "aspect": "Северный Узел Квадрат Хирон (орб 5.3°)",
+      "fidelity": "missing",
+      "depth": "missing"
+    },
+    {
+      "aspect": "Хирон Квадрат Сатурн (орб 4.35°)",
+      "fidelity": "unsupported",
+      "depth": "missing"
+    },
+    {
+      "aspect": "Венера Секстиль Венера (орб 3.57°)",
+      "fidelity": "missing",
+      "depth": "missing"
+    },
+    {
+      "aspect": "Марс Секстиль Плутон (орб 5.34°)",
+      "fidelity": "unsupported",
+      "depth": "generic"
+    },
+    {
+      "aspect": "Плутон Секстиль Южный Узел (орб 1.7°)",
+      "fidelity": "missing",
+      "depth": "missing"
+    }
+  ],
+  "book_fidelity_score": 3,
+  "depth_score": 2,
+  "overall_notes": "Анализ часто не поддержан фрагментами книги, но не противоречит им. Глубина анализа варьируется, часто отсутствует конкретика аспектов.",
+  "_sample_size": 17,
+  "_judge_model": "gpt-4o"
+}

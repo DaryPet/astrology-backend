@@ -1,0 +1,28 @@
+{
+  "_comment": "Fixed synastry test pair for eval_synastry.py. Sourced from existing dev-fixture users in astrology.db (ids 1 and 5) -- the only two with a real birth_time on record. Coordinates are hardcoded so the run bypasses the geocoder (deterministic, no network dependency for this step).",
+  "chart1": {
+    "label": "Test User (fixture user id=1)",
+    "birth_date": "1990-01-15T10:00:00",
+    "birth_time": "10:00",
+    "birth_place": "Moscow, Russia",
+    "latitude": 55.7558,
+    "longitude": 37.6173,
+    "timezone": "Europe/Moscow",
+    "house_system": "Placidus"
+  },
+  "chart2": {
+    "label": "нф (fixture user id=5)",
+    "birth_date": "1982-05-02T04:50:00",
+    "birth_time": "04:50",
+    "birth_place": "Dobropillya, Ukraine",
+    "latitude": 48.4572,
+    "longitude": 37.1167,
+    "timezone": "Europe/Kyiv",
+    "house_system": "Placidus"
+  },
+  "overlays": null,
+  "language": "ru",
+  "top_k_per_book": 3,
+  "mode": "advanced",
+  "relationship_context": "default"
+}

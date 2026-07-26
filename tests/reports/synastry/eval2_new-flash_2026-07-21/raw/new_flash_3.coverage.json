@@ -1,0 +1,316 @@
+{
+  "total_aspects": 51,
+  "covered": 28,
+  "shallow": 6,
+  "missing": 17,
+  "coverage_pct": 54.9,
+  "covered_or_shallow_pct": 66.7,
+  "per_aspect": [
+    {
+      "aspect": "Меркурий Соединение Южный Узел",
+      "orb": 4.23,
+      "status": "covered",
+      "best_paragraph_chars": 492
+    },
+    {
+      "aspect": "Марс Соединение Лилит",
+      "orb": 4.73,
+      "status": "covered",
+      "best_paragraph_chars": 377
+    },
+    {
+      "aspect": "Сатурн Соединение Южный Узел",
+      "orb": 1.56,
+      "status": "covered",
+      "best_paragraph_chars": 661
+    },
+    {
+      "aspect": "Нептун Соединение Южный Узел",
+      "orb": 3.17,
+      "status": "covered",
+      "best_paragraph_chars": 577
+    },
+    {
+      "aspect": "Лилит Соединение Юпитер",
+      "orb": 3.32,
+      "status": "missing",
+      "best_paragraph_chars": 0
+    },
+    {
+      "aspect": "Хирон Соединение Северный Узел",
+      "orb": 2.85,
+      "status": "covered",
+      "best_paragraph_chars": 539
+    },
+    {
+      "aspect": "Меркурий Оппозиция Северный Узел",
+      "orb": 4.23,
+      "status": "covered",
+      "best_paragraph_chars": 442
+    },
+    {
+      "aspect": "Сатурн Оппозиция Северный Узел",
+      "orb": 1.56,
+      "status": "covered",
+      "best_paragraph_chars": 465
+    },
+    {
+      "aspect": "Нептун Оппозиция Северный Узел",
+      "orb": 3.17,
+      "status": "covered",
+      "best_paragraph_chars": 413
+    },
+    {
+      "aspect": "Плутон Оппозиция Хирон",
+      "orb": 4.45,
+      "status": "covered",
+      "best_paragraph_chars": 810
+    },
+    {
+      "aspect": "Лилит Оппозиция Солнце",
+      "orb": 3.3,
+      "status": "missing",
+      "best_paragraph_chars": 0
+    },
+    {
+      "aspect": "Хирон Оппозиция Южный Узел",
+      "orb": 2.85,
+      "status": "covered",
+      "best_paragraph_chars": 463
+    },
+    {
+      "aspect": "Солнце Тригон Меркурий",
+      "orb": 5.84,
+      "status": "missing",
+      "best_paragraph_chars": 0
+    },
+    {
+      "aspect": "Солнце Тригон Хирон",
+      "orb": 2.99,
+      "status": "covered",
+      "best_paragraph_chars": 311
+    },
+    {
+      "aspect": "Луна Тригон Солнце",
+      "orb": 3.59,
+      "status": "missing",
+      "best_paragraph_chars": 0
+    },
+    {
+      "aspect": "Луна Тригон Южный Узел",
+      "orb": 0.83,
+      "status": "covered",
+      "best_paragraph_chars": 365
+    },
+    {
+      "aspect": "Меркурий Тригон Солнце",
+      "orb": 0.19,
+      "status": "missing",
+      "best_paragraph_chars": 0
+    },
+    {
+      "aspect": "Венера Тригон Меркурий",
+      "orb": 0.1,
+      "status": "missing",
+      "best_paragraph_chars": 0
+    },
+    {
+      "aspect": "Венера Тригон Марс",
+      "orb": 0.19,
+      "status": "missing",
+      "best_paragraph_chars": 0
+    },
+    {
+      "aspect": "Юпитер Тригон Юпитер",
+      "orb": 1.3,
+      "status": "covered",
+      "best_paragraph_chars": 291
+    },
+    {
+      "aspect": "Сатурн Тригон Солнце",
+      "orb": 5.98,
+      "status": "covered",
+      "best_paragraph_chars": 311
+    },
+    {
+      "aspect": "Сатурн Тригон Хирон",
+      "orb": 4.59,
+      "status": "covered",
+      "best_paragraph_chars": 311
+    },
+    {
+      "aspect": "Уран Тригон Солнце",
+      "orb": 4.7,
+      "status": "missing",
+      "best_paragraph_chars": 0
+    },
+    {
+      "aspect": "Уран Тригон Луна",
+      "orb": 5.99,
+      "status": "missing",
+      "best_paragraph_chars": 0
+    },
+    {
+      "aspect": "Нептун Тригон Солнце",
+      "orb": 1.25,
+      "status": "shallow",
+      "best_paragraph_chars": 215
+    },
+    {
+      "aspect": "Плутон Тригон Северный Узел",
+      "orb": 1.7,
+      "status": "covered",
+      "best_paragraph_chars": 296
+    },
+    {
+      "aspect": "Северный Узел Тригон Сатурн",
+      "orb": 0.65,
+      "status": "covered",
+      "best_paragraph_chars": 465
+    },
+    {
+      "aspect": "Солнце Квадрат Плутон",
+      "orb": 0.23,
+      "status": "covered",
+      "best_paragraph_chars": 920
+    },
+    {
+      "aspect": "Меркурий Квадрат Сатурн",
+      "orb": 5.73,
+      "status": "covered",
+      "best_paragraph_chars": 264
+    },
+    {
+      "aspect": "Венера Квадрат Юпитер",
+      "orb": 3.88,
+      "status": "missing",
+      "best_paragraph_chars": 0
+    },
+    {
+      "aspect": "Венера Квадрат Плутон",
+      "orb": 5.71,
+      "status": "missing",
+      "best_paragraph_chars": 0
+    },
+    {
+      "aspect": "Юпитер Квадрат Марс",
+      "orb": 2.4,
+      "status": "shallow",
+      "best_paragraph_chars": 111
+    },
+    {
+      "aspect": "Сатурн Квадрат Сатурн",
+      "orb": 0.06,
+      "status": "missing",
+      "best_paragraph_chars": 0
+    },
+    {
+      "aspect": "Уран Квадрат Марс",
+      "orb": 5.61,
+      "status": "missing",
+      "best_paragraph_chars": 0
+    },
+    {
+      "aspect": "Нептун Квадрат Сатурн",
+      "orb": 4.67,
+      "status": "shallow",
+      "best_paragraph_chars": 114
+    },
+    {
+      "aspect": "Северный Узел Квадрат Солнце",
+      "orb": 5.27,
+      "status": "shallow",
+      "best_paragraph_chars": 215
+    },
+    {
+      "aspect": "Северный Узел Квадрат Хирон",
+      "orb": 5.3,
+      "status": "covered",
+      "best_paragraph_chars": 539
+    },
+    {
+      "aspect": "Южный Узел Квадрат Солнце",
+      "orb": 5.27,
+      "status": "shallow",
+      "best_paragraph_chars": 93
+    },
+    {
+      "aspect": "Южный Узел Квадрат Хирон",
+      "orb": 5.3,
+      "status": "covered",
+      "best_paragraph_chars": 242
+    },
+    {
+      "aspect": "Хирон Квадрат Сатурн",
+      "orb": 4.35,
+      "status": "covered",
+      "best_paragraph_chars": 311
+    },
+    {
+      "aspect": "Солнце Секстиль Венера",
+      "orb": 2.37,
+      "status": "covered",
+      "best_paragraph_chars": 281
+    },
+    {
+      "aspect": "Луна Секстиль Северный Узел",
+      "orb": 0.83,
+      "status": "covered",
+      "best_paragraph_chars": 309
+    },
+    {
+      "aspect": "Венера Секстиль Венера",
+      "orb": 3.57,
+      "status": "missing",
+      "best_paragraph_chars": 0
+    },
+    {
+      "aspect": "Венера Секстиль Уран",
+      "orb": 2.7,
+      "status": "covered",
+      "best_paragraph_chars": 228
+    },
+    {
+      "aspect": "Марс Секстиль Сатурн",
+      "orb": 2.53,
+      "status": "missing",
+      "best_paragraph_chars": 0
+    },
+    {
+      "aspect": "Марс Секстиль Плутон",
+      "orb": 5.34,
+      "status": "covered",
+      "best_paragraph_chars": 467
+    },
+    {
+      "aspect": "Юпитер Секстиль Луна",
+      "orb": 2.78,
+      "status": "missing",
+      "best_paragraph_chars": 0
+    },
+    {
+      "aspect": "Уран Секстиль Юпитер",
+      "orb": 1.91,
+      "status": "shallow",
+      "best_paragraph_chars": 154
+    },
+    {
+      "aspect": "Плутон Секстиль Южный Узел",
+      "orb": 1.7,
+      "status": "missing",
+      "best_paragraph_chars": 0
+    },
+    {
+      "aspect": "Южный Узел Секстиль Сатурн",
+      "orb": 0.65,
+      "status": "covered",
+      "best_paragraph_chars": 661
+    },
+    {
+      "aspect": "Хирон Секстиль Солнце",
+      "orb": 1.57,
+      "status": "covered",
+      "best_paragraph_chars": 311
+    }
+  ]
+}

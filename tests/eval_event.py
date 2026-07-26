@@ -1,13 +1,14 @@
-"""Прогон карт событий по датасету матчей + отчёты для evals.
+"""Run event charts over the matches dataset + eval reports.
 
-НЕ pytest: это измеритель, а не «прошёл/упал». Запуск:
+NOT pytest: this is a measurement tool, not pass/fail. Run:
 
     ./venv/bin/python tests/eval_event.py
     ./venv/bin/python tests/eval_event.py --ablate dignity
 
-Повторяет продакшен-путь event-эндпоинта (app/api/endpoints.py:2055-2108)
-шаг в шаг, но без async/LLM/RAG/кэша: скоринг живёт в judge_event_chart,
-она синхронная и чистая. См. plans/event-chart-tests-and-evals.md.
+Mirrors the production event-endpoint path (app/api/endpoints.py:2055-2108)
+step by step, but without async/LLM/RAG/cache: scoring lives in
+judge_event_chart, which is synchronous and pure. See
+plans/event-chart-tests-and-evals.md.
 """
 from __future__ import annotations
 
@@ -27,12 +28,12 @@ sys.path.insert(0, str(ROOT))
 DATA_DIR = Path(__file__).parent / 'data'
 REPORT_DIR = Path(__file__).parent / 'reports'
 MATCHES_FILE = DATA_DIR / 'matches.json'
-# Геокодер ходит в сеть (Nominatim, ~1 запрос/сек). Кэшируем на диск: без
-# этого каждый прогон — а для абляции их нужно много — заново долбит сеть.
+# Geocoder hits the network (Nominatim, ~1 request/sec). Cache to disk: without
+# this, every run — and ablation needs many of them — hammers the network again.
 GEOCODE_CACHE = DATA_DIR / 'geocode_cache.json'
 
 OUTCOMES = ('favourite', 'underdog', 'draw')
-# Какой реальный исход считается угаданным для каждого match_type.
+# Which real outcome counts as a hit for each match_type.
 MATCH_TYPE_TO_OUTCOME = {
     'comfortable_win': 'favourite',
     'advantage': 'favourite',
@@ -54,13 +55,13 @@ def _save_geocode_cache(cache: Dict[str, List[float]]) -> None:
 
 
 def resolve_coordinates(place: str, cache: Dict[str, List[float]]) -> Tuple[float, float]:
-    """Тот же геокодер, что в продакшене (get_coordinates в endpoints.py),
-    поверх дискового кэша по строке места."""
+    """Same geocoder as production (get_coordinates in endpoints.py),
+    backed by a disk cache keyed by place string."""
     key = place.lower().strip()
     if key in cache:
         lat, lon = cache[key]
         return lat, lon
-    from app.api.endpoints import get_coordinates  # ленивый импорт: тянет FastAPI
+    from app.api.endpoints import get_coordinates  # lazy import: pulls in FastAPI
     lat, lon = get_coordinates(place)
     cache[key] = [lat, lon]
     return lat, lon
@@ -68,11 +69,12 @@ def resolve_coordinates(place: str, cache: Dict[str, List[float]]) -> Tuple[floa
 
 def build_judgement(match: Dict[str, Any], cache: Dict[str, List[float]],
                      language: str = 'ru') -> Optional[Dict[str, Any]]:
-    """Карта события на момент+место матча и суждение по ней.
+    """Event chart for the match's moment+place, and the judgement for it.
 
-    Повторяет endpoints.py:2055-2108. Натальной карты в методе нет:
-    calculate_transits — общая утилита, момент матча передаётся ей и как
-    birth_date, и как target_date, чтобы получить карту на один момент.
+    Mirrors endpoints.py:2055-2108. There is no natal chart in this method:
+    calculate_transits is a generic utility, and the match moment is passed
+    to it both as birth_date and as target_date, to get a chart for a single
+    moment.
     """
     from app.utils.astrology_v2 import calculate_transits
     from app.services.daily_forecast_service import judge_event_chart
@@ -90,10 +92,10 @@ def build_judgement(match: Dict[str, Any], cache: Dict[str, List[float]],
         lat=lat,
         lon=lon,
         timezone_str=match['timezone'],
-        house_system='Placidus',       # карта события всегда по Плацидусу
+        house_system='Placidus',       # event charts always use Placidus
         transit_lat=lat,
         transit_lon=lon,
-        exact_time=True,               # обязателен: иначе 00:00 уедет на полдень
+        exact_time=True,               # required: otherwise 00:00 drifts to noon
     )
     if not transits.get('transit_houses'):
         return None
@@ -106,9 +108,9 @@ def build_judgement(match: Dict[str, Any], cache: Dict[str, List[float]],
 
 
 def apply_ablation(card: Dict[str, Any], kind: str) -> None:
-    """Обнулить вес всех показаний данного вида — «а что если убрать это
-    свидетельство». Мутирует карточку на месте; вердикт после этого
-    пересчитывается заново."""
+    """Zero out the weight of all showings of this kind — "what if we removed
+    this piece of evidence". Mutates the card in place; the verdict is then
+    recomputed from scratch."""
     for side_key in ('favourite', 'underdog'):
         side = card.get(side_key)
         for s in (side or {}).get('showings', []) or []:
@@ -121,7 +123,7 @@ def apply_ablation(card: Dict[str, Any], kind: str) -> None:
 
 def evaluate(matches: List[Dict[str, Any]], ablate: Optional[str] = None
              ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-    """-> (строки по матчам, строки по свидетельствам)."""
+    """-> (per-match rows, per-testimony rows)."""
     from app.services.daily_forecast_service import _card_match_type, _card_verdict
 
     cache = _load_geocode_cache()
@@ -194,33 +196,34 @@ def _write_csv(path: Path, rows: List[Dict[str, Any]], columns: List[str]) -> No
 
 def build_summary(results: List[Dict[str, Any]], testimony_rows: List[Dict[str, Any]]) -> str:
     scored = [r for r in results if r['hit'] != '']
-    lines = ['# Сводка прогона', '']
-    lines.append(f"Матчей в датасете: {len(results)}")
-    lines.append(f"С известным исходом: {len(scored)}")
+    lines = ['# Run summary', '']
+    lines.append(f"Matches in dataset: {len(results)}")
+    lines.append(f"With known outcome: {len(scored)}")
 
     if not scored:
-        lines += ['', 'Реальных исходов нет — считается только распределение прогнозов.', '']
+        lines += ['', 'No real outcomes — only the prediction distribution is counted.', '']
         dist = defaultdict(int)
         for r in results:
             dist[r['match_type']] += 1
-        lines.append('| match_type | матчей |')
+        lines.append('| match_type | matches |')
         lines.append('|---|---|')
         for mt, n in sorted(dist.items(), key=lambda kv: -kv[1]):
             lines.append(f'| {mt} | {n} |')
         return '\n'.join(lines) + '\n'
 
     hits = sum(r['hit'] for r in scored)
-    # Baseline: «всегда фаворит». Без него процент метода не читается — если
-    # метод не бьёт baseline, он не даёт ничего сверх ставки на фаворита.
+    # Baseline: "always favourite". Without it the method's percentage is
+    # meaningless — if the method doesn't beat the baseline, it adds nothing
+    # over just betting on the favourite.
     baseline = sum(1 for r in scored if r['outcome'] == 'favourite')
     lines += [
         '',
-        f"**Точность метода: {hits}/{len(scored)} = {hits / len(scored):.1%}**",
-        f"**Baseline «всегда фаворит»: {baseline}/{len(scored)} = {baseline / len(scored):.1%}**",
+        f"**Method accuracy: {hits}/{len(scored)} = {hits / len(scored):.1%}**",
+        f"**Baseline \"always favourite\": {baseline}/{len(scored)} = {baseline / len(scored):.1%}**",
         '',
-        '## По типу прогноза',
+        '## By prediction type',
         '',
-        '| match_type | матчей | попали | % |',
+        '| match_type | matches | hits | % |',
         '|---|---|---|---|',
     ]
     by_type: Dict[str, List[int]] = defaultdict(list)
@@ -229,8 +232,8 @@ def build_summary(results: List[Dict[str, Any]], testimony_rows: List[Dict[str, 
     for mt, hs in sorted(by_type.items(), key=lambda kv: -len(kv[1])):
         lines.append(f'| {mt} | {len(hs)} | {sum(hs)} | {sum(hs) / len(hs):.0%} |')
 
-    lines += ['', '## По свидетельству', '',
-              '| вид | встретилось | попали | % |', '|---|---|---|---|']
+    lines += ['', '## By testimony', '',
+              '| kind | seen | hits | % |', '|---|---|---|---|']
     by_kind: Dict[str, List[int]] = defaultdict(list)
     for t in testimony_rows:
         if t['hit'] != '' and t['weight']:
@@ -238,12 +241,12 @@ def build_summary(results: List[Dict[str, Any]], testimony_rows: List[Dict[str, 
     for kind, hs in sorted(by_kind.items(), key=lambda kv: -len(kv[1])):
         lines.append(f'| {kind} | {len(hs)} | {sum(hs)} | {sum(hs) / len(hs):.0%} |')
 
-    lines += ['', '## По источнику', '',
-              '| source | встретилось | попали | % |', '|---|---|---|---|']
+    lines += ['', '## By source', '',
+              '| source | seen | hits | % |', '|---|---|---|---|']
     by_source: Dict[str, List[int]] = defaultdict(list)
     for t in testimony_rows:
         if t['hit'] != '' and t['weight']:
-            by_source[t['source'] or '(нет)'].append(t['hit'])
+            by_source[t['source'] or '(none)'].append(t['hit'])
     for src, hs in sorted(by_source.items(), key=lambda kv: -len(kv[1])):
         lines.append(f'| {src} | {len(hs)} | {sum(hs)} | {sum(hs) / len(hs):.0%} |')
 
@@ -251,20 +254,20 @@ def build_summary(results: List[Dict[str, Any]], testimony_rows: List[Dict[str, 
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description='Прогон карт событий по датасету')
-    parser.add_argument('--matches', default=str(MATCHES_FILE), help='JSON с матчами')
+    parser = argparse.ArgumentParser(description='Run event charts over the matches dataset')
+    parser.add_argument('--matches', default=str(MATCHES_FILE), help='JSON file with matches')
     parser.add_argument('--ablate', default=None,
-                        help="обнулить вес показаний этого вида (напр. dignity, house_strength)")
-    parser.add_argument('--out', default=str(REPORT_DIR), help='куда писать отчёты')
+                        help="zero out the weight of showings of this kind (e.g. dignity, house_strength)")
+    parser.add_argument('--out', default=str(REPORT_DIR), help='where to write reports')
     args = parser.parse_args()
 
     matches_path = Path(args.matches)
     if not matches_path.exists():
-        print(f"Нет файла с матчами: {matches_path}")
+        print(f"Matches file not found: {matches_path}")
         return 1
     matches = json.loads(matches_path.read_text(encoding='utf-8'))
     if not matches:
-        print(f"{matches_path} пуст — положи туда матчи.")
+        print(f"{matches_path} is empty — put some matches in it.")
         return 1
 
     results, testimony_rows = evaluate(matches, ablate=args.ablate)
@@ -280,7 +283,7 @@ def main() -> int:
     (out / f'summary{suffix}.md').write_text(summary, encoding='utf-8')
 
     print(summary)
-    print(f"Отчёты: {out}")
+    print(f"Reports: {out}")
     return 0
 
 

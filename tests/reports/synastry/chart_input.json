@@ -1,0 +1,1360 @@
+{
+  "chart1_data": {
+    "sun_sign": "Capricorn",
+    "sun_sign_ru": "Козерог",
+    "moon_sign": "Virgo",
+    "moon_sign_ru": "Дева",
+    "ascendant": "Aquarius",
+    "ascendant_ru": "Водолей",
+    "ascendant_degree": 24.7798,
+    "mc": "Sagittarius",
+    "mc_ru": "Стрелец",
+    "mc_degree": 18.3456,
+    "planets": {
+      "Sun": {
+        "planet": "Sun",
+        "sign": "Capricorn",
+        "sign_ru": "Козерог",
+        "degree": 24.8668,
+        "full_degree": 294.8668,
+        "speed": 1.0182,
+        "is_retrograde": false,
+        "house": 12
+      },
+      "Moon": {
+        "planet": "Moon",
+        "sign": "Virgo",
+        "sign_ru": "Дева",
+        "degree": 14.9005,
+        "full_degree": 164.9005,
+        "speed": 12.553,
+        "is_retrograde": false,
+        "house": 7
+      },
+      "Mercury": {
+        "planet": "Mercury",
+        "sign": "Capricorn",
+        "sign_ru": "Козерог",
+        "degree": 11.4973,
+        "full_degree": 281.4973,
+        "speed": -0.7534,
+        "is_retrograde": true,
+        "house": 11
+      },
+      "Venus": {
+        "planet": "Venus",
+        "sign": "Aquarius",
+        "sign_ru": "Водолей",
+        "degree": 0.8087,
+        "full_degree": 300.8087,
+        "speed": -0.5912,
+        "is_retrograde": true,
+        "house": 12
+      },
+      "Mars": {
+        "planet": "Mars",
+        "sign": "Sagittarius",
+        "sign_ru": "Стрелец",
+        "degree": 19.7613,
+        "full_degree": 259.7613,
+        "speed": 0.7118,
+        "is_retrograde": false,
+        "house": 10
+      },
+      "Jupiter": {
+        "planet": "Jupiter",
+        "sign": "Cancer",
+        "sign_ru": "Рак",
+        "degree": 3.3904,
+        "full_degree": 93.3904,
+        "speed": -0.1176,
+        "is_retrograde": true,
+        "house": 4
+      },
+      "Saturn": {
+        "planet": "Saturn",
+        "sign": "Capricorn",
+        "sign_ru": "Козерог",
+        "degree": 17.29,
+        "full_degree": 287.29,
+        "speed": 0.1178,
+        "is_retrograde": false,
+        "house": 11
+      },
+      "Uranus": {
+        "planet": "Uranus",
+        "sign": "Capricorn",
+        "sign_ru": "Козерог",
+        "degree": 6.6013,
+        "full_degree": 276.6013,
+        "speed": 0.0579,
+        "is_retrograde": false,
+        "house": 11
+      },
+      "Neptune": {
+        "planet": "Neptune",
+        "sign": "Capricorn",
+        "sign_ru": "Козерог",
+        "degree": 12.5581,
+        "full_degree": 282.5581,
+        "speed": 0.0372,
+        "is_retrograde": false,
+        "house": 11
+      },
+      "Pluto": {
+        "planet": "Pluto",
+        "sign": "Scorpio",
+        "sign_ru": "Скорпион",
+        "degree": 17.424,
+        "full_degree": 227.424,
+        "speed": 0.0204,
+        "is_retrograde": false,
+        "house": 8
+      },
+      "NorthNode": {
+        "planet": "NorthNode",
+        "sign": "Aquarius",
+        "sign_ru": "Водолей",
+        "degree": 16.5745,
+        "full_degree": 316.5745,
+        "speed": 0.0289,
+        "is_retrograde": true,
+        "house": 12
+      },
+      "Lilith": {
+        "planet": "Lilith",
+        "sign": "Scorpio",
+        "sign_ru": "Скорпион",
+        "degree": 8.0092,
+        "full_degree": 218.0092,
+        "speed": 0.112,
+        "is_retrograde": false,
+        "house": 8
+      },
+      "SouthNode": {
+        "planet": "SouthNode",
+        "sign": "Leo",
+        "sign_ru": "Лев",
+        "degree": 16.5745,
+        "full_degree": 136.5745,
+        "speed": -0.0289,
+        "is_retrograde": true,
+        "house": 6
+      },
+      "Chiron": {
+        "planet": "Chiron",
+        "sign": "Cancer",
+        "sign_ru": "Рак",
+        "degree": 12.8736,
+        "full_degree": 102.8736,
+        "speed": -0.0667,
+        "is_retrograde": true,
+        "house": 5
+      }
+    },
+    "houses": {
+      "1": {
+        "house": 1,
+        "name_en": "1st House",
+        "name_ru": "Дом 1",
+        "cusp_longitude": 324.7798,
+        "sign": "Aquarius",
+        "sign_ru": "Водолей",
+        "degree": 24.7798
+      },
+      "2": {
+        "house": 2,
+        "name_en": "2nd House",
+        "name_ru": "Дом 2",
+        "cusp_longitude": 31.6893,
+        "sign": "Taurus",
+        "sign_ru": "Телец",
+        "degree": 1.6893
+      },
+      "3": {
+        "house": 3,
+        "name_en": "3rd House",
+        "name_ru": "Дом 3",
+        "cusp_longitude": 60.4279,
+        "sign": "Gemini",
+        "sign_ru": "Близнецы",
+        "degree": 0.4279
+      },
+      "4": {
+        "house": 4,
+        "name_en": "4th House",
+        "name_ru": "Дом 4",
+        "cusp_longitude": 78.3456,
+        "sign": "Gemini",
+        "sign_ru": "Близнецы",
+        "degree": 18.3456
+      },
+      "5": {
+        "house": 5,
+        "name_en": "5th House",
+        "name_ru": "Дом 5",
+        "cusp_longitude": 93.8382,
+        "sign": "Cancer",
+        "sign_ru": "Рак",
+        "degree": 3.8382
+      },
+      "6": {
+        "house": 6,
+        "name_en": "6th House",
+        "name_ru": "Дом 6",
+        "cusp_longitude": 111.7488,
+        "sign": "Cancer",
+        "sign_ru": "Рак",
+        "degree": 21.7488
+      },
+      "7": {
+        "house": 7,
+        "name_en": "7th House",
+        "name_ru": "Дом 7",
+        "cusp_longitude": 144.7798,
+        "sign": "Leo",
+        "sign_ru": "Лев",
+        "degree": 24.7798
+      },
+      "8": {
+        "house": 8,
+        "name_en": "8th House",
+        "name_ru": "Дом 8",
+        "cusp_longitude": 211.6893,
+        "sign": "Scorpio",
+        "sign_ru": "Скорпион",
+        "degree": 1.6893
+      },
+      "9": {
+        "house": 9,
+        "name_en": "9th House",
+        "name_ru": "Дом 9",
+        "cusp_longitude": 240.4279,
+        "sign": "Sagittarius",
+        "sign_ru": "Стрелец",
+        "degree": 0.4279
+      },
+      "10": {
+        "house": 10,
+        "name_en": "10th House",
+        "name_ru": "Дом 10",
+        "cusp_longitude": 258.3456,
+        "sign": "Sagittarius",
+        "sign_ru": "Стрелец",
+        "degree": 18.3456
+      },
+      "11": {
+        "house": 11,
+        "name_en": "11th House",
+        "name_ru": "Дом 11",
+        "cusp_longitude": 273.8382,
+        "sign": "Capricorn",
+        "sign_ru": "Козерог",
+        "degree": 3.8382
+      },
+      "12": {
+        "house": 12,
+        "name_en": "12th House",
+        "name_ru": "Дом 12",
+        "cusp_longitude": 291.7488,
+        "sign": "Capricorn",
+        "sign_ru": "Козерог",
+        "degree": 21.7488
+      }
+    },
+    "houses_meta": {
+      "house_system": "Placidus",
+      "armc": 257.3296,
+      "vertex": {
+        "longitude": 169.3457,
+        "house": 7
+      },
+      "pars_fortuna": {
+        "longitude": 94.7461,
+        "sign": "Cancer",
+        "sign_ru": "Рак",
+        "degree": 4.7461,
+        "house": 5
+      }
+    },
+    "meta": {
+      "birth_date": "1990-01-15T10:00:00",
+      "birth_place": "Moscow, Russia",
+      "latitude": 55.7558,
+      "longitude": 37.6173,
+      "timezone": "Europe/Moscow",
+      "jd": 2447906.792329
+    },
+    "aspects": [
+      {
+        "planet1": "NorthNode",
+        "planet2": "SouthNode",
+        "aspect": "Opposition",
+        "aspect_ru": "Оппозиция",
+        "orb": 0.0,
+        "exactness": 100.0
+      },
+      {
+        "planet1": "Saturn",
+        "planet2": "Pluto",
+        "aspect": "Sextile",
+        "aspect_ru": "Секстиль",
+        "orb": 0.13,
+        "exactness": 97.8
+      },
+      {
+        "planet1": "Neptune",
+        "planet2": "Chiron",
+        "aspect": "Opposition",
+        "aspect_ru": "Оппозиция",
+        "orb": 0.32,
+        "exactness": 94.7
+      },
+      {
+        "planet1": "Pluto",
+        "planet2": "NorthNode",
+        "aspect": "Square",
+        "aspect_ru": "Квадрат",
+        "orb": 0.85,
+        "exactness": 85.8
+      },
+      {
+        "planet1": "Pluto",
+        "planet2": "SouthNode",
+        "aspect": "Square",
+        "aspect_ru": "Квадрат",
+        "orb": 0.85,
+        "exactness": 85.8
+      },
+      {
+        "planet1": "Mercury",
+        "planet2": "Neptune",
+        "aspect": "Conjunction",
+        "aspect_ru": "Соединение",
+        "orb": 1.06,
+        "exactness": 82.3
+      },
+      {
+        "planet1": "Mercury",
+        "planet2": "Chiron",
+        "aspect": "Opposition",
+        "aspect_ru": "Оппозиция",
+        "orb": 1.38,
+        "exactness": 77.1
+      },
+      {
+        "planet1": "Uranus",
+        "planet2": "Lilith",
+        "aspect": "Sextile",
+        "aspect_ru": "Секстиль",
+        "orb": 1.41,
+        "exactness": 76.5
+      },
+      {
+        "planet1": "Moon",
+        "planet2": "Saturn",
+        "aspect": "Trine",
+        "aspect_ru": "Тригон",
+        "orb": 2.39,
+        "exactness": 70.1
+      },
+      {
+        "planet1": "Moon",
+        "planet2": "Chiron",
+        "aspect": "Sextile",
+        "aspect_ru": "Секстиль",
+        "orb": 2.03,
+        "exactness": 66.2
+      },
+      {
+        "planet1": "Moon",
+        "planet2": "Neptune",
+        "aspect": "Trine",
+        "aspect_ru": "Тригон",
+        "orb": 2.34,
+        "exactness": 61.0
+      },
+      {
+        "planet1": "Moon",
+        "planet2": "Pluto",
+        "aspect": "Sextile",
+        "aspect_ru": "Секстиль",
+        "orb": 2.52,
+        "exactness": 57.9
+      },
+      {
+        "planet1": "Mars",
+        "planet2": "NorthNode",
+        "aspect": "Sextile",
+        "aspect_ru": "Секстиль",
+        "orb": 3.19,
+        "exactness": 46.9
+      },
+      {
+        "planet1": "Mars",
+        "planet2": "SouthNode",
+        "aspect": "Trine",
+        "aspect_ru": "Тригон",
+        "orb": 3.19,
+        "exactness": 46.9
+      },
+      {
+        "planet1": "Jupiter",
+        "planet2": "Uranus",
+        "aspect": "Opposition",
+        "aspect_ru": "Оппозиция",
+        "orb": 3.21,
+        "exactness": 46.5
+      },
+      {
+        "planet1": "Moon",
+        "planet2": "Mercury",
+        "aspect": "Trine",
+        "aspect_ru": "Тригон",
+        "orb": 3.4,
+        "exactness": 43.3
+      },
+      {
+        "planet1": "Mercury",
+        "planet2": "Lilith",
+        "aspect": "Sextile",
+        "aspect_ru": "Секстиль",
+        "orb": 3.49,
+        "exactness": 41.9
+      },
+      {
+        "planet1": "Saturn",
+        "planet2": "Chiron",
+        "aspect": "Opposition",
+        "aspect_ru": "Оппозиция",
+        "orb": 4.42,
+        "exactness": 26.4
+      },
+      {
+        "planet1": "Sun",
+        "planet2": "Venus",
+        "aspect": "Conjunction",
+        "aspect_ru": "Соединение",
+        "orb": 5.94,
+        "exactness": 25.7
+      },
+      {
+        "planet1": "Neptune",
+        "planet2": "Lilith",
+        "aspect": "Sextile",
+        "aspect_ru": "Секстиль",
+        "orb": 4.55,
+        "exactness": 24.2
+      },
+      {
+        "planet1": "Pluto",
+        "planet2": "Chiron",
+        "aspect": "Trine",
+        "aspect_ru": "Тригон",
+        "orb": 4.55,
+        "exactness": 24.2
+      },
+      {
+        "planet1": "Jupiter",
+        "planet2": "Lilith",
+        "aspect": "Trine",
+        "aspect_ru": "Тригон",
+        "orb": 4.62,
+        "exactness": 23.0
+      },
+      {
+        "planet1": "Saturn",
+        "planet2": "Neptune",
+        "aspect": "Conjunction",
+        "aspect_ru": "Соединение",
+        "orb": 4.73,
+        "exactness": 21.1
+      },
+      {
+        "planet1": "Moon",
+        "planet2": "Mars",
+        "aspect": "Square",
+        "aspect_ru": "Квадрат",
+        "orb": 4.86,
+        "exactness": 19.0
+      },
+      {
+        "planet1": "Neptune",
+        "planet2": "Pluto",
+        "aspect": "Sextile",
+        "aspect_ru": "Секстиль",
+        "orb": 4.87,
+        "exactness": 18.9
+      },
+      {
+        "planet1": "Lilith",
+        "planet2": "Chiron",
+        "aspect": "Trine",
+        "aspect_ru": "Тригон",
+        "orb": 4.86,
+        "exactness": 18.9
+      },
+      {
+        "planet1": "Mercury",
+        "planet2": "Uranus",
+        "aspect": "Conjunction",
+        "aspect_ru": "Соединение",
+        "orb": 4.9,
+        "exactness": 18.4
+      },
+      {
+        "planet1": "Mercury",
+        "planet2": "Saturn",
+        "aspect": "Conjunction",
+        "aspect_ru": "Соединение",
+        "orb": 5.79,
+        "exactness": 3.5
+      },
+      {
+        "planet1": "Mercury",
+        "planet2": "Pluto",
+        "aspect": "Sextile",
+        "aspect_ru": "Секстиль",
+        "orb": 5.93,
+        "exactness": 1.2
+      },
+      {
+        "planet1": "Uranus",
+        "planet2": "Neptune",
+        "aspect": "Conjunction",
+        "aspect_ru": "Соединение",
+        "orb": 5.96,
+        "exactness": 0.7
+      }
+    ]
+  },
+  "chart2_data": {
+    "sun_sign": "Taurus",
+    "sun_sign_ru": "Телец",
+    "moon_sign": "Virgo",
+    "moon_sign_ru": "Дева",
+    "ascendant": "Pisces",
+    "ascendant_ru": "Рыбы",
+    "ascendant_degree": 28.8259,
+    "mc": "Sagittarius",
+    "mc_ru": "Стрелец",
+    "mc_degree": 29.4953,
+    "planets": {
+      "Sun": {
+        "planet": "Sun",
+        "sign": "Taurus",
+        "sign_ru": "Телец",
+        "degree": 11.3057,
+        "full_degree": 41.3057,
+        "speed": 0.9702,
+        "is_retrograde": false,
+        "house": 1
+      },
+      "Moon": {
+        "planet": "Moon",
+        "sign": "Virgo",
+        "sign_ru": "Дева",
+        "degree": 0.6135,
+        "full_degree": 150.6135,
+        "speed": 13.392,
+        "is_retrograde": false,
+        "house": 6
+      },
+      "Mercury": {
+        "planet": "Mercury",
+        "sign": "Gemini",
+        "sign_ru": "Близнецы",
+        "degree": 0.7064,
+        "full_degree": 60.7064,
+        "speed": 1.4757,
+        "is_retrograde": false,
+        "house": 2
+      },
+      "Venus": {
+        "planet": "Venus",
+        "sign": "Pisces",
+        "sign_ru": "Рыбы",
+        "degree": 27.2413,
+        "full_degree": 357.2413,
+        "speed": 1.1081,
+        "is_retrograde": false,
+        "house": 12
+      },
+      "Mars": {
+        "planet": "Mars",
+        "sign": "Libra",
+        "sign_ru": "Весы",
+        "degree": 0.9938,
+        "full_degree": 180.9938,
+        "speed": -0.1273,
+        "is_retrograde": true,
+        "house": 7
+      },
+      "Jupiter": {
+        "planet": "Jupiter",
+        "sign": "Scorpio",
+        "sign_ru": "Скорпион",
+        "degree": 4.6926,
+        "full_degree": 214.6926,
+        "speed": -0.1263,
+        "is_retrograde": true,
+        "house": 7
+      },
+      "Saturn": {
+        "planet": "Saturn",
+        "sign": "Libra",
+        "sign_ru": "Весы",
+        "degree": 17.2272,
+        "full_degree": 197.2272,
+        "speed": -0.0668,
+        "is_retrograde": true,
+        "house": 7
+      },
+      "Uranus": {
+        "planet": "Uranus",
+        "sign": "Sagittarius",
+        "sign_ru": "Стрелец",
+        "degree": 3.5091,
+        "full_degree": 243.5091,
+        "speed": -0.0373,
+        "is_retrograde": true,
+        "house": 8
+      },
+      "Neptune": {
+        "planet": "Neptune",
+        "sign": "Sagittarius",
+        "sign_ru": "Стрелец",
+        "degree": 26.7523,
+        "full_degree": 266.7523,
+        "speed": -0.0167,
+        "is_retrograde": true,
+        "house": 9
+      },
+      "Pluto": {
+        "planet": "Pluto",
+        "sign": "Libra",
+        "sign_ru": "Весы",
+        "degree": 25.1004,
+        "full_degree": 205.1004,
+        "speed": -0.0268,
+        "is_retrograde": true,
+        "house": 7
+      },
+      "NorthNode": {
+        "planet": "NorthNode",
+        "sign": "Cancer",
+        "sign_ru": "Рак",
+        "degree": 15.7266,
+        "full_degree": 105.7266,
+        "speed": -0.0437,
+        "is_retrograde": true,
+        "house": 4
+      },
+      "Lilith": {
+        "planet": "Lilith",
+        "sign": "Sagittarius",
+        "sign_ru": "Стрелец",
+        "degree": 24.4907,
+        "full_degree": 264.4907,
+        "speed": 0.1109,
+        "is_retrograde": false,
+        "house": 9
+      },
+      "SouthNode": {
+        "planet": "SouthNode",
+        "sign": "Capricorn",
+        "sign_ru": "Козерог",
+        "degree": 15.7266,
+        "full_degree": 285.7266,
+        "speed": 0.0437,
+        "is_retrograde": true,
+        "house": 10
+      },
+      "Chiron": {
+        "planet": "Chiron",
+        "sign": "Taurus",
+        "sign_ru": "Телец",
+        "degree": 21.8777,
+        "full_degree": 51.8777,
+        "speed": 0.0684,
+        "is_retrograde": false,
+        "house": 2
+      }
+    },
+    "houses": {
+      "1": {
+        "house": 1,
+        "name_en": "1st House",
+        "name_ru": "Дом 1",
+        "cusp_longitude": 358.8259,
+        "sign": "Pisces",
+        "sign_ru": "Рыбы",
+        "degree": 28.8259
+      },
+      "2": {
+        "house": 2,
+        "name_en": "2nd House",
+        "name_ru": "Дом 2",
+        "cusp_longitude": 44.7214,
+        "sign": "Taurus",
+        "sign_ru": "Телец",
+        "degree": 14.7214
+      },
+      "3": {
+        "house": 3,
+        "name_en": "3rd House",
+        "name_ru": "Дом 3",
+        "cusp_longitude": 70.1078,
+        "sign": "Gemini",
+        "sign_ru": "Близнецы",
+        "degree": 10.1078
+      },
+      "4": {
+        "house": 4,
+        "name_en": "4th House",
+        "name_ru": "Дом 4",
+        "cusp_longitude": 89.4953,
+        "sign": "Gemini",
+        "sign_ru": "Близнецы",
+        "degree": 29.4953
+      },
+      "5": {
+        "house": 5,
+        "name_en": "5th House",
+        "name_ru": "Дом 5",
+        "cusp_longitude": 108.7897,
+        "sign": "Cancer",
+        "sign_ru": "Рак",
+        "degree": 18.7897
+      },
+      "6": {
+        "house": 6,
+        "name_en": "6th House",
+        "name_ru": "Дом 6",
+        "cusp_longitude": 133.802,
+        "sign": "Leo",
+        "sign_ru": "Лев",
+        "degree": 13.802
+      },
+      "7": {
+        "house": 7,
+        "name_en": "7th House",
+        "name_ru": "Дом 7",
+        "cusp_longitude": 178.8259,
+        "sign": "Virgo",
+        "sign_ru": "Дева",
+        "degree": 28.8259
+      },
+      "8": {
+        "house": 8,
+        "name_en": "8th House",
+        "name_ru": "Дом 8",
+        "cusp_longitude": 224.7214,
+        "sign": "Scorpio",
+        "sign_ru": "Скорпион",
+        "degree": 14.7214
+      },
+      "9": {
+        "house": 9,
+        "name_en": "9th House",
+        "name_ru": "Дом 9",
+        "cusp_longitude": 250.1078,
+        "sign": "Sagittarius",
+        "sign_ru": "Стрелец",
+        "degree": 10.1078
+      },
+      "10": {
+        "house": 10,
+        "name_en": "10th House",
+        "name_ru": "Дом 10",
+        "cusp_longitude": 269.4953,
+        "sign": "Sagittarius",
+        "sign_ru": "Стрелец",
+        "degree": 29.4953
+      },
+      "11": {
+        "house": 11,
+        "name_en": "11th House",
+        "name_ru": "Дом 11",
+        "cusp_longitude": 288.7897,
+        "sign": "Capricorn",
+        "sign_ru": "Козерог",
+        "degree": 18.7897
+      },
+      "12": {
+        "house": 12,
+        "name_en": "12th House",
+        "name_ru": "Дом 12",
+        "cusp_longitude": 313.802,
+        "sign": "Aquarius",
+        "sign_ru": "Водолей",
+        "degree": 13.802
+      }
+    },
+    "houses_meta": {
+      "house_system": "Placidus",
+      "armc": 269.4499,
+      "vertex": {
+        "longitude": 179.5668,
+        "house": 7
+      },
+      "pars_fortuna": {
+        "longitude": 249.5181,
+        "sign": "Sagittarius",
+        "sign_ru": "Стрелец",
+        "degree": 9.5181,
+        "house": 8
+      }
+    },
+    "meta": {
+      "birth_date": "1982-05-02T04:50:00",
+      "birth_place": "Dobropillya, Ukraine",
+      "latitude": 48.4572,
+      "longitude": 37.1167,
+      "timezone": "Europe/Kyiv",
+      "jd": 2445091.535326
+    },
+    "aspects": [
+      {
+        "planet1": "NorthNode",
+        "planet2": "SouthNode",
+        "aspect": "Opposition",
+        "aspect_ru": "Оппозиция",
+        "orb": 0.0,
+        "exactness": 100.0
+      },
+      {
+        "planet1": "Moon",
+        "planet2": "Mercury",
+        "aspect": "Square",
+        "aspect_ru": "Квадрат",
+        "orb": 0.09,
+        "exactness": 98.5
+      },
+      {
+        "planet1": "Mercury",
+        "planet2": "Mars",
+        "aspect": "Trine",
+        "aspect_ru": "Тригон",
+        "orb": 0.29,
+        "exactness": 95.2
+      },
+      {
+        "planet1": "Venus",
+        "planet2": "Neptune",
+        "aspect": "Square",
+        "aspect_ru": "Квадрат",
+        "orb": 0.49,
+        "exactness": 91.8
+      },
+      {
+        "planet1": "Pluto",
+        "planet2": "Lilith",
+        "aspect": "Sextile",
+        "aspect_ru": "Секстиль",
+        "orb": 0.61,
+        "exactness": 89.8
+      },
+      {
+        "planet1": "Saturn",
+        "planet2": "NorthNode",
+        "aspect": "Square",
+        "aspect_ru": "Квадрат",
+        "orb": 1.5,
+        "exactness": 75.0
+      },
+      {
+        "planet1": "Saturn",
+        "planet2": "SouthNode",
+        "aspect": "Square",
+        "aspect_ru": "Квадрат",
+        "orb": 1.5,
+        "exactness": 75.0
+      },
+      {
+        "planet1": "Neptune",
+        "planet2": "Pluto",
+        "aspect": "Sextile",
+        "aspect_ru": "Секстиль",
+        "orb": 1.65,
+        "exactness": 72.5
+      },
+      {
+        "planet1": "Neptune",
+        "planet2": "Lilith",
+        "aspect": "Conjunction",
+        "aspect_ru": "Соединение",
+        "orb": 2.26,
+        "exactness": 62.3
+      },
+      {
+        "planet1": "Mars",
+        "planet2": "Uranus",
+        "aspect": "Sextile",
+        "aspect_ru": "Секстиль",
+        "orb": 2.52,
+        "exactness": 58.1
+      },
+      {
+        "planet1": "Venus",
+        "planet2": "Lilith",
+        "aspect": "Square",
+        "aspect_ru": "Квадрат",
+        "orb": 2.75,
+        "exactness": 54.2
+      },
+      {
+        "planet1": "Mercury",
+        "planet2": "Uranus",
+        "aspect": "Opposition",
+        "aspect_ru": "Оппозиция",
+        "orb": 2.8,
+        "exactness": 53.3
+      },
+      {
+        "planet1": "Moon",
+        "planet2": "Uranus",
+        "aspect": "Square",
+        "aspect_ru": "Квадрат",
+        "orb": 2.9,
+        "exactness": 51.7
+      },
+      {
+        "planet1": "Mercury",
+        "planet2": "Venus",
+        "aspect": "Sextile",
+        "aspect_ru": "Секстиль",
+        "orb": 3.47,
+        "exactness": 42.2
+      },
+      {
+        "planet1": "Venus",
+        "planet2": "Mars",
+        "aspect": "Opposition",
+        "aspect_ru": "Оппозиция",
+        "orb": 3.75,
+        "exactness": 37.5
+      },
+      {
+        "planet1": "Moon",
+        "planet2": "Neptune",
+        "aspect": "Trine",
+        "aspect_ru": "Тригон",
+        "orb": 3.86,
+        "exactness": 35.6
+      },
+      {
+        "planet1": "Moon",
+        "planet2": "Jupiter",
+        "aspect": "Sextile",
+        "aspect_ru": "Секстиль",
+        "orb": 4.08,
+        "exactness": 32.0
+      },
+      {
+        "planet1": "Mars",
+        "planet2": "Neptune",
+        "aspect": "Square",
+        "aspect_ru": "Квадрат",
+        "orb": 4.24,
+        "exactness": 29.3
+      },
+      {
+        "planet1": "Sun",
+        "planet2": "NorthNode",
+        "aspect": "Sextile",
+        "aspect_ru": "Секстиль",
+        "orb": 4.42,
+        "exactness": 26.3
+      },
+      {
+        "planet1": "Sun",
+        "planet2": "SouthNode",
+        "aspect": "Trine",
+        "aspect_ru": "Тригон",
+        "orb": 4.42,
+        "exactness": 26.3
+      },
+      {
+        "planet1": "Venus",
+        "planet2": "Chiron",
+        "aspect": "Sextile",
+        "aspect_ru": "Секстиль",
+        "orb": 5.36,
+        "exactness": 10.6
+      },
+      {
+        "planet1": "Moon",
+        "planet2": "Pluto",
+        "aspect": "Sextile",
+        "aspect_ru": "Секстиль",
+        "orb": 5.51,
+        "exactness": 8.1
+      }
+    ]
+  },
+  "aspects": [
+    {
+      "planet1": "Mercury",
+      "planet2": "SouthNode",
+      "aspect": "Conjunction",
+      "aspect_ru": "Соединение",
+      "orb": 4.23
+    },
+    {
+      "planet1": "Mars",
+      "planet2": "Lilith",
+      "aspect": "Conjunction",
+      "aspect_ru": "Соединение",
+      "orb": 4.73
+    },
+    {
+      "planet1": "Saturn",
+      "planet2": "SouthNode",
+      "aspect": "Conjunction",
+      "aspect_ru": "Соединение",
+      "orb": 1.56
+    },
+    {
+      "planet1": "Neptune",
+      "planet2": "SouthNode",
+      "aspect": "Conjunction",
+      "aspect_ru": "Соединение",
+      "orb": 3.17
+    },
+    {
+      "planet1": "Lilith",
+      "planet2": "Jupiter",
+      "aspect": "Conjunction",
+      "aspect_ru": "Соединение",
+      "orb": 3.32
+    },
+    {
+      "planet1": "Chiron",
+      "planet2": "NorthNode",
+      "aspect": "Conjunction",
+      "aspect_ru": "Соединение",
+      "orb": 2.85
+    },
+    {
+      "planet1": "Mercury",
+      "planet2": "NorthNode",
+      "aspect": "Opposition",
+      "aspect_ru": "Оппозиция",
+      "orb": 4.23
+    },
+    {
+      "planet1": "Saturn",
+      "planet2": "NorthNode",
+      "aspect": "Opposition",
+      "aspect_ru": "Оппозиция",
+      "orb": 1.56
+    },
+    {
+      "planet1": "Neptune",
+      "planet2": "NorthNode",
+      "aspect": "Opposition",
+      "aspect_ru": "Оппозиция",
+      "orb": 3.17
+    },
+    {
+      "planet1": "Pluto",
+      "planet2": "Chiron",
+      "aspect": "Opposition",
+      "aspect_ru": "Оппозиция",
+      "orb": 4.45
+    },
+    {
+      "planet1": "Lilith",
+      "planet2": "Sun",
+      "aspect": "Opposition",
+      "aspect_ru": "Оппозиция",
+      "orb": 3.3
+    },
+    {
+      "planet1": "Chiron",
+      "planet2": "SouthNode",
+      "aspect": "Opposition",
+      "aspect_ru": "Оппозиция",
+      "orb": 2.85
+    },
+    {
+      "planet1": "Sun",
+      "planet2": "Mercury",
+      "aspect": "Trine",
+      "aspect_ru": "Тригон",
+      "orb": 5.84
+    },
+    {
+      "planet1": "Sun",
+      "planet2": "Chiron",
+      "aspect": "Trine",
+      "aspect_ru": "Тригон",
+      "orb": 2.99
+    },
+    {
+      "planet1": "Moon",
+      "planet2": "Sun",
+      "aspect": "Trine",
+      "aspect_ru": "Тригон",
+      "orb": 3.59
+    },
+    {
+      "planet1": "Moon",
+      "planet2": "SouthNode",
+      "aspect": "Trine",
+      "aspect_ru": "Тригон",
+      "orb": 0.83
+    },
+    {
+      "planet1": "Mercury",
+      "planet2": "Sun",
+      "aspect": "Trine",
+      "aspect_ru": "Тригон",
+      "orb": 0.19
+    },
+    {
+      "planet1": "Venus",
+      "planet2": "Mercury",
+      "aspect": "Trine",
+      "aspect_ru": "Тригон",
+      "orb": 0.1
+    },
+    {
+      "planet1": "Venus",
+      "planet2": "Mars",
+      "aspect": "Trine",
+      "aspect_ru": "Тригон",
+      "orb": 0.19
+    },
+    {
+      "planet1": "Jupiter",
+      "planet2": "Jupiter",
+      "aspect": "Trine",
+      "aspect_ru": "Тригон",
+      "orb": 1.3
+    },
+    {
+      "planet1": "Saturn",
+      "planet2": "Sun",
+      "aspect": "Trine",
+      "aspect_ru": "Тригон",
+      "orb": 5.98
+    },
+    {
+      "planet1": "Saturn",
+      "planet2": "Chiron",
+      "aspect": "Trine",
+      "aspect_ru": "Тригон",
+      "orb": 4.59
+    },
+    {
+      "planet1": "Uranus",
+      "planet2": "Sun",
+      "aspect": "Trine",
+      "aspect_ru": "Тригон",
+      "orb": 4.7
+    },
+    {
+      "planet1": "Uranus",
+      "planet2": "Moon",
+      "aspect": "Trine",
+      "aspect_ru": "Тригон",
+      "orb": 5.99
+    },
+    {
+      "planet1": "Neptune",
+      "planet2": "Sun",
+      "aspect": "Trine",
+      "aspect_ru": "Тригон",
+      "orb": 1.25
+    },
+    {
+      "planet1": "Pluto",
+      "planet2": "NorthNode",
+      "aspect": "Trine",
+      "aspect_ru": "Тригон",
+      "orb": 1.7
+    },
+    {
+      "planet1": "NorthNode",
+      "planet2": "Saturn",
+      "aspect": "Trine",
+      "aspect_ru": "Тригон",
+      "orb": 0.65
+    },
+    {
+      "planet1": "Sun",
+      "planet2": "Pluto",
+      "aspect": "Square",
+      "aspect_ru": "Квадрат",
+      "orb": 0.23
+    },
+    {
+      "planet1": "Mercury",
+      "planet2": "Saturn",
+      "aspect": "Square",
+      "aspect_ru": "Квадрат",
+      "orb": 5.73
+    },
+    {
+      "planet1": "Venus",
+      "planet2": "Jupiter",
+      "aspect": "Square",
+      "aspect_ru": "Квадрат",
+      "orb": 3.88
+    },
+    {
+      "planet1": "Venus",
+      "planet2": "Pluto",
+      "aspect": "Square",
+      "aspect_ru": "Квадрат",
+      "orb": 5.71
+    },
+    {
+      "planet1": "Jupiter",
+      "planet2": "Mars",
+      "aspect": "Square",
+      "aspect_ru": "Квадрат",
+      "orb": 2.4
+    },
+    {
+      "planet1": "Saturn",
+      "planet2": "Saturn",
+      "aspect": "Square",
+      "aspect_ru": "Квадрат",
+      "orb": 0.06
+    },
+    {
+      "planet1": "Uranus",
+      "planet2": "Mars",
+      "aspect": "Square",
+      "aspect_ru": "Квадрат",
+      "orb": 5.61
+    },
+    {
+      "planet1": "Neptune",
+      "planet2": "Saturn",
+      "aspect": "Square",
+      "aspect_ru": "Квадрат",
+      "orb": 4.67
+    },
+    {
+      "planet1": "NorthNode",
+      "planet2": "Sun",
+      "aspect": "Square",
+      "aspect_ru": "Квадрат",
+      "orb": 5.27
+    },
+    {
+      "planet1": "NorthNode",
+      "planet2": "Chiron",
+      "aspect": "Square",
+      "aspect_ru": "Квадрат",
+      "orb": 5.3
+    },
+    {
+      "planet1": "SouthNode",
+      "planet2": "Sun",
+      "aspect": "Square",
+      "aspect_ru": "Квадрат",
+      "orb": 5.27
+    },
+    {
+      "planet1": "SouthNode",
+      "planet2": "Chiron",
+      "aspect": "Square",
+      "aspect_ru": "Квадрат",
+      "orb": 5.3
+    },
+    {
+      "planet1": "Chiron",
+      "planet2": "Saturn",
+      "aspect": "Square",
+      "aspect_ru": "Квадрат",
+      "orb": 4.35
+    },
+    {
+      "planet1": "Sun",
+      "planet2": "Venus",
+      "aspect": "Sextile",
+      "aspect_ru": "Секстиль",
+      "orb": 2.37
+    },
+    {
+      "planet1": "Moon",
+      "planet2": "NorthNode",
+      "aspect": "Sextile",
+      "aspect_ru": "Секстиль",
+      "orb": 0.83
+    },
+    {
+      "planet1": "Venus",
+      "planet2": "Venus",
+      "aspect": "Sextile",
+      "aspect_ru": "Секстиль",
+      "orb": 3.57
+    },
+    {
+      "planet1": "Venus",
+      "planet2": "Uranus",
+      "aspect": "Sextile",
+      "aspect_ru": "Секстиль",
+      "orb": 2.7
+    },
+    {
+      "planet1": "Mars",
+      "planet2": "Saturn",
+      "aspect": "Sextile",
+      "aspect_ru": "Секстиль",
+      "orb": 2.53
+    },
+    {
+      "planet1": "Mars",
+      "planet2": "Pluto",
+      "aspect": "Sextile",
+      "aspect_ru": "Секстиль",
+      "orb": 5.34
+    },
+    {
+      "planet1": "Jupiter",
+      "planet2": "Moon",
+      "aspect": "Sextile",
+      "aspect_ru": "Секстиль",
+      "orb": 2.78
+    },
+    {
+      "planet1": "Uranus",
+      "planet2": "Jupiter",
+      "aspect": "Sextile",
+      "aspect_ru": "Секстиль",
+      "orb": 1.91
+    },
+    {
+      "planet1": "Pluto",
+      "planet2": "SouthNode",
+      "aspect": "Sextile",
+      "aspect_ru": "Секстиль",
+      "orb": 1.7
+    },
+    {
+      "planet1": "SouthNode",
+      "planet2": "Saturn",
+      "aspect": "Sextile",
+      "aspect_ru": "Секстиль",
+      "orb": 0.65
+    },
+    {
+      "planet1": "Chiron",
+      "planet2": "Sun",
+      "aspect": "Sextile",
+      "aspect_ru": "Секстиль",
+      "orb": 1.57
+    }
+  ],
+  "overlays": null,
+  "language": "ru",
+  "top_k_per_book": 3,
+  "mode": "advanced",
+  "relationship_context": "default"
+}

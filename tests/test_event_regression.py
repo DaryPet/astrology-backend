@@ -1,11 +1,11 @@
-"""Регрессия карты события: вердикт на зафиксированных матчах не должен
-меняться молча.
+"""Event chart regression: the verdict on fixed matches must not change silently.
 
-Не меряет точность — для этого eval_event.py. Задача одна: если правка весов
-или логики сдвинула match_type/diff, тест падает и показывает было/стало.
+Doesn't measure accuracy — that's what eval_event.py is for. Its only job:
+if a weight or logic change shifted match_type/diff, the test fails and shows
+before/after.
 
-Снимок: tests/data/regression_snapshot.json. Пересоздать после осознанной
-правки метода:
+Snapshot: tests/data/regression_snapshot.json. Regenerate after a deliberate
+change to the method:
 
     ./venv/bin/python tests/test_event_regression.py --update
 """
@@ -52,7 +52,7 @@ def _current() -> Dict[str, Dict[str, Any]]:
 
 
 @pytest.mark.skipif(not SNAPSHOT_FILE.exists(),
-                    reason='нет снимка — создать через --update')
+                    reason='no snapshot — create one with --update')
 def test_event_verdicts_unchanged():
     expected = json.loads(SNAPSHOT_FILE.read_text(encoding='utf-8'))
     actual = _current()
@@ -62,8 +62,8 @@ def test_event_verdicts_unchanged():
         for mid in sorted(set(expected) | set(actual))
         if expected.get(mid) != actual.get(mid)
     }
-    assert not drifted, 'вердикт изменился:\n' + '\n'.join(
-        f"  матч {mid}: было {was} -> стало {now}" for mid, (was, now) in drifted.items()
+    assert not drifted, 'verdict changed:\n' + '\n'.join(
+        f"  match {mid}: was {was} -> now {now}" for mid, (was, now) in drifted.items()
     )
 
 
@@ -72,6 +72,6 @@ if __name__ == '__main__':
         SNAPSHOT_FILE.parent.mkdir(parents=True, exist_ok=True)
         SNAPSHOT_FILE.write_text(
             json.dumps(_current(), ensure_ascii=False, indent=2), encoding='utf-8')
-        print(f'снимок обновлён: {SNAPSHOT_FILE}')
+        print(f'snapshot updated: {SNAPSHOT_FILE}')
     else:
         print(__doc__)

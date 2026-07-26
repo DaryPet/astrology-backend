@@ -1,0 +1,221 @@
+/Users/usuario/Desktop/GitHub/astro_DAVIN/astrology-backend/venv/lib/python3.9/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+Swiss Ephemeris path: '/Users/usuario/Desktop/GitHub/astro_DAVIN/astrology-backend/app/../ephe'
+[full_synastry_analysis_v2] Total aspects: 51, sent to RAG search: 51
+[HYBRID SEARCH] Query: Neptune Conjunction SouthNode synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Lilith Conjunction Jupiter synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Mars Conjunction Lilith synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Mercury Conjunction SouthNode synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Mercury Opposition NorthNode synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Saturn Opposition NorthNode synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Neptune Opposition NorthNode synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Lilith Opposition Sun synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Chiron Conjunction NorthNode synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Chiron Opposition SouthNode synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Saturn Conjunction SouthNode synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Sun Trine Chiron synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Sun Trine Mercury synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Moon Trine Sun synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Moon Trine SouthNode synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Jupiter Trine Jupiter synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Venus Trine Mercury synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Saturn Trine Sun synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Neptune Trine Sun synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Pluto Opposition Chiron synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Venus Trine Mars synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: NorthNode Trine Saturn synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Uranus Trine Sun synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Saturn Trine Chiron synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Mercury Trine Sun synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Uranus Trine Moon synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Mercury Square Saturn synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Venus Square Jupiter synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Pluto Trine NorthNode synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Sun Square Pluto synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: NorthNode Square Sun synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Venus Square Pluto synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Uranus Square Mars synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: NorthNode Square Chiron synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Jupiter Square Mars synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Saturn Square Saturn synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Neptune Square Saturn synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: SouthNode Square Sun synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: SouthNode Square Chiron synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Chiron Square Saturn synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Venus Sextile Venus synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Mars Sextile Saturn synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Sun Sextile Venus synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Venus Sextile Uranus synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Pluto Sextile SouthNode synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Mars Sextile Pluto synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Jupiter Sextile Moon synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Moon Sextile NorthNode synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: SouthNode synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Uranus Sextile Jupiter synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: SouthNode Sextile Saturn synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: NorthNode synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Saturn synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Pluto synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Moon synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Venus synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Sun synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Chiron Sextile Sun synastry
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Ascendant synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Mars synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Pluto synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: NorthNode synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Jupiter synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: SouthNode synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Saturn synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Ascendant synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Moon synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Sun synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Mars synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Venus synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[HYBRID SEARCH] Query: Jupiter synastry partner
+[HYBRID SEARCH] Book ID filter: 26
+[HYBRID SEARCH] Found: 3 chunks
+[full_synastry_analysis_v2] RAG search completed. Tasks: 71
+[full_synastry_analysis_v2] Sending prompt to LLM (~165430 tokens estimated)
+[full_synastry_analysis_v2] Fabricated aspect types detected (not fixed): ['Меркурий Партнёра 1 — Сатурн Партнёра 2: в тексте «Opposition», на деле «Квадрат» (заголовок: Меркурий Партнёра 1 (Козерог, 11 дом) Оппозиция Сатурн Партнёра 2 (Весы, 7 дом).)']
+[runner:new_flash] done in 153.9s, 45886 chars, error=None
