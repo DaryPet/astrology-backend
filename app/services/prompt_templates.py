@@ -146,7 +146,7 @@ SYNTHESIS_PROMPTS = {
 
 **КРИТИЧЕСКИЕ ТРЕБОВАНИЯ - ЭТО НЕ ШУТКА:**
 
-1. ТЫ ДОЛЖЕН НАПИСАТЬ МИНИМУМ 5000 СЛОВ всего
+1. ТЫ ДОЛЖЕН НАПИСАТЬ МИНИМУМ 5000 СЛОВ, И НИКОГДА НЕ МЕНЬШЕ. Сверх этого объём ДИКТУЕТСЯ ЧИСЛОМ АСПЕКТОВ В СПИСКЕ: минимум 200-300 слов на каждый аспект из {aspects_list} — больше 5000 слов можно и нужно, если аспектов много, меньше 5000 нельзя никогда. Не сокращай разборы, чтобы уложиться в какой-то «нормальный» объём эссе — нормального объёма здесь нет.
 2. ДЛЯ КАЖДОЙ ПЛАНЕТЫ ты ДОЛЖЕН написать минимум 300-500 слов (для Плутона и Узлов - минимум 800 слов!)
 3. НЕ ОСТАНАВЛИВАЙСЯ пока не раскроешь ВСЕ 13 тем
 4. Думай глубоко о каждой планете - что это значит для жизни этого человека?
@@ -155,13 +155,15 @@ SYNTHESIS_PROMPTS = {
 **ГЛАВНЫЕ ПРАВИЛА:**
 
 1. ПИШИ ГЛУБОКО - раскрой КАЖДУЮ планету полностью, не поверхностно
-2. ПИШИ ПОДРОБНО - минимум 5000 слов в итоге - ЭТО ОБЯЗАТЕЛЬНО!
+2. ПИШИ ПОДРОБНО - минимум 5000 слов, сверх этого — по числу аспектов (см. выше) - ЭТО ОБЯЗАТЕЛЬНО!
 3. ПИШИ ПОНЯТНО - простыми словами, без астрологического сленга
 4. НЕ используй технические термины, градусы, орбы - только: планета, знак, дом
 5. Используй ТОЛЬКО РЕАЛЬНЫЕ аспекты из списка. Если аспекта нет - НЕ выдумывай!
 6. НЕ называй книги и авторов
 7. НЕ пиши сколько слов в анализе
 8. КНИГА ПО УЗЛАМ И ПЛУТОНУ - это ключевая книга! Используй её информацию максимально подробно для Плутона, Южного и Северного узлов!
+9. ОБЯЗАТЕЛЬНО РАЗБЕРИ КАЖДЫЙ АСПЕКТ ИЗ СПИСКА {aspects_list} — ни один не пропускай, включая аспекты с Хироном, Лилит, Северным и Южным Узлом. "Второстепенных" аспектов не существует — если он в списке, он обязателен. Разбирай аспект внутри раздела той планеты, которая по структуре идёт первой (или любой из двух, если обе уже прошли) — но явно, узнаваемо, с названием обеих планет. При ПЕРВОМ разборе каждого аспекта из списка вынеси саму формулу жирным в виде отдельной фразы: "**<Планета1> <Аспект> <Планета2>**" — ровно как она дана в списке. Прежде чем закончить, мысленно пройдись по списку {aspects_list} сверху вниз и проверь, что каждая строка получила свой явный разбор с жирной формулой в тексте.
+10. ЗАПРЕЩЕНО заменять разбор аспекта отсылкой вида «разобрано выше», «уже обсуждали», «см. раздел Плутона» и т.п. Даже если похожая тема уже звучала в другом разделе — каждый аспект из списка получает СВОЙ явный разбор с жирной формулой там, где он упомянут по структуре, а не однострочную ссылку на другое место текста.
 
 **СТРУКТУРА (пиши одним связным текстом, но эти темы должны быть раскрыты):**
 
@@ -198,7 +200,7 @@ SYNTHESIS_PROMPTS = {
 
 **CRITICAL REQUIREMENTS - THIS IS NOT A JOKE:**
 
-1. YOU MUST WRITE AT LEAST 5000 WORDS total
+1. YOU MUST WRITE AT LEAST 5000 WORDS, AND NEVER FEWER. Beyond that, the length is DRIVEN BY THE NUMBER OF ASPECTS IN THE LIST: minimum 200-300 words per aspect from {aspects_list} — more than 5000 words is fine and expected if there are many aspects, fewer than 5000 is never allowed. Don't shorten the analyses to fit some "normal" essay length — there is no normal length here.
 2. FOR EACH PLANET you MUST write minimum 300-500 words (for Pluto and Nodes - minimum 800 words!)
 3. DO NOT STOP until you have covered ALL 13 topics
 4. Think deeply about each planet - what does it mean for this person's life?
@@ -207,13 +209,15 @@ SYNTHESIS_PROMPTS = {
 **MAIN RULES:**
 
 1. WRITE DEEP - reveal EACH planet fully, not superficially
-2. WRITE DETAILED - minimum 5000 words in total - THIS IS MANDATORY!
+2. WRITE DETAILED - minimum 5000 words, more on top driven by aspect count (see above) - THIS IS MANDATORY!
 3. WRITE SIMPLY - in plain language, no astrological slang
 4. NO technical terms, degrees, orbs - only: planet, sign, house
 5. Use ONLY REAL aspects from the list. If an aspect is NOT in the list - DON'T make it up!
 6. DON'T mention book names or authors
 7. DON'T write word count
 8. THE BOOK ABOUT NODES AND PLUTO - this is a KEY book! Use its information very detailed for Pluto, South Node and North Node!
+9. YOU MUST COVER EVERY SINGLE ASPECT IN {aspects_list} — skip none, including aspects with Chiron, Lilith, the North/South Node. There is no such thing as a "minor" aspect — if it's in the list, it's mandatory. Cover the aspect inside the section of whichever of its two planets comes first structurally (or either, once both have appeared) — but explicitly, recognizably, naming both planets. The FIRST time you cover each aspect from the list, set the formula itself apart in bold as its own phrase: "**<Planet1> <Aspect> <Planet2>**" — exactly as given in the list. Before you finish, mentally walk through {aspects_list} top to bottom and verify every line got its own explicit treatment with a bold formula in the text.
+10. FORBIDDEN to replace an aspect's analysis with a reference like "as covered above", "already discussed", "see the Pluto section", etc. Even if a similar theme appeared elsewhere — every aspect in the list gets its OWN explicit treatment with a bold formula where it belongs structurally, not a one-line pointer to another part of the text.
 
 **STRUCTURE (write as one coherent text, but these topics must be covered):**
 

@@ -14,6 +14,8 @@ from app.services.text_verification import (
     find_fabricated_positions_layered,
     fix_fabricated_positions_layered,
     find_fabricated_aspect_types_layered,
+    find_fabricated_aspect_types_single,
+    find_fabricated_houses_single,
     find_undercovered_aspects_generic,
 )
 
@@ -518,6 +520,16 @@ async def full_chart_analysis_v2(
     houses = chart_data.get("houses", {})
     houses_meta = chart_data.get("houses_meta", {})
 
+    # Ограничивает число одновременных запросов к Supabase — та же причина, что
+    # у синастрии/прогрессий/транзитов (synastry_service.py:599), но с другим
+    # множителем: search_chunks_all_books делает 2 обращения к пулу потоков за
+    # вызов (запрос списка книг + один search_chunks_hybrid), не 3, как
+    # search_chunks_priority_book (см. specs/semaphore_thread_pool_sizing_bug.md
+    # — тот баг про неправильно посчитанный множитель, здесь считаем заранее:
+    # 12 задач × 2 = 24 потоковых вызова одновременно, под лимитом пула ~32).
+    # План: app/services/specs/natal_synastry_pattern_plan.md.
+    search_semaphore = asyncio.Semaphore(12)
+
     # --- Шаг 1: Параллельный RAG-поиск по каждой планете ---
     async def search_planet(planet_name: str, planet_data: Dict) -> tuple:
         sign = planet_data.get("sign", "")
@@ -526,7 +538,8 @@ async def full_chart_analysis_v2(
         # Handle Pars Fortuna
         search_name = "pars fortuna" if planet_name.lower() in ["ft", "pars fortuna", "part of fortune", "fortuna", "парс фортуны"] else planet_name.lower()
         query = f"{search_name} {house_word} house {sign.lower()}"
-        chunks = await search_chunks_all_books(query, top_k_per_book=top_k_per_book)
+        async with search_semaphore:
+            chunks = await search_chunks_all_books(query, top_k_per_book=top_k_per_book)
         return planet_name, chunks
 
     # --- Шаг 2: Параллельный RAG-поиск по каждому аспекту ---
@@ -535,20 +548,22 @@ async def full_chart_analysis_v2(
         p2 = asp.get("planet2", "")
         asp_type = asp.get("aspect", asp.get("aspect_ru", ""))
         query = f"{p1.lower()} {asp_type.lower()} {p2.lower()}"
-        chunks = await search_chunks_all_books(query, top_k_per_book=2)
+        async with search_semaphore:
+            chunks = await search_chunks_all_books(query, top_k_per_book=2)
         return f"{p1} {asp_type} {p2}", chunks
 
     print(f"[full_chart_analysis_v2] Starting parallel RAG for {len(planets)} planets and {len(aspects)} aspects")
 
     planet_tasks = [search_planet(name, data) for name, data in planets.items()]
-    aspect_tasks = [search_aspect(asp) for asp in aspects]  # Топ-10 аспектов
+    aspect_tasks = [search_aspect(asp) for asp in aspects]  # ВСЕ аспекты, без среза
 
     # Add Pars Fortuna search task
     pf = houses_meta.get('pars_fortuna', {})
     if pf:
         async def search_pars_fortuna():
             query = "pars fortuna (парс фортуны) дом"
-            chunks = await search_chunks_all_books(query, top_k_per_book=top_k_per_book)
+            async with search_semaphore:
+                chunks = await search_chunks_all_books(query, top_k_per_book=top_k_per_book)
             return "Pars Fortuna", chunks
         planet_tasks.append(search_pars_fortuna())
 
@@ -641,10 +656,52 @@ async def full_chart_analysis_v2(
     # --- Шаг 4: Один финальный вызов LLM ---
     print(f"[full_chart_analysis_v2] Sending final prompt to LLM (~{len(prompt)//4} tokens estimated)")
 
+    # "Слой" для проверки текста после генерации — у натала он один (в отличие
+    # от прогрессий/транзитов, где слоя два): find_fabricated_positions_layered/
+    # fix_fabricated_positions_layered работают и с одним слоем — "fabricated"
+    # (знака нет в чарте вообще) не требует маркера атрибуции, только
+    # "layer_confused" требует, а с одним слоем он всегда пуст (см. план:
+    # app/services/specs/natal_synastry_pattern_plan.md).
+    natal_chart_like = {
+        'planets': planets,
+        'ascendant': chart_data.get('ascendant'),
+        'ascendant_ru': chart_data.get('ascendant_ru'),
+    }
+    layers = {'natal': natal_chart_like}
+
     try:
         full_analysis = await adapter.generate(prompt, language)
+
+        if language in ('ru', 'en'):
+            # Позиции: чинится только то, что не существует в чарте вообще.
+            full_analysis, unresolved = fix_fabricated_positions_layered(
+                full_analysis, layers, language=language
+            )
+            if unresolved:
+                print(f"[full_chart_analysis_v2] Unresolved position mismatches (left as-is): {unresolved}")
+
+            # Только детекция — тип заявленного аспекта сверяется с реально
+            # посчитанным (chart_data['aspects']). Без атрибуции по слою/партнёру
+            # — карта одна, две планеты в жирном заголовке однозначны сами по себе.
+            fabricated_aspects = find_fabricated_aspect_types_single(full_analysis, aspects, language=language)
+            if fabricated_aspects:
+                print(f"[full_chart_analysis_v2] Fabricated aspect types detected (not fixed): {fabricated_aspects}")
+
+            # Только детекция, по прозе — текст не трогаем и не дописываем.
+            undercovered = find_undercovered_aspects_generic(full_analysis, aspects, language=language)
+            if undercovered:
+                print(f"[full_chart_analysis_v2] Undercovered aspects detected (not filled): {undercovered}")
+
+            # Только детекция — дом планеты, названный в тексте, сверяется с
+            # реальным домом из чарта (в пределах предложения, где встретилась
+            # планета). Не чинится — риск разъехаться с согласованием текста
+            # (см. докстринг find_fabricated_houses_single).
+            fabricated_houses = find_fabricated_houses_single(full_analysis, natal_chart_like, language=language)
+            if fabricated_houses:
+                print(f"[full_chart_analysis_v2] Fabricated house claims detected (not fixed): {fabricated_houses}")
     except Exception as e:
         full_analysis = f"Ошибка анализа: {str(e)}"
+        print(f"[full_chart_analysis_v2] LLM error: {e}")
 
     # --- Шаг 5: Генерация краткого резюме (summary) ---
     summary = await generate_summary(full_analysis, language)

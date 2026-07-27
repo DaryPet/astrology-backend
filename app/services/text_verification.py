@@ -301,7 +301,17 @@ def _nearest_preceding_layer(preceding_text: str, language: str, layer_keys) -> 
     даёт заглянуть в предыдущее предложение и подхватить чужой маркер; если в
     текущем предложении маркера нет вообще — возвращаем None (как и раньше
     для случая "не смогли атрибутировать"), а не гадаем.
+
+    Если layer_keys содержит РОВНО один слой (натальная карта без второй
+    стороны — см. app/services/specs/natal_synastry_pattern_plan.md),
+    атрибуция и так однозначна: возвращаем этот единственный слой без поиска
+    маркера вообще — с одним слоем маркер в промпте не пишется намеренно (см.
+    план), и поиск его отсутствия иначе всегда возвращал бы None, оставляя
+    даже заведомо выдуманные позиции неисправленными (unresolved).
     """
+    if len(layer_keys) == 1:
+        return layer_keys[0]
+
     is_ru = language == 'ru'
     markers = LAYER_MARKER_PATTERNS['ru' if is_ru else 'en']
 
@@ -566,3 +576,235 @@ def find_undercovered_aspects_generic(
             missing.append(label_for(asp))
 
     return missing
+
+
+# ============================================================
+# Одна карта без сторон (натальная синтез-карта) — общее
+# ============================================================
+# В отличие от find_fabricated_aspect_types (synastry_service.py) и
+# find_fabricated_aspect_types_layered (выше) — здесь нет атрибуции по
+# партнёру/слою вообще, потому что карта одна: две планеты в жирном
+# markdown-заголовке однозначны сами по себе, без маркера "чья". План:
+# app/services/specs/natal_synastry_pattern_plan.md.
+
+def find_fabricated_aspect_types_single(
+    text: str,
+    aspects: List[Dict[str, Any]],
+    language: str,
+    key1: str = 'planet1',
+    key2: str = 'planet2',
+) -> List[str]:
+    """
+    Сверяет жирные markdown-заголовки вида "<Планета1> <Аспект> <Планета2>"
+    с реально посчитанным типом аспекта для этой пары — для карт с одной
+    стороной (натал), без атрибуции по партнёру/слою. Пара планет в
+    calculate_aspects (astrology_v2.py) неупорядочена — в отличие от
+    синастрии, одна и та же пара не может быть двумя разными реальными
+    аспектами одновременно, поэтому ключ truth — frozenset({p1, p2}).
+
+    Пропускает (не флагует) заголовок, если в нём найдено не ровно 2 планеты
+    или не ровно 1 тип аспекта — неоднозначность не разрешаем угадыванием
+    (тот же принцип, что у find_fabricated_aspect_types /
+    find_fabricated_aspect_types_layered). Только детекция, ничего не правит.
+    """
+    is_ru = language == 'ru'
+    planet_stems = PLANET_STEM_RU if is_ru else PLANET_STEM_EN
+    aspect_stems = ASPECT_STEM_RU if is_ru else ASPECT_STEM_EN
+
+    truth: Dict[frozenset, str] = {}
+    for asp in aspects:
+        p1, p2 = asp.get(key1), asp.get(key2)
+        if p1 and p2:
+            truth[frozenset({p1, p2})] = asp.get('aspect')
+
+    if not truth:
+        return []
+
+    mismatches: List[str] = []
+    for header_match in _ASPECT_HEADER_RE.finditer(text):
+        header = header_match.group(1)
+
+        planet_hits = []
+        for planet_en, stem_pattern in planet_stems.items():
+            for m in re.finditer(stem_pattern, header):
+                planet_hits.append(planet_en)
+        if len(planet_hits) != 2 or planet_hits[0] == planet_hits[1]:
+            continue  # не ровно две РАЗНЫЕ планеты — не наш случай
+
+        aspect_hits = []
+        for aspect_en, stem_pattern in aspect_stems.items():
+            for m in re.finditer(stem_pattern, header):
+                aspect_hits.append(aspect_en)
+        if len(aspect_hits) != 1:
+            continue  # тип не назван явно, либо назван неоднозначно
+
+        pair = frozenset(planet_hits)
+        true_aspect = truth.get(pair)
+        if true_aspect is None:
+            continue  # такой пары нет в расчёте вообще — не наш случай
+
+        stated_aspect = aspect_hits[0]
+        if stated_aspect != true_aspect:
+            p1_en, p2_en = planet_hits
+            p1_name = PLANET_RU.get(p1_en, p1_en) if is_ru else PLANET_EN.get(p1_en, p1_en)
+            p2_name = PLANET_RU.get(p2_en, p2_en) if is_ru else PLANET_EN.get(p2_en, p2_en)
+            true_label = true_aspect
+            if is_ru:
+                true_label = next(
+                    (a.get('aspect_ru') for a in aspects if frozenset({a.get(key1), a.get(key2)}) == pair),
+                    true_aspect,
+                )
+            mismatches.append(
+                f"{p1_name} — {p2_name}: "
+                f"{'в тексте' if is_ru else 'in text'} «{stated_aspect}», "
+                f"{'на деле' if is_ru else 'actually'} «{true_label}» "
+                f"({'заголовок' if is_ru else 'header'}: {header.strip()[:120]})"
+            )
+
+    return mismatches
+
+
+# ============================================================
+# Проверка ДОМА (натал, одна карта) — общее
+# ============================================================
+# Отдельно от знака: у дома нет фиксированного числа словоформ, как у 12
+# знаков ("в Овне", "во Льве" — конечный список), поэтому дом ищется не
+# regex-парой "<Планета> в <Дом>" целиком, а по слову "дом"/"house" в том же
+# предложении, что и планета — то же ограничение текущим предложением, что и
+# у _nearest_preceding_layer (без него число дома из одного предложения
+# ложно приписалось бы планете из соседнего). Только детекция — правка риск-
+# ованнее, чем у знака: замена номера дома в живой прозе может разъехаться с
+# согласованием в остальной части того же предложения ("в 7-м доме" vs
+# "седьмой дом" в одном месте). План: app/services/specs/natal_synastry_pattern_plan.md.
+
+_HOUSE_WORD_RU = r'(?:дом|доме|дома|домов|домах)\b'
+_HOUSE_NUMBER_RU = re.compile(
+    rf'(?:(\d{{1,2}})[-–]?\s*(?:й|м|го|ом)?\s*{_HOUSE_WORD_RU}|{_HOUSE_WORD_RU}\s*(\d{{1,2}}))',
+    re.IGNORECASE,
+)
+_HOUSE_NUMBER_EN = re.compile(
+    r'(?:(\d{1,2})(?:st|nd|rd|th)?\s*house|house\s*(?:number\s*)?(\d{1,2}))',
+    re.IGNORECASE,
+)
+
+
+_BOLD_HEADER_RE = re.compile(r'\*\*[^*\n]{1,240}\*\*')
+_SENTENCE_OR_HEADER_BOUNDARY_RE = re.compile(r'\*\*[^*\n]{1,240}\*\*|[.!?]\s+')
+
+# Присоединительный союз после запятой почти всегда значит новое подлежащее
+# ("Марс ... в 6-м доме, И квадрат с Солнцем ..." — дом относится к Марсу,
+# а не к Солнцу, хотя оба в одном "предложении" по точкам). EN: то же для
+# and/but. Без этого разбиения дом ложно приписывался бы любой другой
+# планете, упомянутой в том же предложении, что и настоящий владелец дома.
+_CLAUSE_BREAK_RU = re.compile(r',\s*(?:и|а|но)\s+')
+_CLAUSE_BREAK_EN = re.compile(r',\s*(?:and|but)\s+')
+
+
+def _sentence_span(text: str, pos: int) -> "tuple[int, int]":
+    """
+    Границы предложения, содержащего pos — по точке/!/? И по границе жирного
+    markdown-заголовка (**...**), в обе стороны. Заголовок — это отдельный
+    смысловой блок, а не часть следующего предложения: без этой границы
+    "**11. Уран и Нептун ...**\nУран в Скорпионе в 8-м доме" считалось бы
+    одним предложением, и дом Урана ложно приписался бы Нептуну из заголовка.
+    Если pos внутри самого заголовка — предложение это и есть весь заголовок.
+    """
+    for m in _BOLD_HEADER_RE.finditer(text):
+        if m.start() <= pos < m.end():
+            return m.start(), m.end()
+
+    start = 0
+    for m in _SENTENCE_OR_HEADER_BOUNDARY_RE.finditer(text[:pos]):
+        start = m.end()
+    end_match = _SENTENCE_OR_HEADER_BOUNDARY_RE.search(text, pos)
+    end = end_match.start() if end_match else len(text)
+    return start, end
+
+
+def _clause_span(text: str, pos: int, language: str) -> "tuple[int, int]":
+    """
+    Сужает _sentence_span до пункта (clause) внутри предложения, разделённого
+    запятой+союзом ("и"/"а"/"но" — RU, "and"/"but" — EN). См. докстринг
+    _CLAUSE_BREAK_RU — без этого сужения дом ложно приписывался бы другой
+    планете, упомянутой в том же предложении после присоединительного союза.
+    """
+    sent_start, sent_end = _sentence_span(text, pos)
+    segment = text[sent_start:sent_end]
+    rel_pos = pos - sent_start
+
+    clause_break = _CLAUSE_BREAK_RU if language == 'ru' else _CLAUSE_BREAK_EN
+    breaks = [0] + [m.end() for m in clause_break.finditer(segment)] + [len(segment)]
+    for i in range(len(breaks) - 1):
+        if breaks[i] <= rel_pos < breaks[i + 1]:
+            return sent_start + breaks[i], sent_start + breaks[i + 1]
+    return sent_start, sent_end
+
+
+def find_fabricated_houses_single(
+    text: str,
+    natal_chart_like: Dict[str, Any],
+    language: str = 'ru',
+) -> List[str]:
+    """
+    Сверяет упоминания дома рядом с планетой ("<Планета> ... в N-м доме") с
+    реальным домом планеты в натальной карте. Только детекция, ничего не
+    правит (см. модуль-докстринг раздела выше — почему).
+
+    Ищет номер дома только в ПРЕДЕЛАХ ТЕКУЩЕГО ПУНКТА (clause) — предложение,
+    ограниченное ещё и границей жирного заголовка и запятой+союзом (см.
+    _clause_span) — где встретилось имя планеты. Если в пункте 0 или больше 1
+    РАЗНЫХ номеров дома, пропускает (неоднозначно, не гадаем, тот же принцип,
+    что и у остальных проверок в этом модуле). Несколько планет в одном
+    пункте с одним номером дома — не ошибка (например, "Плутон и Луна в том
+    же 7-м доме" — обеим планетам законно приписывается один дом). Асцендент/
+    MC не проверяются — у них нет числового поля 'house' в чарте (дом 1/10
+    определяется по куспиду, а не хранится как отдельное значение).
+    """
+    is_ru = language == 'ru'
+    planet_stems = PLANET_STEM_RU if is_ru else PLANET_STEM_EN
+    house_pattern = _HOUSE_NUMBER_RU if is_ru else _HOUSE_NUMBER_EN
+
+    real_houses: Dict[str, int] = {}
+    for p_name, p_data in (natal_chart_like.get('planets') or {}).items():
+        house = p_data.get('house')
+        display = PLANET_RU.get(p_name) if is_ru else PLANET_EN.get(p_name)
+        if display and isinstance(house, int):
+            real_houses[display] = house
+
+    if not real_houses:
+        return []
+
+    mismatches: List[str] = []
+    seen: set = set()
+    for planet_en, stem_pattern in planet_stems.items():
+        display = PLANET_RU.get(planet_en) if is_ru else PLANET_EN.get(planet_en)
+        if display not in real_houses:
+            continue
+        for m in re.finditer(stem_pattern, text):
+            clause_start, clause_end = _clause_span(text, m.start(), language)
+            clause = text[clause_start:clause_end]
+
+            numbers = set()
+            for hm in house_pattern.finditer(clause):
+                for g in hm.groups():
+                    if g:
+                        numbers.add(int(g))
+            if len(numbers) != 1:
+                continue  # 0 или неоднозначно (несколько разных номеров) — пропускаем
+
+            claimed_house = next(iter(numbers))
+            if not (1 <= claimed_house <= 12):
+                continue
+            real_house = real_houses[display]
+            if claimed_house != real_house:
+                key = (display, claimed_house, clause_start)
+                if key in seen:
+                    continue
+                seen.add(key)
+                mismatches.append(
+                    f"{display}: {'в тексте' if is_ru else 'in text'} {'дом' if is_ru else 'house'} {claimed_house}, "
+                    f"{'на деле' if is_ru else 'actually'} {real_house} "
+                    f"({clause.strip()[:120]})"
+                )
+
+    return mismatches
