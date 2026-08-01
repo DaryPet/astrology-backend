@@ -20,6 +20,11 @@ ZODIAC_SIGNS_RU = [
     "Весы", "Скорпион", "Стрелец", "Козерог", "Водолей", "Рыбы"
 ]
 
+ZODIAC_SIGNS_UK = [
+    "Овен", "Телець", "Близнюки", "Рак", "Лев", "Діва",
+    "Терези", "Скорпіон", "Стрілець", "Козеріг", "Водолій", "Риби"
+]
+
 # Все планеты включая LILITH (Black Moon)
 PLANETS = {
     'Sun': swe.SUN,
@@ -73,6 +78,14 @@ ASPECTS_RU = {
     180: 'Оппозиция',
 }
 
+ASPECTS_UK = {
+    0: "З'єднання",
+    60: 'Секстиль',
+    90: 'Квадрат',
+    120: 'Тригон',
+    180: 'Опозиція',
+}
+
 ORBS = {
     ('Sun', 'Moon'): 10,
     ('Sun', 'Mercury'): 8,
@@ -110,6 +123,18 @@ def get_zodiac_sign(degree: float) -> Tuple[str, str]:
     return ZODIAC_SIGNS[index], ZODIAC_SIGNS_RU[index]
 
 
+def get_zodiac_sign_uk(degree: float) -> str:
+    """Convert degree (0-360) to zodiac sign name (UK).
+
+    Separate from get_zodiac_sign() on purpose: that function's 2-tuple
+    return is unpacked as `sign_en, sign_ru = get_zodiac_sign(...)` at 14
+    call sites — widening it to a 3-tuple would break all of them at once.
+    Callers that need the Ukrainian name call this alongside instead.
+    """
+    index = int(degree / 30) % 12
+    return ZODIAC_SIGNS_UK[index]
+
+
 def get_zodiac_degree(degree: float) -> float:
     """Get degree within zodiac sign (0-30)"""
     return degree % 30
@@ -144,6 +169,7 @@ def calculate_planet_position(planet_id: float, jd: float, lat: float, lon: floa
             'speed': 0,
             'sign': 'Unknown',
             'sign_ru': 'Неизвестно',
+            'sign_uk': 'Невідомо',
             'degree': 0,
             'full_degree': 0,
             'error': str(e)
@@ -161,14 +187,16 @@ def calculate_planet_position(planet_id: float, jd: float, lat: float, lon: floa
     
     # Знак зодиака
     sign_en, sign_ru = get_zodiac_sign(longitude)
+    sign_uk = get_zodiac_sign_uk(longitude)
     degree_in_sign = get_zodiac_degree(longitude)
-    
+
     return {
         'longitude': longitude,  # 0-360
         'latitude': latitude,     # -90 to +90
         'speed': speed,           # градусов в день
         'sign': sign_en,
         'sign_ru': sign_ru,
+        'sign_uk': sign_uk,
         'degree': round(degree_in_sign, 4),
         'full_degree': round(longitude, 4),
     }
@@ -210,7 +238,13 @@ def calculate_houses(jd: float, lat: float, lon: float, house_system: str = 'Pla
         "Дом 5", "Дом 6", "Дом 7", "Дом 8",
         "Дом 9", "Дом 10", "Дом 11", "Дом 12"
     ]
-    
+
+    house_names_uk = [
+        "Будинок 1", "Будинок 2", "Будинок 3", "Будинок 4",
+        "Будинок 5", "Будинок 6", "Будинок 7", "Будинок 8",
+        "Будинок 9", "Будинок 10", "Будинок 11", "Будинок 12"
+    ]
+
     house_planets = {
         'Sun': 10,  # Традиционно Солнце в 10 доме
         'Moon': 4,   # Луна в 4 доме
@@ -224,31 +258,35 @@ def calculate_houses(jd: float, lat: float, lon: float, house_system: str = 'Pla
             'house': i + 1,
             'name_en': house_names_en[i],
             'name_ru': house_names_ru[i],
+            'name_uk': house_names_uk[i],
             'cusp_longitude': round(cusp_longitude, 4),
             'sign': sign_en,
             'sign_ru': sign_ru,
+            'sign_uk': get_zodiac_sign_uk(cusp_longitude),
             'degree': round(get_zodiac_degree(cusp_longitude), 4),
         }
-    
+
     # ASC и MC из ascmc
     asc_longitude = ascmc[0]
     mc_longitude = ascmc[1]
-    
+
     asc_sign_en, asc_sign_ru = get_zodiac_sign(asc_longitude)
     mc_sign_en, mc_sign_ru = get_zodiac_sign(mc_longitude)
-    
+
     return {
         'houses': result_houses,
         'ascendant': {
             'longitude': round(asc_longitude, 4),
             'sign': asc_sign_en,
             'sign_ru': asc_sign_ru,
+            'sign_uk': get_zodiac_sign_uk(asc_longitude),
             'degree': round(get_zodiac_degree(asc_longitude), 4),
         },
         'mc': {
             'longitude': round(mc_longitude, 4),
             'sign': mc_sign_en,
             'sign_ru': mc_sign_ru,
+            'sign_uk': get_zodiac_sign_uk(mc_longitude),
             'degree': round(get_zodiac_degree(mc_longitude), 4),
         },
         'armc': round(ascmc[2], 4) if len(ascmc) > 2 else None,
@@ -334,22 +372,24 @@ def calculate_planet_positions(
             speed = pos['speed']
         
         sign_en, sign_ru = get_zodiac_sign(longitude)
+        sign_uk = get_zodiac_sign_uk(longitude)
         # North Node and South Node are always retrograde in astrology
         if planet_name in ('NorthNode', 'SouthNode'):
             is_retrograde = True
         else:
             is_retrograde = speed < 0
-        
+
         planets[planet_name] = {
             'planet': planet_name,
             'sign': sign_en,
             'sign_ru': sign_ru,
+            'sign_uk': sign_uk,
             'degree': round(get_zodiac_degree(longitude), 4),
             'full_degree': round(longitude, 4),
             'speed': round(speed, 4) if speed else 0,
             'is_retrograde': is_retrograde,
         }
-    
+
     # Добавляем SouthNode (противоположно NorthNode)
     nn_longitude = planets['NorthNode']['full_degree']
     sn_longitude = (nn_longitude + 180) % 360
@@ -358,6 +398,7 @@ def calculate_planet_positions(
         'planet': 'SouthNode',
         'sign': sn_sign_en,
         'sign_ru': sn_sign_ru,
+        'sign_uk': get_zodiac_sign_uk(sn_longitude),
         'degree': round(get_zodiac_degree(sn_longitude), 4),
         'full_degree': round(sn_longitude, 4),
         'speed': round(-planets['NorthNode']['speed'], 4),
@@ -375,11 +416,12 @@ def calculate_planet_positions(
                 
                 sign_en, sign_ru = get_zodiac_sign(longitude)
                 is_retrograde = speed < 0
-                
+
                 planets['Chiron'] = {
                     'planet': 'Chiron',
                     'sign': sign_en,
                     'sign_ru': sign_ru,
+                    'sign_uk': get_zodiac_sign_uk(longitude),
                     'degree': round(get_zodiac_degree(longitude), 4),
                     'full_degree': round(longitude, 4),
                     'speed': round(speed, 4) if speed else 0,
@@ -392,6 +434,7 @@ def calculate_planet_positions(
                     'planet': 'Chiron',
                     'sign': 'Unknown',
                     'sign_ru': 'Неизвестно',
+                    'sign_uk': 'Невідомо',
                     'degree': 0,
                     'full_degree': 0,
                     'speed': 0,
@@ -404,6 +447,7 @@ def calculate_planet_positions(
                 'planet': 'Chiron',
                 'sign': 'Unknown',
                 'sign_ru': 'Неизвестно',
+                'sign_uk': 'Невідомо',
                 'degree': 0,
                 'full_degree': 0,
                 'speed': 0,
@@ -504,13 +548,17 @@ def calculate_planet_positions(
     return {
         'sun_sign': planets['Sun']['sign'],
         'sun_sign_ru': planets['Sun']['sign_ru'],
+        'sun_sign_uk': planets['Sun']['sign_uk'],
         'moon_sign': planets['Moon']['sign'],
         'moon_sign_ru': planets['Moon']['sign_ru'],
+        'moon_sign_uk': planets['Moon']['sign_uk'],
         'ascendant': houses_data['ascendant']['sign'],
         'ascendant_ru': houses_data['ascendant']['sign_ru'],
+        'ascendant_uk': houses_data['ascendant']['sign_uk'],
         'ascendant_degree': houses_data['ascendant']['degree'],
         'mc': houses_data['mc']['sign'],
         'mc_ru': houses_data['mc']['sign_ru'],
+        'mc_uk': houses_data['mc']['sign_uk'],
         'mc_degree': houses_data['mc']['degree'],
         'planets': planets,
         'houses': houses_data['houses'],
@@ -525,6 +573,7 @@ def calculate_planet_positions(
                 'longitude': round(pars_fortuna, 4),
                 'sign': pf_sign_en,
                 'sign_ru': pf_sign_ru,
+                'sign_uk': get_zodiac_sign_uk(pars_fortuna),
                 'degree': round(pf_degree, 4),
                 'house': pf_house,
             },
@@ -570,6 +619,7 @@ def calculate_aspects(planets: Dict[str, Any], orb_threshold: float = 8.0) -> Li
                         'planet2': name2,
                         'aspect': aspect_name,
                         'aspect_ru': ASPECTS_RU[aspect_degree],
+                        'aspect_uk': ASPECTS_UK[aspect_degree],
                         'orb': round(abs(diff - aspect_degree), 2),
                         'exactness': round(100 - (abs(diff - aspect_degree) / orb * 100), 1),
                     })
@@ -662,6 +712,7 @@ def calculate_synastry(chart1: Dict[str, Any], chart2: Dict[str, Any]) -> Dict[s
                         'planet2': planet2_name,
                         'aspect': aspect_name,
                         'aspect_ru': ASPECTS_RU[aspect_degree],
+                        'aspect_uk': ASPECTS_UK[aspect_degree],
                         'orb': round(abs(diff - aspect_degree), 2),
                     })
                     break
@@ -759,28 +810,29 @@ def _datetime_to_utc_jd(dt: datetime) -> float:
 # Прогрессивная лунная фаза (угол Луна−Солнце) — ядро интерпретации вторичных прогрессий.
 # 8 фаз по 45°: ключевые этапы ~30-летнего цикла внутреннего развития.
 LUNAR_PHASES = [
-    (0,   'New Moon',          'Новолуние'),
-    (45,  'Crescent',          'Растущий серп'),
-    (90,  'First Quarter',     'Первая четверть'),
-    (135, 'Gibbous',           'Растущая выпуклая'),
-    (180, 'Full Moon',         'Полнолуние'),
-    (225, 'Disseminating',     'Рассеивающая'),
-    (270, 'Last Quarter',      'Последняя четверть'),
-    (315, 'Balsamic',          'Бальзамическая'),
+    (0,   'New Moon',          'Новолуние',           'Молодик'),
+    (45,  'Crescent',          'Растущий серп',       'Молодий серп'),
+    (90,  'First Quarter',     'Первая четверть',     'Перша чверть'),
+    (135, 'Gibbous',           'Растущая выпуклая',   'Зростаюча опукла'),
+    (180, 'Full Moon',         'Полнолуние',          'Повний Місяць'),
+    (225, 'Disseminating',     'Рассеивающая',        'Спадна опукла'),
+    (270, 'Last Quarter',      'Последняя четверть',  'Остання чверть'),
+    (315, 'Balsamic',          'Бальзамическая',      'Бальзамічна'),
 ]
 
 
 def get_progressed_lunar_phase(sun_longitude: float, moon_longitude: float) -> Dict[str, Any]:
     """Определить прогрессивную лунную фазу по углу Луна−Солнце (0-360°)"""
     angle = (moon_longitude - sun_longitude) % 360
-    phase_en, phase_ru = LUNAR_PHASES[0][1], LUNAR_PHASES[0][2]
-    for start_deg, en, ru in LUNAR_PHASES:
+    phase_en, phase_ru, phase_uk = LUNAR_PHASES[0][1], LUNAR_PHASES[0][2], LUNAR_PHASES[0][3]
+    for start_deg, en, ru, uk in LUNAR_PHASES:
         if angle >= start_deg:
-            phase_en, phase_ru = en, ru
+            phase_en, phase_ru, phase_uk = en, ru, uk
     return {
         'angle': round(angle, 2),
         'phase': phase_en,
         'phase_ru': phase_ru,
+        'phase_uk': phase_uk,
     }
 
 
@@ -839,6 +891,7 @@ def calculate_secondary_progressions(
             continue
 
         sign_en, sign_ru = get_zodiac_sign(longitude)
+        sign_uk = get_zodiac_sign_uk(longitude)
         is_retrograde = True if planet_name == 'NorthNode' else speed < 0
         natal_planet = natal['planets'].get(planet_name, {})
         prog_house = get_house_for_longitude(longitude, natal['houses'])
@@ -848,6 +901,7 @@ def calculate_secondary_progressions(
             'planet': planet_name,
             'sign': sign_en,
             'sign_ru': sign_ru,
+            'sign_uk': sign_uk,
             'degree': round(get_zodiac_degree(longitude), 4),
             'full_degree': round(longitude, 4),
             'speed': round(speed, 4) if speed else 0,
@@ -876,6 +930,7 @@ def calculate_secondary_progressions(
             'planet': 'SouthNode',
             'sign': sn_sign_en,
             'sign_ru': sn_sign_ru,
+            'sign_uk': get_zodiac_sign_uk(sn_longitude),
             'degree': round(get_zodiac_degree(sn_longitude), 4),
             'full_degree': round(sn_longitude, 4),
             'speed': round(-progressed_planets['NorthNode']['speed'], 4),
@@ -904,6 +959,7 @@ def calculate_secondary_progressions(
                     'planet': 'Chiron',
                     'sign': sign_en,
                     'sign_ru': sign_ru,
+                    'sign_uk': get_zodiac_sign_uk(longitude),
                     'degree': round(get_zodiac_degree(longitude), 4),
                     'full_degree': round(longitude, 4),
                     'speed': round(speed, 4) if speed else 0,
@@ -954,6 +1010,7 @@ def calculate_secondary_progressions(
                         'planet2': n_name,
                         'aspect': aspect_name,
                         'aspect_ru': ASPECTS_RU[aspect_degree],
+                        'aspect_uk': ASPECTS_UK[aspect_degree],
                         'orb': round(deviation, 2),
                         'exactness': round(100 - deviation / orb * 100, 1),
                         'applying': applying,  # сходящийся (True) / расходящийся (False)
@@ -1128,6 +1185,7 @@ def calculate_transits(
             'planet': planet_name,
             'sign': sign_en,
             'sign_ru': sign_ru,
+            'sign_uk': get_zodiac_sign_uk(longitude),
             'degree': round(get_zodiac_degree(longitude), 4),
             'full_degree': round(longitude, 4),
             'speed': round(speed, 4) if speed else 0,
@@ -1151,6 +1209,7 @@ def calculate_transits(
             'planet': 'SouthNode',
             'sign': sn_sign_en,
             'sign_ru': sn_sign_ru,
+            'sign_uk': get_zodiac_sign_uk(sn_longitude),
             'degree': round(get_zodiac_degree(sn_longitude), 4),
             'full_degree': round(sn_longitude, 4),
             'speed': round(-nn['speed'], 4),
@@ -1176,6 +1235,7 @@ def calculate_transits(
                     'planet': 'Chiron',
                     'sign': sign_en,
                     'sign_ru': sign_ru,
+                    'sign_uk': get_zodiac_sign_uk(longitude),
                     'degree': round(get_zodiac_degree(longitude), 4),
                     'full_degree': round(longitude, 4),
                     'speed': round(speed, 4) if speed else 0,
@@ -1219,6 +1279,7 @@ def calculate_transits(
                         'planet2': n_name,
                         'aspect': aspect_name,
                         'aspect_ru': ASPECTS_RU[aspect_degree],
+                        'aspect_uk': ASPECTS_UK[aspect_degree],
                         'orb': round(deviation, 2),
                         'exactness': round(100 - deviation / max_orb * 100, 1),
                         'applying': applying,
@@ -1351,6 +1412,7 @@ def _cross_aspects(
                         'person2': label_b,
                         'aspect': aspect_name,
                         'aspect_ru': ASPECTS_RU[aspect_degree],
+                        'aspect_uk': ASPECTS_UK[aspect_degree],
                         'orb': round(deviation, 2),
                         'exactness': round(100 - deviation / orb * 100, 1),
                         'applying': applying,
