@@ -8,9 +8,11 @@ from app.services.search_service import (
 from app.services.llm_adapter import generate_analysis, get_llm_adapter
 from app.services.prompt_labels import get_labels
 from app.services.prompt_templates import get_template
+from app.services.prompt_templates.languages import normalize_language
 from app.services.text_verification import (
     PLANET_RU,
     PLANET_EN,
+    PLANET_UK,
     find_fabricated_positions_layered,
     fix_fabricated_positions_layered,
     find_fabricated_aspect_types_layered,
@@ -35,6 +37,35 @@ HOUSE_WORDS = {
     5: "fifth", 6: "sixth", 7: "seventh", 8: "eighth",
     9: "ninth", 10: "tenth", 11: "eleventh", 12: "twelfth"
 }
+
+
+def _planet_display(planet_name: str, language: str) -> str:
+    """PLANET_RU/PLANET_UK/PLANET_EN lookup by language, 3-way replacement for
+    the old `PLANET_RU.get(x) if is_ru else PLANET_EN.get(x)` binary pattern."""
+    lang = normalize_language(language)
+    table = {'ru': PLANET_RU, 'uk': PLANET_UK, 'en': PLANET_EN}[lang]
+    return table.get(planet_name, planet_name)
+
+
+def _lang_key(base: str, language: str) -> str:
+    """'sign' -> 'sign_ru'/'sign_uk'/'sign' depending on language — 3-way
+    replacement for the old `f"{base}_ru" if is_ru else base` binary pattern."""
+    lang = normalize_language(language)
+    return base if lang == 'en' else f"{base}_{lang}"
+
+
+def _localized(d: dict, key: str, language: str, default=None):
+    """d.get(key_ru/key_uk/key) based on language — 3-way replacement for the
+    old `d.get(key_ru if is_ru else key, default)` binary pattern."""
+    return d.get(_lang_key(key, language), d.get(key, default))
+
+
+def _localized2(d1: dict, d2: dict, key: str, language: str, default=None):
+    """Same as _localized but tries d1 then d2 at the SAME localized key
+    before falling back to default — matches the old cascading pattern
+    `d1.get(key_ru if is_ru else key, d2.get(key_ru if is_ru else key, default))`."""
+    k = _lang_key(key, language)
+    return d1.get(k, d2.get(k, default))
 
 
 def build_analysis_prompt(
@@ -666,13 +697,14 @@ async def full_chart_analysis_v2(
         'planets': planets,
         'ascendant': chart_data.get('ascendant'),
         'ascendant_ru': chart_data.get('ascendant_ru'),
+        'ascendant_uk': chart_data.get('ascendant_uk'),
     }
     layers = {'natal': natal_chart_like}
 
     try:
         full_analysis = await adapter.generate(prompt, language)
 
-        if language in ('ru', 'en'):
+        if language in ('ru', 'en', 'uk'):
             # Позиции: чинится только то, что не существует в чарте вообще.
             full_analysis, unresolved = fix_fabricated_positions_layered(
                 full_analysis, layers, language=language
@@ -840,14 +872,14 @@ async def progressions_analysis(
         orb_val = asp.get("orb", "?")
         n_house = asp.get("natal_house", "?")
         p_house = asp.get("progressed_house", "?")
+        # Явный слой-префикс (ПРОГРЕССИВНЫЙ:/НАТАЛЬНЫЙ:, заглавными, без
+        # склонения по роду планеты — тот же приём, что ПАРТНЕР1:/ПАРТНЕР2:
+        # в synastry_service.py) + переведённое имя планеты: раньше здесь
+        # был необъявленный внутренний ключ ("Прогрессивный Moon"), а не
+        # отображаемое имя. Разграничивает прогрессивную и натальную
+        # позицию ОДНОЙ И ТОЙ ЖЕ планеты — план:
+        # app/services/specs/progressions_synastry_pattern_plan.md.
         if language == 'ru':
-            # Явный слой-префикс (ПРОГРЕССИВНЫЙ:/НАТАЛЬНЫЙ:, заглавными, без
-            # склонения по роду планеты — тот же приём, что ПАРТНЕР1:/ПАРТНЕР2:
-            # в synastry_service.py) + переведённое имя планеты: раньше здесь
-            # был необъявленный внутренний ключ ("Прогрессивный Moon"), а не
-            # отображаемое имя. Разграничивает прогрессивную и натальную
-            # позицию ОДНОЙ И ТОЙ ЖЕ планеты — план:
-            # app/services/specs/progressions_synastry_pattern_plan.md.
             p1_display = PLANET_RU.get(p1, p1)
             p2_display = PLANET_RU.get(p2, p2)
             asp_name = asp.get("aspect_ru", asp.get("aspect", "?"))
@@ -856,6 +888,16 @@ async def progressions_analysis(
                 f"ПРОГРЕССИВНЫЙ:{p1_display} (в {asp.get('progressed_sign', '?')}, натальный дом {p_house}) "
                 f"{asp_name} НАТАЛЬНЫЙ:{p2_display} (в {asp.get('natal_sign', '?')}, дом {n_house}) "
                 f"— орб {orb_val}°, {applying_str}"
+            )
+        elif language == 'uk':
+            p1_display = _planet_display(p1, 'uk')
+            p2_display = _planet_display(p2, 'uk')
+            asp_name = asp.get("aspect_uk", asp.get("aspect", "?"))
+            applying_str = "аплікуючий" if asp.get("applying") else "сепаруючий"
+            aspects_list.append(
+                f"ПРОГРЕСИВНА:{p1_display} (у {asp.get('progressed_sign', '?')}, натальний будинок {p_house}) "
+                f"{asp_name} НАТАЛЬНА:{p2_display} (у {asp.get('natal_sign', '?')}, будинок {n_house}) "
+                f"— орбіс {orb_val}°, {applying_str}"
             )
         else:
             p1_display = PLANET_EN.get(p1, p1)
@@ -867,7 +909,8 @@ async def progressions_analysis(
                 f"— orb {orb_val}°, {applying_str}"
             )
     aspects_str = "\n".join(aspects_list) if aspects_list else (
-        "Точных аспектов к натальной карте сейчас нет" if language == 'ru'
+        "Точних аспектів до натальної карти зараз немає" if language == 'uk'
+        else "Точных аспектов к натальной карте сейчас нет" if language == 'ru'
         else "No exact aspects to the natal chart right now"
     )
 
@@ -909,11 +952,11 @@ async def progressions_analysis(
     prompt = prompt.replace("{books_content}", books_content)
 
     # --- Данные прогрессий ---
-    # is_ru управляет и выбором sign/sign_ru, и подписями через labels — раньше
-    # весь этот блок был захардкожен по-русски НЕЗАВИСИМО от language (шаблон
-    # выше уже двуязычный, а данные — нет). План:
+    # Язык данных (sign/sign_ru/sign_uk, PLANET_RU/PLANET_UK/PLANET_EN) через
+    # _localized()/_planet_display() — раньше весь этот блок был захардкожен
+    # по-русски НЕЗАВИСИМО от language (шаблон выше уже был двуязычным, а
+    # данные — нет), затем расширен на 3-way вместо бинарного is_ru. План:
     # app/services/specs/progressions_synastry_pattern_plan.md.
-    is_ru = language == 'ru'
     age = progressions.get("age_years", "?")
     period = progressions.get("period", "?")
 
@@ -924,16 +967,16 @@ async def progressions_analysis(
     # Прогрессивная лунная фаза — этап ~30-летнего цикла, главный контекст всего анализа
     lunar_phase = progressions.get("lunar_phase") or {}
     if lunar_phase:
-        phase_name = lunar_phase.get("phase_ru" if is_ru else "phase", "?")
+        phase_name = _localized(lunar_phase, "phase", language, "?")
         prompt += f"\n{labels['progressed_lunar_phase_label']}: {phase_name} ({labels['moon_sun_angle_label']} {lunar_phase.get('angle', '?')}°)"
 
     prog_asc = progressions.get("progressed_ascendant", {})
     prog_mc = progressions.get("progressed_mc", {})
     if prog_asc:
-        asc_sign = prog_asc.get("sign_ru" if is_ru else "sign", prog_asc.get("sign", "?"))
+        asc_sign = _localized(prog_asc, "sign", language, "?")
         prompt += f"\n{labels['progressed_ascendant_label']}: {asc_sign}"
     if prog_mc:
-        mc_sign = prog_mc.get("sign_ru" if is_ru else "sign", prog_mc.get("sign", "?"))
+        mc_sign = _localized(prog_mc, "sign", language, "?")
         prompt += f"\n{labels['progressed_mc_label']}: {mc_sign}"
 
     # Слой-префикс (ПРОГРЕССИВНАЯ:/PROGRESSED:) перед КАЖДОЙ строкой планеты, а
@@ -944,15 +987,15 @@ async def progressions_analysis(
         planet_data = prog_planets.get(planet_name)
         if not planet_data:
             continue
-        planet_display = PLANET_RU.get(planet_name, planet_name) if is_ru else PLANET_EN.get(planet_name, planet_name)
-        sign_display = planet_data.get("sign_ru" if is_ru else "sign", planet_data.get("sign", "?"))
+        planet_display = _planet_display(planet_name, language)
+        sign_display = _localized(planet_data, "sign", language, "?")
         degree = planet_data.get("degree", "?")
         house = planet_data.get("natal_house", "?")
         rx_str = labels['retrograde_inline'] if planet_data.get("is_retrograde") else ""
         markers = []
         if planet_data.get("changed_sign") and planet_data.get("natal_sign"):
             natal_planet_data = natal_planets.get(planet_name, {})
-            natal_sign_display = natal_planet_data.get("sign_ru" if is_ru else "sign", planet_data.get("natal_sign"))
+            natal_sign_display = natal_planet_data.get(_lang_key("sign", language), planet_data.get("natal_sign"))
             markers.append(labels['changed_sign_marker'].format(sign=natal_sign_display))
         if planet_data.get("changed_house") and planet_data.get("natal_planet_house"):
             markers.append(labels['changed_house_marker'].format(house=planet_data['natal_planet_house']))
@@ -967,20 +1010,20 @@ async def progressions_analysis(
 
     # Полная натальная карта — без неё невозможен оверлей «прогрессия поверх натала»
     prompt += f"\n\n{labels['natal_chart_overlay_header']}"
-    sun_display = PLANET_RU.get('Sun') if is_ru else PLANET_EN.get('Sun')
-    moon_display = PLANET_RU.get('Moon') if is_ru else PLANET_EN.get('Moon')
-    asc_display = PLANET_RU.get('Ascendant') if is_ru else PLANET_EN.get('Ascendant')
-    natal_sun_sign = natal_summary.get("sun_sign_ru" if is_ru else "sun_sign", natal_chart.get("sun_sign_ru" if is_ru else "sun_sign", "?"))
-    natal_moon_sign = natal_summary.get("moon_sign_ru" if is_ru else "moon_sign", natal_chart.get("moon_sign_ru" if is_ru else "moon_sign", "?"))
-    natal_asc_sign = natal_summary.get("ascendant_ru" if is_ru else "ascendant", natal_chart.get("ascendant_ru" if is_ru else "ascendant", "?"))
+    sun_display = _planet_display('Sun', language)
+    moon_display = _planet_display('Moon', language)
+    asc_display = _planet_display('Ascendant', language)
+    natal_sun_sign = _localized2(natal_summary, natal_chart, "sun_sign", language, "?")
+    natal_moon_sign = _localized2(natal_summary, natal_chart, "moon_sign", language, "?")
+    natal_asc_sign = _localized2(natal_summary, natal_chart, "ascendant", language, "?")
     prompt += f"\n{labels['layer_natal']}: {sun_display}: {natal_sun_sign}"
     prompt += f"\n{labels['layer_natal']}: {moon_display}: {natal_moon_sign}"
     prompt += f"\n{labels['layer_natal']}: {asc_display}: {natal_asc_sign}"
     if natal_planets:
         prompt += f"\n{labels['natal_planets_list_label']}"
         for n_name, n_data in natal_planets.items():
-            n_display = PLANET_RU.get(n_name, n_name) if is_ru else PLANET_EN.get(n_name, n_name)
-            n_sign = n_data.get("sign_ru" if is_ru else "sign", n_data.get("sign", "?"))
+            n_display = _planet_display(n_name, language)
+            n_sign = _localized(n_data, "sign", language, "?")
             n_house = n_data.get("house", "?")
             n_rx = labels['retrograde_short'] if n_data.get("is_retrograde") else ""
             prompt += f"\n  {labels['layer_natal']}: {n_display}: {n_sign}, {labels['house_word']} {n_house}{n_rx}"
@@ -997,13 +1040,14 @@ async def progressions_analysis(
         'planets': prog_planets,
         'ascendant': prog_asc.get('sign'),
         'ascendant_ru': prog_asc.get('sign_ru'),
+        'ascendant_uk': prog_asc.get('sign_uk'),
     }
     layers = {'progressed': progressed_chart_like, 'natal': natal_chart or {}}
 
     try:
         full_analysis = await adapter.generate(prompt, language)
 
-        if language in ('ru', 'en'):
+        if language in ('ru', 'en', 'uk'):
             # Позиции: чинится только то, что не существует НИ В ОДНОМ слое —
             # то же самое, что fix_fabricated_planet_positions в синастрии
             # (union-проверка), обобщённое на слои. План:
@@ -1171,43 +1215,71 @@ async def transits_analysis(
     # 'transit_planet_transit_house' (:1232). Тот же ключ 'transit_house' в
     # t_planets[X] (:1205 ниже) означает ДРУГОЕ — реальный транзитный дом. Не путать
     # при чтении/правке — план: app/services/specs/transits_synastry_pattern_plan.md.
-    is_ru = language == 'ru'
+    lang = normalize_language(language)
 
     def fmt_aspect(asp: Dict) -> str:
         p1 = asp.get("transit", asp.get("planet1", "?"))
         p2 = asp.get("natal", asp.get("planet2", "?"))
-        p1_display = PLANET_RU.get(p1, p1) if is_ru else PLANET_EN.get(p1, p1)
-        p2_display = PLANET_RU.get(p2, p2) if is_ru else PLANET_EN.get(p2, p2)
+        p1_display = _planet_display(p1, language)
+        p2_display = _planet_display(p2, language)
         orb_val = asp.get("orb", "?")
         natal_house_of_transit_planet = asp.get("transit_house", "?")  # см. комментарий выше
         current_transit_house = asp.get("transit_planet_transit_house", "?")
-        transit_house_str = (
-            f", транзитный дом {current_transit_house}" if is_ru and current_transit_house != "?"
-            else f", transit house {current_transit_house}" if current_transit_house != "?"
-            else ""
-        )
+        if current_transit_house == "?":
+            transit_house_str = ""
+        elif lang == 'ru':
+            transit_house_str = f", транзитный дом {current_transit_house}"
+        elif lang == 'uk':
+            transit_house_str = f", транзитний дім {current_transit_house}"
+        else:
+            transit_house_str = f", transit house {current_transit_house}"
         ret_mark = ""
         if asp.get("is_return"):
-            ret_mark = " [ВОЗВРАТ ПЛАНЕТЫ!]" if is_ru else " [PLANETARY RETURN!]"
-        if is_ru:
+            ret_mark = {
+                'ru': " [ВОЗВРАТ ПЛАНЕТЫ!]",
+                'uk': " [ПОВЕРНЕННЯ ПЛАНЕТИ!]",
+                'en': " [PLANETARY RETURN!]",
+            }[lang]
+        if lang == 'ru':
             asp_name = asp.get("aspect_ru", asp.get("aspect", "?"))
             applying_str = "сходящийся" if asp.get("applying") else "расходящийся"
             return (f"ТРАНЗИТНЫЙ:{p1_display} (в {asp.get('transit_sign', '?')}, идёт по натальному дому {natal_house_of_transit_planet}{transit_house_str}) "
                     f"{asp_name} НАТАЛЬНЫЙ:{p2_display} (в {asp.get('natal_sign', '?')}, дом {asp.get('natal_house', '?')}) "
                     f"— орб {orb_val}°, {applying_str}{ret_mark}")
+        if lang == 'uk':
+            asp_name = asp.get("aspect_uk", asp.get("aspect", "?"))
+            applying_str = "аплікуючий" if asp.get("applying") else "сепаруючий"
+            return (f"ТРАНЗИТНА:{p1_display} (у {asp.get('transit_sign', '?')}, проходить по натальному будинку {natal_house_of_transit_planet}{transit_house_str}) "
+                    f"{asp_name} НАТАЛЬНА:{p2_display} (у {asp.get('natal_sign', '?')}, будинок {asp.get('natal_house', '?')}) "
+                    f"— орбіс {orb_val}°, {applying_str}{ret_mark}")
         applying_str = "applying" if asp.get("applying") else "separating"
         return (f"TRANSITING:{p1_display} (in {asp.get('transit_sign', '?')}, moving through natal house {natal_house_of_transit_planet}{transit_house_str}) "
                 f"{asp.get('aspect', '?')} NATAL:{p2_display} (in {asp.get('natal_sign', '?')}, house {asp.get('natal_house', '?')}) "
                 f"— orb {orb_val}°, {applying_str}{ret_mark}")
 
-    slow_str = "\n".join(fmt_aspect(a) for a in slow_aspects) if slow_aspects else (
-        "Нет точных аспектов от медленных планет" if language == 'ru' else "No exact aspects from slow planets")
-    fast_str = "\n".join(fmt_aspect(a) for a in fast_aspects) if fast_aspects else (
-        "Нет точных аспектов от быстрых планет" if language == 'ru' else "No exact aspects from fast planets")
-    aspects_str = (
-        ("【МЕДЛЕННЫЕ ПЛАНЕТЫ — главные темы периода】\n" if language == 'ru' else "【SLOW PLANETS — main themes of the period】\n") + slow_str +
-        ("\n\n【БЫСТРЫЕ ПЛАНЕТЫ — окраска именно этого дня】\n" if language == 'ru' else "\n\n【FAST PLANETS — the flavor of this specific day】\n") + fast_str
-    )
+    _NO_SLOW_ASPECTS = {
+        'ru': "Нет точных аспектов от медленных планет",
+        'uk': "Немає точних аспектів від повільних планет",
+        'en': "No exact aspects from slow planets",
+    }
+    _NO_FAST_ASPECTS = {
+        'ru': "Нет точных аспектов от быстрых планет",
+        'uk': "Немає точних аспектів від швидких планет",
+        'en': "No exact aspects from fast planets",
+    }
+    _SLOW_HEADER = {
+        'ru': "【МЕДЛЕННЫЕ ПЛАНЕТЫ — главные темы периода】\n",
+        'uk': "【ПОВІЛЬНІ ПЛАНЕТИ — головні теми періоду】\n",
+        'en': "【SLOW PLANETS — main themes of the period】\n",
+    }
+    _FAST_HEADER = {
+        'ru': "\n\n【БЫСТРЫЕ ПЛАНЕТЫ — окраска именно этого дня】\n",
+        'uk': "\n\n【ШВИДКІ ПЛАНЕТИ — забарвлення саме цього дня】\n",
+        'en': "\n\n【FAST PLANETS — the flavor of this specific day】\n",
+    }
+    slow_str = "\n".join(fmt_aspect(a) for a in slow_aspects) if slow_aspects else _NO_SLOW_ASPECTS[lang]
+    fast_str = "\n".join(fmt_aspect(a) for a in fast_aspects) if fast_aspects else _NO_FAST_ASPECTS[lang]
+    aspects_str = _SLOW_HEADER[lang] + slow_str + _FAST_HEADER[lang] + fast_str
 
     # Фрагменты книг
     planet_chunks_text = ""
@@ -1247,9 +1319,9 @@ async def transits_analysis(
     prompt = prompt.replace("{books_content}", books_content)
 
     # --- Данные транзитов ---
-    # is_ru управляет и выбором sign/sign_ru, и подписями через labels — раньше
-    # весь этот блок (кроме места транзита и Asc/MC) был захардкожен по-русски
-    # независимо от language. План:
+    # Язык данных через _localized()/_planet_display() — раньше весь этот блок
+    # (кроме места транзита и Asc/MC) был захардкожен по-русски независимо от
+    # language, затем расширен на 3-way вместо бинарного is_ru. План:
     # app/services/specs/transits_synastry_pattern_plan.md.
     period = transits.get("period", "?")
     prompt += f"\n\n{labels['transits_data_header']}"
@@ -1264,14 +1336,14 @@ async def transits_analysis(
     transit_asc = transit_summary.get("ascendant")
     transit_mc = transit_summary.get("mc")
     if transit_asc or transit_mc:
-        asc_sign = (transit_asc.get("sign_ru" if is_ru else "sign", transit_asc.get("sign", "?")) if transit_asc else "?")
-        mc_sign = (transit_mc.get("sign_ru" if is_ru else "sign", transit_mc.get("sign", "?")) if transit_mc else "?")
+        asc_sign = _localized(transit_asc, "sign", language, "?") if transit_asc else "?"
+        mc_sign = _localized(transit_mc, "sign", language, "?") if transit_mc else "?"
         prompt += f"\n{labels['transiting_ascendant_label']}: {asc_sign}"
         prompt += f"\n{labels['transiting_mc_label']}: {mc_sign}"
 
     lunar_phase = transits.get("lunar_phase") or {}
     if lunar_phase:
-        phase_name = lunar_phase.get("phase_ru" if is_ru else "phase", "?")
+        phase_name = _localized(lunar_phase, "phase", language, "?")
         prompt += f"\n{labels['day_lunar_phase_label']}: {phase_name} ({labels['moon_sun_angle_label']} {lunar_phase.get('angle', '?')}°)"
 
     # Слой-префикс (ТРАНЗИТНАЯ:/TRANSITING:) перед КАЖДОЙ строкой планеты, а
@@ -1284,8 +1356,8 @@ async def transits_analysis(
         planet_data = t_planets.get(planet_name)
         if not planet_data:
             continue
-        planet_display = PLANET_RU.get(planet_name, planet_name) if is_ru else PLANET_EN.get(planet_name, planet_name)
-        sign_display = planet_data.get("sign_ru" if is_ru else "sign", planet_data.get("sign", "?"))
+        planet_display = _planet_display(planet_name, language)
+        sign_display = _localized(planet_data, "sign", language, "?")
         degree = planet_data.get("degree", "?")
         # Здесь 'natal_house'/'transit_house' в t_planets[X] — это НЕ те же
         # величины, что одноимённые поля в aspects_to_natal (см. комментарий
@@ -1304,20 +1376,20 @@ async def transits_analysis(
 
     # Полная натальная карта — основа оверлея
     prompt += f"\n\n{labels['natal_chart_overlay_header']}"
-    sun_display = PLANET_RU.get('Sun') if is_ru else PLANET_EN.get('Sun')
-    moon_display = PLANET_RU.get('Moon') if is_ru else PLANET_EN.get('Moon')
-    asc_display = PLANET_RU.get('Ascendant') if is_ru else PLANET_EN.get('Ascendant')
-    natal_sun_sign = natal_summary.get("sun_sign_ru" if is_ru else "sun_sign", natal_chart.get("sun_sign_ru" if is_ru else "sun_sign", "?"))
-    natal_moon_sign = natal_summary.get("moon_sign_ru" if is_ru else "moon_sign", natal_chart.get("moon_sign_ru" if is_ru else "moon_sign", "?"))
-    natal_asc_sign = natal_summary.get("ascendant_ru" if is_ru else "ascendant", natal_chart.get("ascendant_ru" if is_ru else "ascendant", "?"))
+    sun_display = _planet_display('Sun', language)
+    moon_display = _planet_display('Moon', language)
+    asc_display = _planet_display('Ascendant', language)
+    natal_sun_sign = _localized2(natal_summary, natal_chart, "sun_sign", language, "?")
+    natal_moon_sign = _localized2(natal_summary, natal_chart, "moon_sign", language, "?")
+    natal_asc_sign = _localized2(natal_summary, natal_chart, "ascendant", language, "?")
     prompt += f"\n{labels['layer_natal']}: {sun_display}: {natal_sun_sign}"
     prompt += f"\n{labels['layer_natal']}: {moon_display}: {natal_moon_sign}"
     prompt += f"\n{labels['layer_natal']}: {asc_display}: {natal_asc_sign}"
     if natal_planets:
         prompt += f"\n{labels['natal_planets_list_label']}"
         for n_name, n_data in natal_planets.items():
-            n_display = PLANET_RU.get(n_name, n_name) if is_ru else PLANET_EN.get(n_name, n_name)
-            n_sign = n_data.get("sign_ru" if is_ru else "sign", n_data.get("sign", "?"))
+            n_display = _planet_display(n_name, language)
+            n_sign = _localized(n_data, "sign", language, "?")
             n_house = n_data.get("house", "?")
             n_rx = labels['retrograde_short'] if n_data.get("is_retrograde") else ""
             prompt += f"\n  {labels['layer_natal']}: {n_display}: {n_sign}, {labels['house_word']} {n_house}{n_rx}"
@@ -1334,13 +1406,14 @@ async def transits_analysis(
         'planets': t_planets,
         'ascendant': transit_asc.get('sign') if transit_asc else None,
         'ascendant_ru': transit_asc.get('sign_ru') if transit_asc else None,
+        'ascendant_uk': transit_asc.get('sign_uk') if transit_asc else None,
     }
     layers = {'transit': transit_chart_like, 'natal': natal_chart or {}}
 
     try:
         full_analysis = await adapter.generate(prompt, language)
 
-        if language in ('ru', 'en'):
+        if language in ('ru', 'en', 'uk'):
             # Позиции: чинится только то, что не существует НИ В ОДНОМ слое.
             full_analysis, unresolved = fix_fabricated_positions_layered(
                 full_analysis, layers, language=language

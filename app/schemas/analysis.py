@@ -158,6 +158,7 @@ class SynastryAspectRequest(BaseModel):
     planet2: str
     aspect_name: str
     aspect_name_ru: Optional[str] = None
+    aspect_name_uk: Optional[str] = None
     orb: float = 0.0
     language: str = "en"
     mode: Optional[str] = 'advanced'
@@ -169,6 +170,7 @@ class SynastryAspectResponse(BaseModel):
     planet2: str
     aspect: str
     aspect_ru: Optional[str] = None
+    aspect_uk: Optional[str] = None
     orb: float
     analysis: str
     relevant_chunks: List[Dict[str, Any]] = []

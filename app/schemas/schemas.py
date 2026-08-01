@@ -103,13 +103,17 @@ class NatalChartResponseFull(BaseModel):
     """Full natal chart response"""
     sun_sign: str
     sun_sign_ru: str
+    sun_sign_uk: Optional[str] = None
     moon_sign: str
     moon_sign_ru: str
+    moon_sign_uk: Optional[str] = None
     ascendant: str
     ascendant_ru: str
+    ascendant_uk: Optional[str] = None
     ascendant_degree: float
     mc: str
     mc_ru: str
+    mc_uk: Optional[str] = None
     mc_degree: float
     planets: Dict[str, Any]
     houses: Dict[str, Any]

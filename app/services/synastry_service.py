@@ -12,13 +12,17 @@ from app.services.analysis_service import search_chunks_all_books, generate_summ
 from app.services.text_verification import (
     SIGN_PREPOSITIONAL_TO_NOMINATIVE,
     SIGN_NOMINATIVE_TO_PREPOSITIONAL,
+    SIGN_LOCATIVE_TO_NOMINATIVE_UK,
     ZODIAC_SIGNS_EN,
     PLANET_STEM_RU,
     ASPECT_STEM_RU,
     PLANET_STEM_EN,
     ASPECT_STEM_EN,
+    PLANET_STEM_UK,
+    ASPECT_STEM_UK,
     _ASPECT_HEADER_RE,
 )
+from app.services.prompt_templates.languages import normalize_language
 
 
 JEFF_GREEN_BOOK_ID = 26
@@ -44,6 +48,30 @@ PLANET_EN = {
     'Lilith': 'Lilith', 'Ascendant': 'Ascendant', 'Vertex': 'Vertex',
 }
 
+PLANET_UK = {
+    'Sun': 'Сонце', 'Moon': 'Місяць', 'Mercury': 'Меркурій',
+    'Venus': 'Венера', 'Mars': 'Марс', 'Jupiter': 'Юпітер',
+    'Saturn': 'Сатурн', 'Uranus': 'Уран', 'Neptune': 'Нептун',
+    'Pluto': 'Плутон', 'NorthNode': 'Північний Вузол',
+    'SouthNode': 'Південний Вузол', 'Chiron': 'Хірон',
+    'Lilith': 'Ліліт', 'Ascendant': 'Асцендент', 'Vertex': 'Вертекс',
+}
+
+# Диспетчер по языку — единая точка выбора таблицы вместо разбросанных
+# `X if is_ru else Y`, тот же приём, что в text_verification.py.
+PLANET_DISPLAY_BY_LANG = {'ru': PLANET_RU, 'uk': PLANET_UK, 'en': PLANET_EN}
+PLANET_STEM_BY_LANG = {'ru': PLANET_STEM_RU, 'uk': PLANET_STEM_UK, 'en': PLANET_STEM_EN}
+ASPECT_STEM_BY_LANG = {'ru': ASPECT_STEM_RU, 'uk': ASPECT_STEM_UK, 'en': ASPECT_STEM_EN}
+SIGN_FORMS_BY_LANG = {'ru': SIGN_PREPOSITIONAL_TO_NOMINATIVE, 'uk': SIGN_LOCATIVE_TO_NOMINATIVE_UK, 'en': ZODIAC_SIGNS_EN}
+_SIGN_NOMINATIVE_TO_FORM_UK = {v: k for k, v in SIGN_LOCATIVE_TO_NOMINATIVE_UK.items()}
+CONNECTOR_BY_LANG = {'ru': r"\s+в\s+", 'uk': r"\s+[ув]\s+", 'en': r"\s+in\s+"}
+JOINER_BY_LANG = {'ru': 'в', 'uk': 'у', 'en': 'in'}
+_MSG_LABELS_BY_LANG = {
+    'ru': {'in_text': 'в тексте', 'actually': 'на деле'},
+    'uk': {'in_text': 'у тексті', 'actually': 'насправді'},
+    'en': {'in_text': 'in text', 'actually': 'actually'},
+}
+
 
 def find_fabricated_planet_positions(
     text: str,
@@ -64,25 +92,28 @@ def find_fabricated_planet_positions(
     начале, что в середине фразы), поэтому дополнительная таблица форм
     (как SIGN_PREPOSITIONAL_TO_NOMINATIVE для русского) не нужна.
     """
-    is_ru = language == 'ru'
-    connector = r"\s+в\s+" if is_ru else r"\s+in\s+"
+    lang = normalize_language(language)
+    connector = CONNECTOR_BY_LANG[lang]
+    display = PLANET_DISPLAY_BY_LANG[lang]
+    sign_key = 'sign' if lang == 'en' else f'sign_{lang}'
+    asc_key = 'ascendant' if lang == 'en' else f'ascendant_{lang}'
 
     valid_pairs = set()
     for chart in (chart1_data, chart2_data):
         for p_name, p_data in chart.get('planets', {}).items():
-            planet_name = PLANET_RU.get(p_name) if is_ru else PLANET_EN.get(p_name)
-            sign = p_data.get('sign_ru') if is_ru else p_data.get('sign')
+            planet_name = display.get(p_name)
+            sign = p_data.get(sign_key)
             if planet_name and sign:
                 valid_pairs.add((planet_name, sign))
-        asc_sign = chart.get('ascendant_ru') if is_ru else chart.get('ascendant')
+        asc_sign = chart.get(asc_key)
         if asc_sign:
-            valid_pairs.add(('Асцендент' if is_ru else 'Ascendant', asc_sign))
+            valid_pairs.add((display['Ascendant'], asc_sign))
 
     if not valid_pairs:
         return []
 
-    planet_names = PLANET_RU.values() if is_ru else PLANET_EN.values()
-    sign_forms = SIGN_PREPOSITIONAL_TO_NOMINATIVE if is_ru else ZODIAC_SIGNS_EN
+    planet_names = display.values()
+    sign_forms = SIGN_FORMS_BY_LANG[lang]
     planet_pattern = "|".join(re.escape(n) for n in planet_names)
     sign_pattern = "|".join(re.escape(f) for f in sign_forms)
     pattern = re.compile(rf"({planet_pattern}){connector}({sign_pattern})")
@@ -90,9 +121,9 @@ def find_fabricated_planet_positions(
     mismatches = []
     for m in pattern.finditer(text):
         planet_name, sign_form = m.group(1), m.group(2)
-        sign_nom = SIGN_PREPOSITIONAL_TO_NOMINATIVE[sign_form] if is_ru else sign_form
+        sign_nom = sign_forms[sign_form] if lang in ('ru', 'uk') else sign_form
         if (planet_name, sign_nom) not in valid_pairs:
-            joiner = "в" if is_ru else "in"
+            joiner = JOINER_BY_LANG[lang]
             mismatches.append(f"{planet_name} {joiner} {sign_form}")
 
     return mismatches
@@ -100,6 +131,12 @@ def find_fabricated_planet_positions(
 
 _PARTNER_MARKER_RE_SRC = r"[Пп]артн[её]р\w*\s*(1|2)"
 _PARTNER_MARKER_RE_SRC_EN = r"[Pp]artner\s*(1|2)"
+# Украинское "партнер" пишется без "ё" (в украинском алфавите такой буквы
+# нет вообще) — иначе тот же паттерн, что и русский.
+_PARTNER_MARKER_RE_SRC_UK = r"[Пп]артнер\w*\s*(1|2)"
+_PARTNER_MARKER_SRC_BY_LANG = {
+    'ru': _PARTNER_MARKER_RE_SRC, 'uk': _PARTNER_MARKER_RE_SRC_UK, 'en': _PARTNER_MARKER_RE_SRC_EN,
+}
 
 
 def fix_fabricated_planet_positions(
@@ -127,40 +164,42 @@ def fix_fabricated_planet_positions(
 
     Возвращает (исправленный текст, список нерешённых расхождений).
     """
-    is_ru = language == 'ru'
-    connector = r"\s+в\s+" if is_ru else r"\s+in\s+"
-    joiner = "в" if is_ru else "in"
+    lang = normalize_language(language)
+    connector = CONNECTOR_BY_LANG[lang]
+    joiner = JOINER_BY_LANG[lang]
+    display = PLANET_DISPLAY_BY_LANG[lang]
+    sign_key = 'sign' if lang == 'en' else f'sign_{lang}'
+    asc_key = 'ascendant' if lang == 'en' else f'ascendant_{lang}'
+    nominative_to_form = {'ru': SIGN_NOMINATIVE_TO_PREPOSITIONAL, 'uk': _SIGN_NOMINATIVE_TO_FORM_UK}.get(lang)
 
     def correct_sign_for(planet_name: str, chart_data: Dict[str, Any]) -> Optional[str]:
-        asc_name = 'Асцендент' if is_ru else 'Ascendant'
-        if planet_name == asc_name:
-            return chart_data.get('ascendant_ru') if is_ru else chart_data.get('ascendant')
+        if planet_name == display['Ascendant']:
+            return chart_data.get(asc_key)
         for p_name, p_data in chart_data.get('planets', {}).items():
-            translated = PLANET_RU.get(p_name) if is_ru else PLANET_EN.get(p_name)
-            if translated == planet_name:
-                return p_data.get('sign_ru') if is_ru else p_data.get('sign')
+            if display.get(p_name) == planet_name:
+                return p_data.get(sign_key)
         return None
 
     valid_pairs = set()
     for chart in (chart1_data, chart2_data):
         for p_name, p_data in chart.get('planets', {}).items():
-            planet_name = PLANET_RU.get(p_name) if is_ru else PLANET_EN.get(p_name)
-            sign = p_data.get('sign_ru') if is_ru else p_data.get('sign')
+            planet_name = display.get(p_name)
+            sign = p_data.get(sign_key)
             if planet_name and sign:
                 valid_pairs.add((planet_name, sign))
-        asc_sign = chart.get('ascendant_ru') if is_ru else chart.get('ascendant')
+        asc_sign = chart.get(asc_key)
         if asc_sign:
-            valid_pairs.add(('Асцендент' if is_ru else 'Ascendant', asc_sign))
+            valid_pairs.add((display['Ascendant'], asc_sign))
 
     if not valid_pairs:
         return text, []
 
-    planet_names = PLANET_RU.values() if is_ru else PLANET_EN.values()
-    sign_forms = SIGN_PREPOSITIONAL_TO_NOMINATIVE if is_ru else ZODIAC_SIGNS_EN
+    planet_names = display.values()
+    sign_forms = SIGN_FORMS_BY_LANG[lang]
     planet_pattern = "|".join(re.escape(n) for n in planet_names)
     sign_pattern = "|".join(re.escape(f) for f in sign_forms)
     pattern = re.compile(rf"({planet_pattern}){connector}({sign_pattern})")
-    partner_re = re.compile(_PARTNER_MARKER_RE_SRC if is_ru else _PARTNER_MARKER_RE_SRC_EN)
+    partner_re = re.compile(_PARTNER_MARKER_SRC_BY_LANG[lang])
 
     unresolved: List[str] = []
     pieces: List[str] = []
@@ -168,7 +207,7 @@ def fix_fabricated_planet_positions(
 
     for m in pattern.finditer(text):
         planet_name, sign_form = m.group(1), m.group(2)
-        sign_nom = SIGN_PREPOSITIONAL_TO_NOMINATIVE[sign_form] if is_ru else sign_form
+        sign_nom = sign_forms[sign_form] if lang in ('ru', 'uk') else sign_form
         if (planet_name, sign_nom) in valid_pairs:
             continue  # верно, не трогаем
 
@@ -185,7 +224,7 @@ def fix_fabricated_planet_positions(
             unresolved.append(f"{planet_name} {joiner} {sign_form}")
             continue
 
-        correct_form = SIGN_NOMINATIVE_TO_PREPOSITIONAL.get(correct_sign, correct_sign) if is_ru else correct_sign
+        correct_form = nominative_to_form.get(correct_sign, correct_sign) if nominative_to_form else correct_sign
         pieces.append(text[last_end:m.start()])
         pieces.append(f"{planet_name} {joiner} {correct_form}")
         last_end = m.end()
@@ -200,6 +239,10 @@ def fix_fabricated_planet_positions(
 # натал/транзиты его не имеют — остаётся здесь.
 _ASPECT_PARTNER_MARKER_RE = re.compile(r"[Пп]артн[её]р\w*\s*(1|2)")
 _ASPECT_PARTNER_MARKER_RE_EN = re.compile(r"[Pp]artner\s*(1|2)")
+_ASPECT_PARTNER_MARKER_RE_UK = re.compile(r"[Пп]артнер\w*\s*(1|2)")
+_ASPECT_PARTNER_MARKER_RE_BY_LANG = {
+    'ru': _ASPECT_PARTNER_MARKER_RE, 'uk': _ASPECT_PARTNER_MARKER_RE_UK, 'en': _ASPECT_PARTNER_MARKER_RE_EN,
+}
 
 
 def attribute_header_planets_to_partners(header: str, language: str = 'ru') -> Optional[Dict[str, str]]:
@@ -218,9 +261,9 @@ def attribute_header_planets_to_partners(header: str, language: str = 'ru') -> O
     эти два разных аспекта друг с другом — так нашлись ложные "противоречия"
     на живом прогоне (см. plans/synastry-aspect-type-verification.md).
     """
-    is_ru = language == 'ru'
-    partner_re = _ASPECT_PARTNER_MARKER_RE if is_ru else _ASPECT_PARTNER_MARKER_RE_EN
-    planet_stems = PLANET_STEM_RU if is_ru else PLANET_STEM_EN
+    lang = normalize_language(language)
+    partner_re = _ASPECT_PARTNER_MARKER_RE_BY_LANG[lang]
+    planet_stems = PLANET_STEM_BY_LANG[lang]
 
     partner_markers = [(m.start(), m.group(1)) for m in partner_re.finditer(header)]
     if len(partner_markers) < 2:
@@ -296,8 +339,9 @@ def find_fabricated_aspect_types(
     разобранные внутри обычного абзаца без такого заголовка, не проверяются —
     это известное ограничение (недооценка, не переоценка числа ошибок).
     """
-    aspect_stems = ASPECT_STEM_RU if language == 'ru' else ASPECT_STEM_EN
-    partner_word = "Партнёра" if language == 'ru' else "Partner"
+    lang = normalize_language(language)
+    aspect_stems = ASPECT_STEM_BY_LANG[lang]
+    partner_word = {'ru': 'Партнёра', 'uk': 'Партнера', 'en': 'Partner'}[lang]
 
     # planet1 в aspects — всегда карта 1 (Партнёр 1), planet2 — всегда карта 2
     # (Партнёр 2): так строит calculate_synastry (astrology_v2.py), порядок
@@ -334,19 +378,22 @@ def find_fabricated_aspect_types(
 
         stated_aspect = aspect_hits[0][1]
         if stated_aspect != true_aspect:
-            if language == 'ru':
-                p1_name = PLANET_RU.get(pair[0], pair[0])
-                p2_name = PLANET_RU.get(pair[1], pair[1])
-                true_label = next((a.get('aspect_ru') for a in aspects if a.get('planet1') == pair[0] and a.get('planet2') == pair[1]), true_aspect)
-            else:
-                p1_name = PLANET_EN.get(pair[0], pair[0])
-                p2_name = PLANET_EN.get(pair[1], pair[1])
-                true_label = true_aspect
+            display = PLANET_DISPLAY_BY_LANG[lang]
+            p1_name = display.get(pair[0], pair[0])
+            p2_name = display.get(pair[1], pair[1])
+            true_label = true_aspect
+            if lang in ('ru', 'uk'):
+                true_label = next(
+                    (a.get(f'aspect_{lang}') for a in aspects if a.get('planet1') == pair[0] and a.get('planet2') == pair[1]),
+                    true_aspect,
+                )
+            msg = _MSG_LABELS_BY_LANG[lang]
+            header_word = {'ru': 'заголовок', 'uk': 'заголовок', 'en': 'header'}[lang]
             mismatches.append(
                 f"{p1_name} {partner_word} 1 — {p2_name} {partner_word} 2: "
-                f"{'в тексте' if language == 'ru' else 'in text'} «{stated_aspect}», "
-                f"{'на деле' if language == 'ru' else 'actually'} «{true_label}» "
-                f"({'заголовок' if language == 'ru' else 'header'}: {header.strip()[:120]})"
+                f"{msg['in_text']} «{stated_aspect}», "
+                f"{msg['actually']} «{true_label}» "
+                f"({header_word}: {header.strip()[:120]})"
             )
 
     return mismatches
@@ -364,6 +411,11 @@ _COP_OUT_PHRASES_EN = [
     "already covered", "already discussed", "as covered above",
     "as mentioned above", "see above", "as we discussed", "see the",
 ]
+_COP_OUT_PHRASES_UK = [
+    "розібран", "вже обговорюва", "вже опис", "вже сказа", "вже говорили",
+    "дивись вище", "див. вище", "як уже", "як ми вже",
+]
+COP_OUT_PHRASES_BY_LANG = {'ru': _COP_OUT_PHRASES_RU, 'uk': _COP_OUT_PHRASES_UK, 'en': _COP_OUT_PHRASES_EN}
 
 SHALLOW_ASPECT_CHAR_THRESHOLD = 220
 
@@ -379,10 +431,11 @@ def _find_aspect_coverage(text: str, planet1_en: str, planet2_en: str, language:
     что для сверки типа аспекта), а не по точному имени — проза склоняет
     имя планеты по падежу ("Плутона", "Сатурном").
     """
-    is_ru = language == 'ru'
-    stems = PLANET_STEM_RU if is_ru else PLANET_STEM_EN
-    p1_pattern = stems.get(planet1_en, re.escape(PLANET_RU.get(planet1_en, planet1_en) if is_ru else planet1_en))
-    p2_pattern = stems.get(planet2_en, re.escape(PLANET_RU.get(planet2_en, planet2_en) if is_ru else planet2_en))
+    lang = normalize_language(language)
+    stems = PLANET_STEM_BY_LANG[lang]
+    display = PLANET_DISPLAY_BY_LANG[lang]
+    p1_pattern = stems.get(planet1_en, re.escape(display.get(planet1_en, planet1_en)))
+    p2_pattern = stems.get(planet2_en, re.escape(display.get(planet2_en, planet2_en)))
 
     best = None
     for para in re.split(r"\n\s*\n", text):
@@ -408,16 +461,17 @@ def find_undercovered_aspects(
     разобрано). Возвращает список недоразобранных аспектов в виде читаемых
     меток — для серверного лога.
     """
-    is_ru = language == 'ru'
-    cop_out_phrases = _COP_OUT_PHRASES_RU if is_ru else _COP_OUT_PHRASES_EN
+    lang = normalize_language(language)
+    cop_out_phrases = COP_OUT_PHRASES_BY_LANG[lang]
+    display = PLANET_DISPLAY_BY_LANG[lang]
+    partner_word = {'ru': 'Партнёра', 'uk': 'Партнера', 'en': 'Partner'}[lang]
+    orb_word = {'ru': 'орб', 'uk': 'орбіс', 'en': 'orb'}[lang]
 
     def label_for(asp: Dict[str, Any]) -> str:
-        p1 = PLANET_RU.get(asp.get('planet1'), asp.get('planet1')) if is_ru else PLANET_EN.get(asp.get('planet1'), asp.get('planet1'))
-        p2 = PLANET_RU.get(asp.get('planet2'), asp.get('planet2')) if is_ru else PLANET_EN.get(asp.get('planet2'), asp.get('planet2'))
-        asp_word = asp.get('aspect_ru') if is_ru else asp.get('aspect')
-        partner_word = "Партнёра" if is_ru else "Partner"
-        return f"{p1} ({partner_word} 1) {asp_word} {p2} ({partner_word} 2) (орб {asp.get('orb')}°)" if is_ru \
-            else f"{p1} ({partner_word} 1) {asp_word} {p2} ({partner_word} 2) (orb {asp.get('orb')}°)"
+        p1 = display.get(asp.get('planet1'), asp.get('planet1'))
+        p2 = display.get(asp.get('planet2'), asp.get('planet2'))
+        asp_word = asp.get(f'aspect_{lang}') if lang in ('ru', 'uk') else asp.get('aspect')
+        return f"{p1} ({partner_word} 1) {asp_word} {p2} ({partner_word} 2) ({orb_word} {asp.get('orb')}°)"
 
     missing: List[str] = []
     for asp in aspects:
@@ -441,9 +495,11 @@ def build_synastry_aspect_prompt(
 ) -> str:
     """Построить промпт для анализа аспекта синастрии"""
     
-    if language == 'ru':
-        planet1 = PLANET_RU.get(planet1, planet1)
-        planet2 = PLANET_RU.get(planet2, planet2)
+    lang = normalize_language(language)
+    if lang in ('ru', 'uk'):
+        display = PLANET_DISPLAY_BY_LANG[lang]
+        planet1 = display.get(planet1, planet1)
+        planet2 = display.get(planet2, planet2)
     
     prompt_parts = []
     labels = get_labels(language)
@@ -804,7 +860,7 @@ async def full_synastry_analysis_v2(
     try:
         full_analysis = await adapter.generate(prompt, language)
 
-        if language in ('ru', 'en'):
+        if language in ('ru', 'en', 'uk'):
             full_analysis, unresolved = fix_fabricated_planet_positions(
                 full_analysis, chart1_data, chart2_data, language=language
             )
@@ -889,6 +945,16 @@ async def chat_with_synastry_astrologer(
     aspects = chart_data.get('aspects', [])
     overlays = chart_data.get('overlays', {})
 
+    lang = normalize_language(language)
+    display = PLANET_DISPLAY_BY_LANG[lang]
+    sign_key = 'sign' if lang == 'en' else f'sign_{lang}'
+    sun_key = 'sun_sign' if lang == 'en' else f'sun_sign_{lang}'
+    moon_key = 'moon_sign' if lang == 'en' else f'moon_sign_{lang}'
+    asc_key = 'ascendant' if lang == 'en' else f'ascendant_{lang}'
+    house_word = {'ru': 'дом', 'uk': 'будинок', 'en': 'house'}[lang]
+    orb_word = {'ru': 'орб', 'uk': 'орбіс', 'en': 'orb'}[lang]
+    partner_word = {'ru': 'Партнёра', 'uk': 'Партнера', 'en': 'Partner'}[lang]
+
     # RAG поиск по вопросу
     chunks = await search_chunks_by_query(question, top_k=10, book_id=JEFF_GREEN_BOOK_ID)
     if not chunks:
@@ -896,7 +962,11 @@ async def chat_with_synastry_astrologer(
 
     books_context = ""
     if chunks:
-        books_context = "\n=== ФРАГМЕНТЫ ПО ВОПРОСУ ===\n" if language == 'ru' else "\n=== BOOK FRAGMENTS ===\n"
+        books_context = {
+            'ru': "\n=== ФРАГМЕНТЫ ПО ВОПРОСУ ===\n",
+            'uk': "\n=== ФРАГМЕНТИ ЗА ЗАПИТОМ ===\n",
+            'en': "\n=== BOOK FRAGMENTS ===\n",
+        }[lang]
         for i, chunk in enumerate(chunks, 1):
             text = chunk.get("text", "")[:400]
             book_title = chunk.get("book_title", "")
@@ -905,46 +975,53 @@ async def chat_with_synastry_astrologer(
     def planets_str(planets_dict):
         result = ""
         for pn, pd in planets_dict.items():
-            sign_ru = pd.get('sign_ru', pd.get('sign', '?'))
+            sign = pd.get(sign_key, pd.get('sign', '?'))
             house = pd.get('house', '?')
             degree = round(pd.get('degree', 0), 1)
             retro = " (Rx)" if pd.get('is_retrograde') else ""
-            result += f"  {pn}: {sign_ru} {degree}° дом {house}{retro}\n"
+            result += f"  {pn}: {sign} {degree}° {house_word} {house}{retro}\n"
         return result
 
     aspects_str = ""
     for asp in aspects:
-        p1 = PLANET_RU.get(asp.get('planet1', ''), asp.get('planet1', ''))
-        p2 = PLANET_RU.get(asp.get('planet2', ''), asp.get('planet2', ''))
-        asp_ru = asp.get('aspect_ru', asp.get('aspect', ''))
+        p1 = display.get(asp.get('planet1', ''), asp.get('planet1', ''))
+        p2 = display.get(asp.get('planet2', ''), asp.get('planet2', ''))
+        asp_word = asp.get(f'aspect_{lang}', asp.get('aspect', '')) if lang in ('ru', 'uk') else asp.get('aspect', '')
         orb = asp.get('orb', 0)
-        aspects_str += f"  {p1} {asp_ru} {p2} (орб: {orb}°)\n"
+        aspects_str += f"  {p1} {asp_word} {p2} ({orb_word}: {orb}°)\n"
 
     overlays_str = ""
     p1_in_h2 = overlays.get('planets_1_in_houses_2', {})
     p2_in_h1 = overlays.get('planets_2_in_houses_1', {})
     for p, h in p1_in_h2.items():
-        if language == 'ru':
-            overlays_str += f"  {PLANET_RU.get(p, p)} Партнёра 1 в доме {h} Партнёра 2\n"
+        p_display = display.get(p, p)
+        if lang == 'ru':
+            overlays_str += f"  {p_display} Партнёра 1 в доме {h} Партнёра 2\n"
+        elif lang == 'uk':
+            overlays_str += f"  {p_display} Партнера 1 у будинку {h} Партнера 2\n"
         else:
-            overlays_str += f"  {p} of Partner 1 in house {h} of Partner 2\n"
+            overlays_str += f"  {p_display} of Partner 1 in house {h} of Partner 2\n"
     for p, h in p2_in_h1.items():
-        if language == 'ru':
-            overlays_str += f"  {PLANET_RU.get(p, p)} Партнёра 2 в доме {h} Партнёра 1\n"
+        p_display = display.get(p, p)
+        if lang == 'ru':
+            overlays_str += f"  {p_display} Партнёра 2 в доме {h} Партнёра 1\n"
+        elif lang == 'uk':
+            overlays_str += f"  {p_display} Партнера 2 у будинку {h} Партнера 1\n"
         else:
-            overlays_str += f"  {p} of Partner 2 in house {h} of Partner 1\n"
+            overlays_str += f"  {p_display} of Partner 2 in house {h} of Partner 1\n"
 
-    if language == 'ru':
-        context_instruction = get_relationship_context_prompt(relationship_context, language) if relationship_context else ""
+    context_instruction = get_relationship_context_prompt(relationship_context, language) if relationship_context else ""
+
+    if lang == 'ru':
         system_prompt = f"""Ты личный астролог. Ты уже сделал полный анализ синастрии этой пары и теперь отвечаешь на вопросы. Отвечай строго по данным карт — не выдумывай.
 {context_instruction}
 === ПАРТНЁР 1 ===
-Солнце: {chart1.get('sun_sign_ru', '?')}, Луна: {chart1.get('moon_sign_ru', '?')}, Асц: {chart1.get('ascendant_ru', '?')}
+Солнце: {chart1.get(sun_key, '?')}, Луна: {chart1.get(moon_key, '?')}, Асц: {chart1.get(asc_key, '?')}
 ПЛАНЕТЫ:
 {planets_str(chart1.get('planets', {}))}
 
 === ПАРТНЁР 2 ===
-Солнце: {chart2.get('sun_sign_ru', '?')}, Луна: {chart2.get('moon_sign_ru', '?')}, Асц: {chart2.get('ascendant_ru', '?')}
+Солнце: {chart2.get(sun_key, '?')}, Луна: {chart2.get(moon_key, '?')}, Асц: {chart2.get(asc_key, '?')}
 ПЛАНЕТЫ:
 {planets_str(chart2.get('planets', {}))}
 
@@ -969,17 +1046,50 @@ async def chat_with_synastry_astrologer(
 - Используй "в астрологии" если нужна ссылка
 - Используй только Партнёр 1 и Партнёр 2
 - Никаких он/она — только Партнёр 1 и Партнёр 2"""
+    elif lang == 'uk':
+        system_prompt = f"""Ти особистий астролог. Ти вже зробив повний аналіз синастрії цієї пари і зараз відповідаєш на запитання. Відповідай строго за даними карт — не вигадуй.
+{context_instruction}
+=== ПАРТНЕР 1 ===
+Сонце: {chart1.get(sun_key, '?')}, Місяць: {chart1.get(moon_key, '?')}, Асц: {chart1.get(asc_key, '?')}
+ПЛАНЕТИ:
+{planets_str(chart1.get('planets', {}))}
+
+=== ПАРТНЕР 2 ===
+Сонце: {chart2.get(sun_key, '?')}, Місяць: {chart2.get(moon_key, '?')}, Асц: {chart2.get(asc_key, '?')}
+ПЛАНЕТИ:
+{planets_str(chart2.get('planets', {}))}
+
+=== АСПЕКТИ СИНАСТРІЇ ===
+{aspects_str}
+
+=== ОВЕРЛЕЇ БУДИНКІВ ===
+{overlays_str}
+
+=== ПОВНИЙ АНАЛІЗ ===
+{full_analysis}
+
+{books_context}
+
+ПРАВИЛА:
+- Відповідай строго за даними карт вище
+- Не вигадуй планети та позиції
+- Відповідай мовою запитання
+- Використовуй ТІЛЬКИ І ВИКЛЮЧНО фрагменти із заданих книг як ЄДИНЕ джерело знань, але НІКОЛИ не згадуй їх у відповіді — тобто єдина істина це база знань із книг, а відповідь має бути людською зрозумілою мовою
+- Жодних фраз "фрагмент [3]", "у книзі сказано", "джерело згадує"
+- Викладай усе як свої астрологічні знання
+- Використовуй "в астрології" якщо потрібне посилання
+- Використовуй тільки Партнер 1 та Партнер 2
+- Жодних він/вона — тільки Партнер 1 та Партнер 2"""
     else:
-        context_instruction = get_relationship_context_prompt(relationship_context, language) if relationship_context else ""
         system_prompt = f"""You are a personal astrologer. You have already done a full synastry analysis and now answer questions. Answer strictly based on the chart data — do not make up anything.
 {context_instruction}
 === PARTNER 1 ===
-Sun: {chart1.get('sun_sign_ru', '?')}, Moon: {chart1.get('moon_sign_ru', '?')}, Asc: {chart1.get('ascendant_ru', '?')}
+Sun: {chart1.get(sun_key, '?')}, Moon: {chart1.get(moon_key, '?')}, Asc: {chart1.get(asc_key, '?')}
 PLANETS:
 {planets_str(chart1.get('planets', {}))}
 
 === PARTNER 2 ===
-Sun: {chart2.get('sun_sign_ru', '?')}, Moon: {chart2.get('moon_sign_ru', '?')}, Asc: {chart2.get('ascendant_ru', '?')}
+Sun: {chart2.get(sun_key, '?')}, Moon: {chart2.get(moon_key, '?')}, Asc: {chart2.get(asc_key, '?')}
 PLANETS:
 {planets_str(chart2.get('planets', {}))}
 

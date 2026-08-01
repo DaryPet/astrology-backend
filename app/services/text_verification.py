@@ -19,6 +19,7 @@ markdown-заголовков.
 """
 import re
 from typing import Any, Dict, List, Optional
+from app.services.prompt_templates.languages import normalize_language
 
 # ============================================================
 # Русский
@@ -87,6 +88,45 @@ ASPECT_STEM_EN = {
 }
 
 # ============================================================
+# Українська
+# ============================================================
+# Українська, як і російська, відмінює іменники за відмінком ("Хірона",
+# "в опозиції", "секстилі") — тому стеми з \w* і окрема таблиця форм знака
+# (місцевий відмінок -> називний), той самий підхід, що і в RU-блоці вище.
+
+# Місцевий відмінок знаків зодіаку ("Місяць У РАКУ") -> називний ("Рак"),
+# як він зберігається в chart_data (sign_uk). Перевірено реальним виводом
+# LLM (DeepSeek, natal analysis, 2026-07): "Венера у Леві в 7-му домі" —
+# форма "у Леві" підтверджена на практиці, не лише теоретично виведена.
+SIGN_LOCATIVE_TO_NOMINATIVE_UK = {
+    'Овні': 'Овен', 'Тельці': 'Телець', 'Близнюках': 'Близнюки',
+    'Раку': 'Рак', 'Леві': 'Лев', 'Діві': 'Діва',
+    'Терезах': 'Терези', 'Скорпіоні': 'Скорпіон', 'Стрільці': 'Стрілець',
+    'Козерозі': 'Козеріг', 'Водолії': 'Водолій', 'Рибах': 'Риби',
+}
+
+# Стеми українських назв планет — початок слова, бо в тексті планета
+# відмінюється ("Хірона", "Північним Вузлом"), а не стоїть у називному.
+# NorthNode/SouthNode: "вузол" має випадний голосний "о" в непрямих
+# відмінках (вузол -> вузла, вузлі) — той самий випадок, що й РОС. "узел",
+# структура патерну ідентична PLANET_STEM_RU.
+PLANET_STEM_UK = {
+    'Sun': r'Сонц\w*', 'Moon': r'Місяц\w*', 'Mercury': r'Меркурі\w*',
+    'Venus': r'Венер\w*', 'Mars': r'Марс\w*', 'Jupiter': r'Юпітер\w*',
+    'Saturn': r'Сатурн\w*', 'Uranus': r'Уран\w*', 'Neptune': r'Нептун\w*',
+    'Pluto': r'Плутон\w*', 'NorthNode': r'Північн\w*\s+[Вв]уз(?:ол\w*|л\w*)',
+    'SouthNode': r'Південн\w*\s+[Вв]уз(?:ол\w*|л\w*)', 'Chiron': r'Хірон\w*',
+    'Lilith': r'Ліліт\w*', 'Ascendant': r'Асцендент\w*', 'Vertex': r'Вертекс\w*',
+}
+
+# Стеми аспектів — та сама причина: "в опозиції", "З'єднання", "секстилі".
+ASPECT_STEM_UK = {
+    'Conjunction': r"[Зз]'?єднан\w*", 'Opposition': r'[Оо]позиці\w*',
+    'Trine': r'[Тт]ригон\w*', 'Square': r'[Кк]вадрат\w*',
+    'Sextile': r'[Сс]екстил\w*',
+}
+
+# ============================================================
 # Языко-нейтральное
 # ============================================================
 
@@ -131,6 +171,15 @@ PLANET_EN = {
     'Lilith': 'Lilith', 'Ascendant': 'Ascendant', 'Vertex': 'Vertex',
 }
 
+PLANET_UK = {
+    'Sun': 'Сонце', 'Moon': 'Місяць', 'Mercury': 'Меркурій',
+    'Venus': 'Венера', 'Mars': 'Марс', 'Jupiter': 'Юпітер',
+    'Saturn': 'Сатурн', 'Uranus': 'Уран', 'Neptune': 'Нептун',
+    'Pluto': 'Плутон', 'NorthNode': 'Північний Вузол',
+    'SouthNode': 'Південний Вузол', 'Chiron': 'Хірон',
+    'Lilith': 'Ліліт', 'Ascendant': 'Асцендент', 'Vertex': 'Вертекс',
+}
+
 
 # ============================================================
 # Покрытие аспектов текстом (не по markdown, по прозе) — общее
@@ -150,8 +199,29 @@ _COP_OUT_PHRASES_EN = [
     "already covered", "already discussed", "as covered above",
     "as mentioned above", "see above", "as we discussed", "see the",
 ]
+_COP_OUT_PHRASES_UK = [
+    "розібран", "вже обговорюва", "вже опис", "вже сказа", "вже говорили",
+    "дивись вище", "див. вище", "як уже", "як ми вже",
+]
 
 SHALLOW_ASPECT_CHAR_THRESHOLD = 220
+
+# ============================================================
+# Диспетчер по языку — единая точка выбора таблицы вместо разбросанных
+# `X if is_ru else Y` по всему файлу. `lang` уже нормализован через
+# normalize_language() перед использованием этих словарей.
+# ============================================================
+PLANET_STEM_BY_LANG = {'ru': PLANET_STEM_RU, 'uk': PLANET_STEM_UK, 'en': PLANET_STEM_EN}
+ASPECT_STEM_BY_LANG = {'ru': ASPECT_STEM_RU, 'uk': ASPECT_STEM_UK, 'en': ASPECT_STEM_EN}
+PLANET_DISPLAY_BY_LANG = {'ru': PLANET_RU, 'uk': PLANET_UK, 'en': PLANET_EN}
+COP_OUT_PHRASES_BY_LANG = {'ru': _COP_OUT_PHRASES_RU, 'uk': _COP_OUT_PHRASES_UK, 'en': _COP_OUT_PHRASES_EN}
+# 'в тексте'/'на деле'/'заголовок' и т.п. — подписи внутри диагностических
+# сообщений о несовпадении (не матчатся регэкспами, просто текст лога).
+_MSG_LABELS_BY_LANG = {
+    'ru': {'in_text': 'в тексте', 'actually': 'на деле', 'header': 'заголовок'},
+    'uk': {'in_text': 'у тексті', 'actually': 'насправді', 'header': 'заголовок'},
+    'en': {'in_text': 'in text', 'actually': 'actually', 'header': 'header'},
+}
 
 
 def _find_aspect_coverage(text: str, planet1_en: str, planet2_en: str, language: str) -> Optional[str]:
@@ -165,10 +235,11 @@ def _find_aspect_coverage(text: str, planet1_en: str, planet2_en: str, language:
     что для сверки типа аспекта), а не по точному имени — проза склоняет
     имя планеты по падежу ("Плутона", "Сатурном").
     """
-    is_ru = language == 'ru'
-    stems = PLANET_STEM_RU if is_ru else PLANET_STEM_EN
-    p1_pattern = stems.get(planet1_en, re.escape(PLANET_RU.get(planet1_en, planet1_en) if is_ru else planet1_en))
-    p2_pattern = stems.get(planet2_en, re.escape(PLANET_RU.get(planet2_en, planet2_en) if is_ru else planet2_en))
+    lang = normalize_language(language)
+    stems = PLANET_STEM_BY_LANG[lang]
+    display = PLANET_DISPLAY_BY_LANG[lang]
+    p1_pattern = stems.get(planet1_en, re.escape(display.get(planet1_en, planet1_en)))
+    p2_pattern = stems.get(planet2_en, re.escape(display.get(planet2_en, planet2_en)))
 
     best = None
     for para in re.split(r"\n\s*\n", text):
@@ -202,6 +273,11 @@ LAYER_MARKER_PATTERNS = {
         'natal': r'\b[Nn]atal\b',
         'transit': r'\b[Tt]ransit(?:ing)?\b',
     },
+    'uk': {
+        'progressed': r'[Пп]рогресивн\w*',
+        'natal': r'[Нн]атальн\w*',
+        'transit': r'[Тт]ранзитн\w*',
+    },
 }
 
 
@@ -224,9 +300,9 @@ def attribute_header_planets_to_layers(
     используется, оставлено на случай переиспользования этой функции синастрией
     в будущем рефакторинге.
     """
-    is_ru = language == 'ru'
-    markers = LAYER_MARKER_PATTERNS['ru' if is_ru else 'en']
-    planet_stems = PLANET_STEM_RU if is_ru else PLANET_STEM_EN
+    lang = normalize_language(language)
+    markers = LAYER_MARKER_PATTERNS[lang]
+    planet_stems = PLANET_STEM_BY_LANG[lang]
 
     marker_hits: List[tuple] = []
     for key in layer_keys:
@@ -272,16 +348,18 @@ def _extract_layer_planet_signs(chart_like: Dict[str, Any], language: str) -> Di
     progressions_analysis (analysis_service.py). Общий строительный блок для
     find_fabricated_positions_layered/fix_fabricated_positions_layered.
     """
-    is_ru = language == 'ru'
+    lang = normalize_language(language)
+    sign_key = 'sign' if lang == 'en' else f'sign_{lang}'
+    asc_key = 'ascendant' if lang == 'en' else f'ascendant_{lang}'
     result: Dict[str, str] = {}
     for p_name, p_data in (chart_like.get('planets') or {}).items():
-        display = PLANET_RU.get(p_name) if is_ru else PLANET_EN.get(p_name)
-        sign = p_data.get('sign_ru') if is_ru else p_data.get('sign')
+        display = PLANET_DISPLAY_BY_LANG[lang].get(p_name)
+        sign = p_data.get(sign_key)
         if display and sign:
             result[display] = sign
-    asc_sign = chart_like.get('ascendant_ru') if is_ru else chart_like.get('ascendant')
+    asc_sign = chart_like.get(asc_key)
     if asc_sign:
-        result['Асцендент' if is_ru else 'Ascendant'] = asc_sign
+        result[PLANET_DISPLAY_BY_LANG[lang]['Ascendant']] = asc_sign
     return result
 
 
@@ -312,8 +390,8 @@ def _nearest_preceding_layer(preceding_text: str, language: str, layer_keys) -> 
     if len(layer_keys) == 1:
         return layer_keys[0]
 
-    is_ru = language == 'ru'
-    markers = LAYER_MARKER_PATTERNS['ru' if is_ru else 'en']
+    lang = normalize_language(language)
+    markers = LAYER_MARKER_PATTERNS[lang]
 
     sentence_start = 0
     for m in re.finditer(r'[.!?]\s+', preceding_text):
@@ -356,9 +434,9 @@ def find_fabricated_positions_layered(
       же планеты (маркер смены знака "в натале была в X"), и правка по этому
       критерию рисковала бы переписать корректную фразу.
     """
-    is_ru = language == 'ru'
-    connector = r"\s+в\s+" if is_ru else r"\s+in\s+"
-    joiner = "в" if is_ru else "in"
+    lang = normalize_language(language)
+    connector = {'ru': r"\s+в\s+", 'uk': r"\s+[ув]\s+", 'en': r"\s+in\s+"}[lang]
+    joiner = {'ru': 'в', 'uk': 'у', 'en': 'in'}[lang]
 
     per_layer_pairs = {key: _extract_layer_planet_signs(chart_like, language) for key, chart_like in layers.items()}
     all_pairs = set()
@@ -369,8 +447,8 @@ def find_fabricated_positions_layered(
     if not all_pairs:
         return {'fabricated': [], 'layer_confused': []}
 
-    planet_names_display = PLANET_RU.values() if is_ru else PLANET_EN.values()
-    sign_forms = SIGN_PREPOSITIONAL_TO_NOMINATIVE if is_ru else ZODIAC_SIGNS_EN
+    planet_names_display = PLANET_DISPLAY_BY_LANG[lang].values()
+    sign_forms = {'ru': SIGN_PREPOSITIONAL_TO_NOMINATIVE, 'uk': SIGN_LOCATIVE_TO_NOMINATIVE_UK, 'en': ZODIAC_SIGNS_EN}[lang]
     planet_pattern = "|".join(re.escape(n) for n in planet_names_display)
     sign_pattern = "|".join(re.escape(f) for f in sign_forms)
     pattern = re.compile(rf"({planet_pattern}){connector}({sign_pattern})")
@@ -381,7 +459,7 @@ def find_fabricated_positions_layered(
 
     for m in pattern.finditer(text):
         planet_name, sign_form = m.group(1), m.group(2)
-        sign_nom = SIGN_PREPOSITIONAL_TO_NOMINATIVE[sign_form] if is_ru else sign_form
+        sign_nom = sign_forms[sign_form] if lang in ('ru', 'uk') else sign_form
 
         if (planet_name, sign_nom) not in all_pairs:
             fabricated.append(f"{planet_name} {joiner} {sign_form}")
@@ -425,9 +503,9 @@ def fix_fabricated_positions_layered(
 
     Возвращает (исправленный текст, список нерешённых расхождений).
     """
-    is_ru = language == 'ru'
-    connector = r"\s+в\s+" if is_ru else r"\s+in\s+"
-    joiner = "в" if is_ru else "in"
+    lang = normalize_language(language)
+    connector = {'ru': r"\s+в\s+", 'uk': r"\s+[ув]\s+", 'en': r"\s+in\s+"}[lang]
+    joiner = {'ru': 'в', 'uk': 'у', 'en': 'in'}[lang]
 
     per_layer_pairs = {key: _extract_layer_planet_signs(chart_like, language) for key, chart_like in layers.items()}
     all_pairs = set()
@@ -438,8 +516,9 @@ def fix_fabricated_positions_layered(
     if not all_pairs:
         return text, []
 
-    planet_names_display = PLANET_RU.values() if is_ru else PLANET_EN.values()
-    sign_forms = SIGN_PREPOSITIONAL_TO_NOMINATIVE if is_ru else ZODIAC_SIGNS_EN
+    planet_names_display = PLANET_DISPLAY_BY_LANG[lang].values()
+    sign_forms = {'ru': SIGN_PREPOSITIONAL_TO_NOMINATIVE, 'uk': SIGN_LOCATIVE_TO_NOMINATIVE_UK, 'en': ZODIAC_SIGNS_EN}[lang]
+    nominative_to_form = {'ru': SIGN_NOMINATIVE_TO_PREPOSITIONAL, 'uk': {v: k for k, v in SIGN_LOCATIVE_TO_NOMINATIVE_UK.items()}}.get(lang)
     planet_pattern = "|".join(re.escape(n) for n in planet_names_display)
     sign_pattern = "|".join(re.escape(f) for f in sign_forms)
     pattern = re.compile(rf"({planet_pattern}){connector}({sign_pattern})")
@@ -451,7 +530,7 @@ def fix_fabricated_positions_layered(
 
     for m in pattern.finditer(text):
         planet_name, sign_form = m.group(1), m.group(2)
-        sign_nom = SIGN_PREPOSITIONAL_TO_NOMINATIVE[sign_form] if is_ru else sign_form
+        sign_nom = sign_forms[sign_form] if lang in ('ru', 'uk') else sign_form
         if (planet_name, sign_nom) in all_pairs:
             continue  # совпадает хоть с одним слоем — не трогаем
 
@@ -463,7 +542,7 @@ def fix_fabricated_positions_layered(
             unresolved.append(f"{planet_name} {joiner} {sign_form}")
             continue
 
-        correct_form = SIGN_NOMINATIVE_TO_PREPOSITIONAL.get(correct_sign, correct_sign) if is_ru else correct_sign
+        correct_form = nominative_to_form.get(correct_sign, correct_sign) if nominative_to_form else correct_sign
         pieces.append(text[last_end:m.start()])
         pieces.append(f"{planet_name} {joiner} {correct_form}")
         last_end = m.end()
@@ -488,8 +567,8 @@ def find_fabricated_aspect_types_layered(
     не варьирует: первый слой — всегда planet1 (прогрессивная/транзитная),
     второй — всегда planet2 (натальная)). Только детекция, ничего не правит.
     """
-    aspect_stems = ASPECT_STEM_RU if language == 'ru' else ASPECT_STEM_EN
-    is_ru = language == 'ru'
+    lang = normalize_language(language)
+    aspect_stems = ASPECT_STEM_BY_LANG[lang]
     layer1, layer2 = layer_keys
 
     truth: Dict[tuple, str] = {}
@@ -520,19 +599,21 @@ def find_fabricated_aspect_types_layered(
 
         stated_aspect = aspect_hits[0][1]
         if stated_aspect != true_aspect:
-            p1_name = PLANET_RU.get(pair[0], pair[0]) if is_ru else PLANET_EN.get(pair[0], pair[0])
-            p2_name = PLANET_RU.get(pair[1], pair[1]) if is_ru else PLANET_EN.get(pair[1], pair[1])
+            display = PLANET_DISPLAY_BY_LANG[lang]
+            p1_name = display.get(pair[0], pair[0])
+            p2_name = display.get(pair[1], pair[1])
             true_label = true_aspect
-            if is_ru:
+            if lang in ('ru', 'uk'):
                 true_label = next(
-                    (a.get('aspect_ru') for a in aspects if a.get(key1) == pair[0] and a.get(key2) == pair[1]),
+                    (a.get(f'aspect_{lang}') for a in aspects if a.get(key1) == pair[0] and a.get(key2) == pair[1]),
                     true_aspect,
                 )
+            msg = _MSG_LABELS_BY_LANG[lang]
             mismatches.append(
                 f"{layer1}:{p1_name} — {layer2}:{p2_name}: "
-                f"{'в тексте' if is_ru else 'in text'} «{stated_aspect}», "
-                f"{'на деле' if is_ru else 'actually'} «{true_label}» "
-                f"({'заголовок' if is_ru else 'header'}: {header.strip()[:120]})"
+                f"{msg['in_text']} «{stated_aspect}», "
+                f"{msg['actually']} «{true_label}» "
+                f"({msg['header']}: {header.strip()[:120]})"
             )
 
     return mismatches
@@ -558,15 +639,16 @@ def find_undercovered_aspects_generic(
     одинаковым стемам тавтологичен и всегда даёт "покрыто" — недооценка, не
     переоценка числа проблем.
     """
-    is_ru = language == 'ru'
-    cop_out_phrases = _COP_OUT_PHRASES_RU if is_ru else _COP_OUT_PHRASES_EN
+    lang = normalize_language(language)
+    cop_out_phrases = COP_OUT_PHRASES_BY_LANG[lang]
 
     def label_for(asp: Dict[str, Any]) -> str:
-        p1 = PLANET_RU.get(asp.get(key1), asp.get(key1)) if is_ru else PLANET_EN.get(asp.get(key1), asp.get(key1))
-        p2 = PLANET_RU.get(asp.get(key2), asp.get(key2)) if is_ru else PLANET_EN.get(asp.get(key2), asp.get(key2))
-        asp_word = asp.get('aspect_ru') if is_ru else asp.get('aspect')
-        return f"{p1} {asp_word} {p2} (орб {asp.get('orb')}°)" if is_ru \
-            else f"{p1} {asp_word} {p2} (orb {asp.get('orb')}°)"
+        display = PLANET_DISPLAY_BY_LANG[lang]
+        p1 = display.get(asp.get(key1), asp.get(key1))
+        p2 = display.get(asp.get(key2), asp.get(key2))
+        asp_word = asp.get(f'aspect_{lang}') if lang in ('ru', 'uk') else asp.get('aspect')
+        orb_word = {'ru': 'орб', 'uk': 'орбіс', 'en': 'orb'}[lang]
+        return f"{p1} {asp_word} {p2} ({orb_word} {asp.get('orb')}°)"
 
     missing: List[str] = []
     for asp in aspects:
@@ -607,9 +689,9 @@ def find_fabricated_aspect_types_single(
     (тот же принцип, что у find_fabricated_aspect_types /
     find_fabricated_aspect_types_layered). Только детекция, ничего не правит.
     """
-    is_ru = language == 'ru'
-    planet_stems = PLANET_STEM_RU if is_ru else PLANET_STEM_EN
-    aspect_stems = ASPECT_STEM_RU if is_ru else ASPECT_STEM_EN
+    lang = normalize_language(language)
+    planet_stems = PLANET_STEM_BY_LANG[lang]
+    aspect_stems = ASPECT_STEM_BY_LANG[lang]
 
     truth: Dict[frozenset, str] = {}
     for asp in aspects:
@@ -646,19 +728,21 @@ def find_fabricated_aspect_types_single(
         stated_aspect = aspect_hits[0]
         if stated_aspect != true_aspect:
             p1_en, p2_en = planet_hits
-            p1_name = PLANET_RU.get(p1_en, p1_en) if is_ru else PLANET_EN.get(p1_en, p1_en)
-            p2_name = PLANET_RU.get(p2_en, p2_en) if is_ru else PLANET_EN.get(p2_en, p2_en)
+            display = PLANET_DISPLAY_BY_LANG[lang]
+            p1_name = display.get(p1_en, p1_en)
+            p2_name = display.get(p2_en, p2_en)
             true_label = true_aspect
-            if is_ru:
+            if lang in ('ru', 'uk'):
                 true_label = next(
-                    (a.get('aspect_ru') for a in aspects if frozenset({a.get(key1), a.get(key2)}) == pair),
+                    (a.get(f'aspect_{lang}') for a in aspects if frozenset({a.get(key1), a.get(key2)}) == pair),
                     true_aspect,
                 )
+            msg = _MSG_LABELS_BY_LANG[lang]
             mismatches.append(
                 f"{p1_name} — {p2_name}: "
-                f"{'в тексте' if is_ru else 'in text'} «{stated_aspect}», "
-                f"{'на деле' if is_ru else 'actually'} «{true_label}» "
-                f"({'заголовок' if is_ru else 'header'}: {header.strip()[:120]})"
+                f"{msg['in_text']} «{stated_aspect}», "
+                f"{msg['actually']} «{true_label}» "
+                f"({msg['header']}: {header.strip()[:120]})"
             )
 
     return mismatches
@@ -687,6 +771,16 @@ _HOUSE_NUMBER_EN = re.compile(
     re.IGNORECASE,
 )
 
+# Украинский: LLM реально использует ОБА слова для "дома" — "будинок" (слово
+# из наших prompt_labels.py) И "дім" (более разговорное — подтверждено живым
+# выводом DeepSeek, natal analysis 2026-07: "Венера у Леві в 7-му домі"
+# использует форму "домі", родовое слово "дім", не "будинку"). Обе формы
+# должны матчиться, иначе реальный текст модели пройдёт мимо регэкспа.
+_HOUSE_WORD_UK = r'(?:будинок|будинку|будинки|будинків|будинках|дім|дому|дома|домі|доми|домів|домах)\b'
+_HOUSE_NUMBER_UK = re.compile(
+    rf'(?:(\d{{1,2}})[-–]?\s*(?:й|му|го|ому|ім|м)?\s*{_HOUSE_WORD_UK}|{_HOUSE_WORD_UK}\s*(\d{{1,2}}))',
+    re.IGNORECASE,
+)
 
 _BOLD_HEADER_RE = re.compile(r'\*\*[^*\n]{1,240}\*\*')
 _SENTENCE_OR_HEADER_BOUNDARY_RE = re.compile(r'\*\*[^*\n]{1,240}\*\*|[.!?]\s+')
@@ -694,10 +788,15 @@ _SENTENCE_OR_HEADER_BOUNDARY_RE = re.compile(r'\*\*[^*\n]{1,240}\*\*|[.!?]\s+')
 # Присоединительный союз после запятой почти всегда значит новое подлежащее
 # ("Марс ... в 6-м доме, И квадрат с Солнцем ..." — дом относится к Марсу,
 # а не к Солнцу, хотя оба в одном "предложении" по точкам). EN: то же для
-# and/but. Без этого разбиения дом ложно приписывался бы любой другой
-# планете, упомянутой в том же предложении, что и настоящий владелец дома.
+# and/but. UK: "і"/"й"/"а"/"але". Без этого разбиения дом ложно приписывался
+# бы любой другой планете, упомянутой в том же предложении, что и настоящий
+# владелец дома.
 _CLAUSE_BREAK_RU = re.compile(r',\s*(?:и|а|но)\s+')
 _CLAUSE_BREAK_EN = re.compile(r',\s*(?:and|but)\s+')
+_CLAUSE_BREAK_UK = re.compile(r',\s*(?:і|й|а|але)\s+')
+
+HOUSE_PATTERN_BY_LANG = {'ru': _HOUSE_NUMBER_RU, 'uk': _HOUSE_NUMBER_UK, 'en': _HOUSE_NUMBER_EN}
+CLAUSE_BREAK_BY_LANG = {'ru': _CLAUSE_BREAK_RU, 'uk': _CLAUSE_BREAK_UK, 'en': _CLAUSE_BREAK_EN}
 
 
 def _sentence_span(text: str, pos: int) -> "tuple[int, int]":
@@ -732,7 +831,7 @@ def _clause_span(text: str, pos: int, language: str) -> "tuple[int, int]":
     segment = text[sent_start:sent_end]
     rel_pos = pos - sent_start
 
-    clause_break = _CLAUSE_BREAK_RU if language == 'ru' else _CLAUSE_BREAK_EN
+    clause_break = CLAUSE_BREAK_BY_LANG[normalize_language(language)]
     breaks = [0] + [m.end() for m in clause_break.finditer(segment)] + [len(segment)]
     for i in range(len(breaks) - 1):
         if breaks[i] <= rel_pos < breaks[i + 1]:
@@ -760,14 +859,15 @@ def find_fabricated_houses_single(
     MC не проверяются — у них нет числового поля 'house' в чарте (дом 1/10
     определяется по куспиду, а не хранится как отдельное значение).
     """
-    is_ru = language == 'ru'
-    planet_stems = PLANET_STEM_RU if is_ru else PLANET_STEM_EN
-    house_pattern = _HOUSE_NUMBER_RU if is_ru else _HOUSE_NUMBER_EN
+    lang = normalize_language(language)
+    planet_stems = PLANET_STEM_BY_LANG[lang]
+    house_pattern = HOUSE_PATTERN_BY_LANG[lang]
+    display_table = PLANET_DISPLAY_BY_LANG[lang]
 
     real_houses: Dict[str, int] = {}
     for p_name, p_data in (natal_chart_like.get('planets') or {}).items():
         house = p_data.get('house')
-        display = PLANET_RU.get(p_name) if is_ru else PLANET_EN.get(p_name)
+        display = display_table.get(p_name)
         if display and isinstance(house, int):
             real_houses[display] = house
 
@@ -777,7 +877,7 @@ def find_fabricated_houses_single(
     mismatches: List[str] = []
     seen: set = set()
     for planet_en, stem_pattern in planet_stems.items():
-        display = PLANET_RU.get(planet_en) if is_ru else PLANET_EN.get(planet_en)
+        display = display_table.get(planet_en)
         if display not in real_houses:
             continue
         for m in re.finditer(stem_pattern, text):
@@ -801,9 +901,11 @@ def find_fabricated_houses_single(
                 if key in seen:
                     continue
                 seen.add(key)
+                msg = _MSG_LABELS_BY_LANG[lang]
+                house_word = {'ru': 'дом', 'uk': 'будинок', 'en': 'house'}[lang]
                 mismatches.append(
-                    f"{display}: {'в тексте' if is_ru else 'in text'} {'дом' if is_ru else 'house'} {claimed_house}, "
-                    f"{'на деле' if is_ru else 'actually'} {real_house} "
+                    f"{display}: {msg['in_text']} {house_word} {claimed_house}, "
+                    f"{msg['actually']} {real_house} "
                     f"({clause.strip()[:120]})"
                 )
 
