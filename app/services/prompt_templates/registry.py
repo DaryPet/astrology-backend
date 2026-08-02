@@ -16,6 +16,7 @@ from app.services.prompt_templates.transits import (
 )
 from app.services.prompt_templates.progressed_synastry import (
     PROGRESSED_SYNASTRY_PROMPTS, PROGRESSED_SYNASTRY_PROMPTS_SIMPLE,
+    PROGRESSED_SYNASTRY_ASPECT_PROMPTS, PROGRESSED_SYNASTRY_ASPECT_PROMPTS_SIMPLE,
 )
 
 
@@ -30,6 +31,7 @@ def get_simple_template(name: str, language: str) -> str:
         'progressions': PROGRESSIONS_PROMPTS_SIMPLE,
         'transits': TRANSITS_PROMPTS_SIMPLE,
         'progressed_synastry': PROGRESSED_SYNASTRY_PROMPTS_SIMPLE,
+        'progressed_synastry_aspect': PROGRESSED_SYNASTRY_ASPECT_PROMPTS_SIMPLE,
     }
     prompts = templates.get(name, ANALYSIS_PROMPTS_SIMPLE)
     return prompts.get(language, prompts['en'])
@@ -47,6 +49,7 @@ def get_template(name: str, language: str, mode: str = 'advanced') -> str:
         'progressions': PROGRESSIONS_PROMPTS,
         'transits': TRANSITS_PROMPTS,
         'progressed_synastry': PROGRESSED_SYNASTRY_PROMPTS,
+        'progressed_synastry_aspect': PROGRESSED_SYNASTRY_ASPECT_PROMPTS,
     }
     prompts = templates.get(name, ANALYSIS_PROMPTS)
     return prompts.get(language, prompts['en'])

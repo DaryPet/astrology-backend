@@ -18,7 +18,7 @@ from app.schemas.schemas import (
     QueryRequest, SynastryRequest, NatalChartRequest, NatalChartResponseFull,
     TransitRequest, SynastryRequestDirect, BookChunkResponse
 )
-from app.schemas.analysis import SynastryAnalysisRequest, ProgressionsRequest, ProgressionsAnalysisRequest, TransitsRequest, TransitsAnalysisRequest, ProgressedSynastryRequest, ProgressedSynastryAnalysisRequest, DailyForecastRequest
+from app.schemas.analysis import SynastryAnalysisRequest, ProgressionsRequest, ProgressionsAnalysisRequest, TransitsRequest, TransitsAnalysisRequest, ProgressedSynastryRequest, ProgressedSynastryAnalysisRequest, ProgressedSynastryAspectRequest, ProgressedSynastryAspectResponse, DailyForecastRequest
 from app.utils.astrology_v2 import (
     calculate_planet_positions, calculate_aspects,
     calculate_solar_return, calculate_synastry,
@@ -2253,3 +2253,30 @@ async def progressed_synastry_analysis_endpoint(request: Request, payload: Progr
     result["progressed_synastry_data"] = progressed_synastry
     _analysis_cache[cache_key] = (result, time.time())
     return result
+
+
+@router.post("/analysis/progressed-synastry/aspect", response_model=ProgressedSynastryAspectResponse)
+@limiter.limit("15/minute")
+async def analyze_progressed_synastry_aspect_endpoint(request: Request, payload: ProgressedSynastryAspectRequest, user = Depends(get_current_user)):
+    """
+    Анализ одного аспекта прогрессивной синастрии (клик на аспект во фронте).
+    По образцу /synastry/aspect, см. specs/progressed_synastry_aspect_click_plan.md.
+    """
+    from app.services.analysis_service import analyze_progressed_synastry_aspect
+
+    return await analyze_progressed_synastry_aspect(
+        planet1=payload.planet1,
+        planet2=payload.planet2,
+        aspect_name=payload.aspect_name,
+        layer=payload.layer,
+        aspect_name_ru=payload.aspect_name_ru,
+        aspect_name_uk=payload.aspect_name_uk,
+        orb=payload.orb,
+        applying=payload.applying,
+        house1=payload.planet1_house,
+        house2=payload.planet2_house,
+        partner1_name=payload.person1_name,
+        partner2_name=payload.person2_name,
+        language=payload.language,
+        mode=payload.mode or 'advanced',
+    )
