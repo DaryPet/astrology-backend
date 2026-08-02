@@ -65,3 +65,30 @@ docs/
 plans/
 specs/
 tests/data/regression_snapshot.json
+
+# Session artifacts: house-strength/testimony/Lilly signal checks, football
+# cross-sport eval, tennis-vs per-aspect breakdown (2026-07-26)
+2023.csv
+tests/convert_football.py
+tests/data/football/E0_2023-24.csv
+tests/data/football_matches.json
+tests/eval_football_signal.py
+tests/eval_house_tables.py
+tests/eval_lilly_full.py
+tests/eval_tennis_v2_by_aspect.py
+tests/eval_testimony_signal.py
+tests/lilly_dignities.py
+tests/reports/football/results.csv
+tests/reports/football/results_named.csv
+tests/reports/football/signal_check.json
+tests/reports/football/summary.md
+tests/reports/football/testimonies.csv
+tests/reports/tennis-vs/tennis_v2_by_aspect.csv
+tests/reports/tennis-vs/tennis_v2_raw.json
+tests/reports/tennis-vs/tennis_v2_results.csv
+tests/reports/tennis-vs/tennis_v2_summary.md
+tests/data/matches_realtime.json
+tests/data/matches_tzfix_only.json
+tests/eval_house8_v3.py
+tests/eval_house8_v3_full.py
+tests/reports/tennis-vs/

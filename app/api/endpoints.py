@@ -30,25 +30,21 @@ from app.utils.astrology_v2 import (
 )
 from app.swephelper import swe
 from app.auth import get_current_user
+from app.core.config import settings
 
 # Rate limiter for endpoints
 limiter = Limiter(key_func=get_remote_address)
 
-# Геокодинг и определение таймзон
-from geopy.geocoders import Nominatim
-from geopy.exc import GeocoderTimedOut, GeocoderUnavailable
+# Геокодинг (LocationIQ) и определение таймзон
+import httpx
 from timezonefinder import TimezoneFinder
 import pytz
-
-# Инициализируем геокодер (бесплатный Nominatim)
-geolocator = Nominatim(user_agent="astrology_app_v3", timeout=10)
 
 # Инициализируем определитель таймзон
 tf = TimezoneFinder()
 
 # Кэш для геокодинга (упрощенный in-memory кэш)
 _geocode_cache = {}
-_reverse_geocode_cache = {}
 _cache_ttl = 3600  # 1 час
 
 # Кэш для анализа натальной карты (защита от повторных LLM вызовов)
@@ -56,118 +52,58 @@ _analysis_cache = {}  # key: "birth_date|birth_place" -> (result_dict, timestamp
 _ANALYSIS_CACHE_TTL = 300  # 5 минут
 _ANALYSIS_CACHE_MAX_SIZE = 1000  # макс 1000 записей
 
-def get_coordinates(place: str) -> tuple:
+async def get_coordinates(place: str) -> tuple:
     """
     Получить точные координаты из названия места для астрологических расчетов
-    
+
     Для астрологии критически важна точность координат.
     Возвращает точные координаты или вызывает исключение.
     """
     cache_key = f"geocode:{place.lower().strip()}"
-    
+
     # Проверяем кэш
     if cache_key in _geocode_cache:
         cached_data, timestamp = _geocode_cache[cache_key]
         if time.time() - timestamp < _cache_ttl:
             return cached_data
-    
-    # Список провайдеров геокодинга (резервные на случай недоступности)
-    providers = [
-        # Основной - Nominatim (OpenStreetMap)
-        lambda p: geolocator.geocode(p, timeout=8, language='ru', exactly_one=True),
-        # Резервный поиск на английском
-        lambda p: geolocator.geocode(p, timeout=8, language='en', exactly_one=True),
-        # Поиск с viewbox для улучшения точности (Европа)
-        lambda p: geolocator.geocode(p, timeout=8, viewbox=[-10, 35, 40, 70], bounded=False),
-        # Поиск с viewbox (Азия)
-        lambda p: geolocator.geocode(p, timeout=8, viewbox=[60, 10, 150, 60], bounded=False),
-        # Поиск с viewbox (Америка)
-        lambda p: geolocator.geocode(p, timeout=8, viewbox=[-130, 10, -60, 60], bounded=False),
-    ]
-    
+
+    attempts = [{"accept-language": "ru"}, {"accept-language": "en"}]
     last_error = None
-    
-    for i, geocode_func in enumerate(providers):
-        try:
-            location = geocode_func(place)
-            if location:
-                lat, lon = location.latitude, location.longitude
-                
-                if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
-                    raise ValueError(f"Invalid coordinates: ({lat}, {lon})")
-                
-                result = (lat, lon)
-                _geocode_cache[cache_key] = (result, time.time())
-                
-                print(f"Geocode success for '{place}': ({lat:.6f}, {lon:.6f}) via provider {i}")
-                return result
-                
-        except (GeocoderTimedOut, GeocoderUnavailable) as e:
-            last_error = f"Provider {i} timeout: {e}"
-            print(f"Geocoding provider {i} failed for '{place}': {e}")
-            continue
-        except Exception as e:
-            last_error = f"Provider {i} error: {e}"
-            print(f"Geocoding provider {i} error for '{place}': {e}")
-            continue
-    
+
+    async with httpx.AsyncClient(timeout=8.0) as client:
+        for params_extra in attempts:
+            try:
+                resp = await client.get(
+                    "https://api.locationiq.com/v1/search",
+                    params={
+                        "key": settings.LOCATIONIQ_ACCESS_TOKEN,
+                        "q": place,
+                        "format": "json",
+                        "limit": 1,
+                        **params_extra,
+                    },
+                )
+                if resp.status_code == 200 and resp.json():
+                    loc = resp.json()[0]
+                    lat, lon = float(loc["lat"]), float(loc["lon"])
+
+                    if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+                        raise ValueError(f"Invalid coordinates: ({lat}, {lon})")
+
+                    result = (lat, lon)
+                    _geocode_cache[cache_key] = (result, time.time())
+
+                    print(f"Geocode success for '{place}': ({lat:.6f}, {lon:.6f})")
+                    return result
+            except Exception as e:
+                last_error = str(e)
+                print(f"Geocoding error for '{place}' ({params_extra}): {e}")
+                continue
+
     error_msg = f"Cannot geocode location: '{place}'. Last error: {last_error}"
     print(f"❌ CRITICAL: {error_msg}")
     raise ValueError(error_msg)
 
-
-def reverse_geocode(lat: float, lon: float) -> Dict[str, Any]:
-    """Обратное геокодирование: координаты -> информация о месте"""
-    cache_key = f"reverse:{lat:.4f}:{lon:.4f}"
-    
-    # Проверяем кэш
-    if cache_key in _reverse_geocode_cache:
-        cached_data, timestamp = _reverse_geocode_cache[cache_key]
-        if time.time() - timestamp < _cache_ttl:
-            return cached_data
-    
-    try:
-        location = geolocator.reverse(f"{lat}, {lon}", timeout=10, language='ru')
-        if location:
-            address = location.address
-            
-            # Парсим адрес для получения компонентов
-            address_parts = address.split(', ')
-            city = address_parts[0] if len(address_parts) > 0 else ""
-            region = address_parts[1] if len(address_parts) > 1 else ""
-            country = address_parts[-1] if len(address_parts) > 1 else ""
-            
-            # Определяем таймзону
-            timezone_str = get_timezone(lat, lon)
-            
-            result = {
-                "address": address,
-                "city": city,
-                "region": region,
-                "country": country,
-                "timezone": timezone_str,
-                "latitude": lat,
-                "longitude": lon
-            }
-            
-            # Сохраняем в кэш
-            _reverse_geocode_cache[cache_key] = (result, time.time())
-            return result
-    except (GeocoderTimedOut, GeocoderUnavailable) as e:
-        print(f"Reverse geocoding timeout/unavailable for ({lat}, {lon}): {e}")
-    except Exception as e:
-        print(f"Reverse geocoding error for ({lat}, {lon}): {e}")
-    
-    # Fallback
-    return {
-        "address": f"{lat}, {lon}",
-        "city": "",
-        "region": "",
-        "country": "",
-        "timezone": get_timezone(lat, lon) or "UTC",
-        "latitude": lat,
-        "longitude": lon
-    }
 
 def get_timezone(lat: float, lon: float) -> Optional[str]:
     """Определить таймзону по координатам"""
@@ -183,70 +119,80 @@ def get_timezone(lat: float, lon: float) -> Optional[str]:
         print(f"Timezone detection error for ({lat}, {lon}): {e}")
         return "UTC"
 
-def autocomplete_place(query: str, lang: Optional[str] = None) -> List[Dict[str, Any]]:
+async def autocomplete_place(query: str, lang: Optional[str] = None) -> List[Dict[str, Any]]:
     """Возвращает список мест для автодополнения с улучшенным форматированием и поиском"""
     if len(query) < 2:
         return []
-    
+
     # Определить язык если не передан
     if lang is None:
         if any('\u0400' <= c <= '\u04FF' for c in query):
             lang = 'ru'
         else:
             lang = 'en'
-    
+
     try:
-        locations = geolocator.geocode(query, exactly_one=False, limit=10, language=lang)
-        
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            resp = await client.get(
+                "https://api.locationiq.com/v1/autocomplete",
+                params={
+                    "key": settings.LOCATIONIQ_ACCESS_TOKEN,
+                    "q": query,
+                    "limit": 10,
+                    "accept-language": lang,
+                },
+            )
+        if resp.status_code != 200:
+            print(f"Autocomplete error for '{query}': HTTP {resp.status_code} {resp.text}")
+            return []
+        locations = resp.json()
         if not locations:
             return []
-        
+
         # Сортируем по релевантности (крупные города сначала)
         def location_score(loc):
-            address = loc.address.lower()
+            address = loc["display_name"].lower()
             query_lower = query.lower()
             if address.startswith(query_lower):
                 return 10
             return 1
-        
+
         sorted_locations = sorted(locations, key=location_score, reverse=True)
-        
+
         results = []
         for loc in sorted_locations[:10]:
-            address = loc.address
+            address = loc["display_name"]
             address_parts = address.split(', ')
-            
+
             if len(address_parts) >= 2:
                 display_name = f"{address_parts[0]}, {address_parts[1]}"
             else:
                 display_name = address_parts[0]
-            
-            timezone_str = get_timezone(loc.latitude, loc.longitude)
-            
+
+            lat, lon = float(loc["lat"]), float(loc["lon"])
+            timezone_str = get_timezone(lat, lon)
+
             place_type = "city"
             address_lower = address.lower()
             if any(word in address_lower for word in ['деревня', 'село', 'поселок', 'village', 'town']):
                 place_type = "village"
             elif any(word in address_lower for word in ['область', 'регион', 'район', 'region', 'district']):
                 place_type = "region"
-            
+
             results.append({
                 "name": address,
                 "display_name": display_name,
                 "address": address,
-                "lat": loc.latitude,
-                "lon": loc.longitude,
-                "latitude": loc.latitude,
-                "longitude": loc.longitude,
+                "lat": lat,
+                "lon": lon,
+                "latitude": lat,
+                "longitude": lon,
                 "timezone": timezone_str,
                 "type": place_type,
                 "country": address_parts[-1] if address_parts else ""
             })
-        
+
         return results
-    except (GeocoderTimedOut, GeocoderUnavailable) as e:
-        print(f"Autocomplete timeout/unavailable for '{query}': {e}")
-        return []
     except Exception as e:
         print(f"Autocomplete error for '{query}': {e}")
         return []
@@ -739,7 +685,7 @@ async def create_chart(chart: NatalChartCreate, db: AsyncSession = Depends(get_d
     
     # ТОЧНОЕ геокодирование для астрологических расчетов
     try:
-        lat, lon = get_coordinates(user.birth_place)
+        lat, lon = await get_coordinates(user.birth_place)
     except ValueError as e:
         raise HTTPException(
             status_code=400,
@@ -949,12 +895,9 @@ async def query_book(book_id: int, request: QueryRequest, db: AsyncSession = Dep
 @router.get("/geocode/coordinates")
 async def geocode_coordinates(lat: float, lon: float):
     """
-    Получить информацию о месте по координатам
-    
-    Возвращает адрес, город, страну и таймзону для заданных координат
+    Получить таймзону по координатам
     """
-    result = reverse_geocode(lat, lon)
-    return result
+    return {"timezone": get_timezone(lat, lon)}
 
 @router.get("/geocode/autocomplete")
 async def geocode_autocomplete(q: str, lang: Optional[str] = None):
@@ -965,7 +908,7 @@ async def geocode_autocomplete(q: str, lang: Optional[str] = None):
     Поддерживает параметр lang для принудительного указания языка ('ru', 'en')
     Если язык не указан - определяется автоматически по входному тексту
     """
-    results = autocomplete_place(q, lang)
+    results = await autocomplete_place(q, lang)
     return results
 
 
@@ -1000,7 +943,7 @@ async def calculate_natal_chart(request: NatalChartRequest) -> NatalChartRespons
         lat, lon = request.latitude, request.longitude
     else:
         try:
-            lat, lon = get_coordinates(request.birth_place)
+            lat, lon = await get_coordinates(request.birth_place)
         except ValueError as e:
             raise HTTPException(
                 status_code=400,
@@ -1092,7 +1035,7 @@ async def calculate_synastry_direct(request: SynastryRequestDirect):
         lat1, lon1 = request.chart1.latitude, request.chart1.longitude
     else:
         try:
-            lat1, lon1 = get_coordinates(request.chart1.birth_place)
+            lat1, lon1 = await get_coordinates(request.chart1.birth_place)
         except ValueError as e:
             raise HTTPException(
                 status_code=400,
@@ -1115,7 +1058,7 @@ async def calculate_synastry_direct(request: SynastryRequestDirect):
         lat2, lon2 = request.chart2.latitude, request.chart2.longitude
     else:
         try:
-            lat2, lon2 = get_coordinates(request.chart2.birth_place)
+            lat2, lon2 = await get_coordinates(request.chart2.birth_place)
         except ValueError as e:
             raise HTTPException(
                 status_code=400,
@@ -1283,7 +1226,7 @@ async def analyze_query_with_chart(request: Request, payload: AnalysisRequest, u
             lat, lon = birth_request.latitude, birth_request.longitude
         else:
             try:
-                lat, lon = get_coordinates(birth_request.birth_place)
+                lat, lon = await get_coordinates(birth_request.birth_place)
             except ValueError as e:
                 lat, lon = None, None
         
@@ -1436,7 +1379,7 @@ async def full_chart_analysis_endpoint(request: FullAnalysisRequest, db: AsyncSe
             lat, lon = request.latitude, request.longitude
         else:
             try:
-                lat, lon = get_coordinates(request.birth_place)
+                lat, lon = await get_coordinates(request.birth_place)
             except ValueError as e:
                 raise HTTPException(status_code=400, detail=f"Cannot determine coordinates: {str(e)}")
         
@@ -1614,7 +1557,7 @@ async def full_synastry_analysis_endpoint(request: Request, payload: SynastryAna
             lat, lon = chart_req.latitude, chart_req.longitude
         else:
             try:
-                lat, lon = get_coordinates(chart_req.birth_place)
+                lat, lon = await get_coordinates(chart_req.birth_place)
             except ValueError as e:
                 raise HTTPException(
                     status_code=400,
@@ -1741,7 +1684,7 @@ def _prepare_birth_datetime(birth_date, birth_time: Optional[str], tz_str: Optio
     return birth_datetime
 
 
-def _resolve_coordinates(latitude: Optional[float], longitude: Optional[float], birth_place: Optional[str]):
+async def _resolve_coordinates(latitude: Optional[float], longitude: Optional[float], birth_place: Optional[str]):
     """Координаты: переданные или геокодинг по названию места"""
     if latitude is not None and longitude is not None:
         return latitude, longitude
@@ -1751,7 +1694,7 @@ def _resolve_coordinates(latitude: Optional[float], longitude: Optional[float], 
             detail="Either 'birth_place' or both 'latitude' and 'longitude' must be provided."
         )
     try:
-        return get_coordinates(birth_place)
+        return await get_coordinates(birth_place)
     except ValueError as e:
         raise HTTPException(
             status_code=400,
@@ -1759,7 +1702,7 @@ def _resolve_coordinates(latitude: Optional[float], longitude: Optional[float], 
         )
 
 
-def _resolve_transit_coordinates(
+async def _resolve_transit_coordinates(
     transit_lat: Optional[float],
     transit_lon: Optional[float],
     transit_place: Optional[str],
@@ -1771,7 +1714,7 @@ def _resolve_transit_coordinates(
         return transit_lat, transit_lon
     if transit_place and transit_place.strip():
         try:
-            return get_coordinates(transit_place)
+            return await get_coordinates(transit_place)
         except ValueError as e:
             raise HTTPException(
                 status_code=400,
@@ -1796,7 +1739,7 @@ async def calculate_progressions_endpoint(request: Request, payload: Progression
     ASC/MC/дома и аспекты прогрессий к натальной карте (орб 1.5°).
     Требует авторизацию — функция доступна только для сохранённых карт.
     """
-    lat, lon = _resolve_coordinates(payload.latitude, payload.longitude, payload.birth_place)
+    lat, lon = await _resolve_coordinates(payload.latitude, payload.longitude, payload.birth_place)
     birth_datetime = _prepare_birth_datetime(payload.birth_date, payload.birth_time, payload.timezone)
 
     try:
@@ -1834,7 +1777,7 @@ async def progressions_analysis_endpoint(request: Request, payload: Progressions
     if not progressions:
         if not payload.birth_date:
             raise HTTPException(status_code=400, detail="Either 'progression_data' or birth data must be provided")
-        lat, lon = _resolve_coordinates(payload.latitude, payload.longitude, payload.birth_place)
+        lat, lon = await _resolve_coordinates(payload.latitude, payload.longitude, payload.birth_place)
         birth_datetime = _prepare_birth_datetime(payload.birth_date, payload.birth_time, payload.timezone)
         try:
             progressions = calculate_secondary_progressions(
@@ -1915,11 +1858,11 @@ async def calculate_transits_endpoint(request: Request, payload: TransitsRequest
     и лунную фазу — важно для корректной интерпретации в текущем месте пребывания.
     Требует авторизацию — доступно только для сохранённых карт.
     """
-    lat, lon = _resolve_coordinates(payload.latitude, payload.longitude, payload.birth_place)
+    lat, lon = await _resolve_coordinates(payload.latitude, payload.longitude, payload.birth_place)
     birth_datetime = _prepare_birth_datetime(payload.birth_date, payload.birth_time, payload.timezone)
 
     # Координаты места транзита (если не указаны — используем натальные)
-    transit_lat, transit_lon = _resolve_transit_coordinates(
+    transit_lat, transit_lon = await _resolve_transit_coordinates(
         payload.transit_latitude, payload.transit_longitude, payload.transit_place, lat, lon
     )
 
@@ -1967,11 +1910,11 @@ async def transits_analysis_endpoint(request: Request, payload: TransitsAnalysis
     if not transits:
         if not payload.birth_date:
             raise HTTPException(status_code=400, detail="Either 'transit_data' or birth data must be provided")
-        lat, lon = _resolve_coordinates(payload.latitude, payload.longitude, payload.birth_place)
+        lat, lon = await _resolve_coordinates(payload.latitude, payload.longitude, payload.birth_place)
         birth_datetime = _prepare_birth_datetime(payload.birth_date, payload.birth_time, payload.timezone)
 
         # Координаты места транзита (если не указаны — используем натальные)
-        transit_lat, transit_lon = _resolve_transit_coordinates(
+        transit_lat, transit_lon = await _resolve_transit_coordinates(
             payload.transit_latitude, payload.transit_longitude, payload.transit_place, lat, lon
         )
 
@@ -2090,7 +2033,7 @@ async def daily_forecast_endpoint(request: Request, payload: DailyForecastReques
     if not transits:
         if target_date is None:
             raise HTTPException(status_code=400, detail="Either 'transit_data' or 'target_date' (event kick-off time) must be provided")
-        transit_lat, transit_lon = _resolve_transit_coordinates(
+        transit_lat, transit_lon = await _resolve_transit_coordinates(
             payload.transit_latitude, payload.transit_longitude, payload.transit_place
         )
         try:
@@ -2161,9 +2104,9 @@ async def daily_forecast_endpoint(request: Request, payload: DailyForecastReques
     return result
 
 
-def _chart_request_to_person(chart_req, name: Optional[str] = None) -> dict:
+async def _chart_request_to_person(chart_req, name: Optional[str] = None) -> dict:
     """ChartRequest → dict для calculate_progressed_synastry (единый формат партнёра)"""
-    lat, lon = _resolve_coordinates(chart_req.latitude, chart_req.longitude, chart_req.birth_place)
+    lat, lon = await _resolve_coordinates(chart_req.latitude, chart_req.longitude, chart_req.birth_place)
     birth_dt = _prepare_birth_datetime(chart_req.birth_date, chart_req.birth_time, chart_req.timezone)
     return {
         'birth_date': birth_dt,
@@ -2185,8 +2128,8 @@ async def calculate_progressed_synastry_endpoint(request: Request, payload: Prog
     натал (перекрёстно) и динамику относительно натальной синастрии.
     Доступно только для сохранённых синастрических карт (требует авторизацию).
     """
-    person1 = _chart_request_to_person(payload.chart1, getattr(payload.chart1, 'name', None))
-    person2 = _chart_request_to_person(payload.chart2, getattr(payload.chart2, 'name', None))
+    person1 = await _chart_request_to_person(payload.chart1, getattr(payload.chart1, 'name', None))
+    person2 = await _chart_request_to_person(payload.chart2, getattr(payload.chart2, 'name', None))
 
     try:
         result = calculate_progressed_synastry(
@@ -2218,8 +2161,8 @@ async def progressed_synastry_analysis_endpoint(request: Request, payload: Progr
     if not progressed_synastry:
         if not payload.chart1 or not payload.chart2:
             raise HTTPException(status_code=400, detail="Either 'progressed_synastry_data' or chart1+chart2 must be provided")
-        person1 = _chart_request_to_person(payload.chart1, getattr(payload.chart1, 'name', None))
-        person2 = _chart_request_to_person(payload.chart2, getattr(payload.chart2, 'name', None))
+        person1 = await _chart_request_to_person(payload.chart1, getattr(payload.chart1, 'name', None))
+        person2 = await _chart_request_to_person(payload.chart2, getattr(payload.chart2, 'name', None))
         try:
             progressed_synastry = calculate_progressed_synastry(
                 person1=person1, person2=person2,
