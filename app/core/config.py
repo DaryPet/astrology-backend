@@ -18,7 +18,10 @@ class Settings(BaseSettings):
     DEEPSEEK_API_KEY: Optional[str] = None
     OPENROUTER_API_KEY: Optional[str] = None
     OPENROUTER_MODEL: str = "anthropic/claude-sonnet-4.5"  # дефолт если фронт не прислал model
-    
+
+    # Geocoding (LocationIQ)
+    LOCATIONIQ_ACCESS_TOKEN: Optional[str] = None
+
     # Authentication settings (optional - for future use)
     SECRET_KEY: Optional[str] = None
     ALGORITHM: Optional[str] = None

@@ -390,6 +390,78 @@ async def analyze_planet(
 PROGRESSIONS_PRIORITY_BOOK_ID = 29
 TRANSITS_PRIORITY_BOOK_ID = 28
 
+# Решение пользователя (2026-08-02): сузить RAG для натальной карты (все
+# языки) с поиска по всей библиотеке (~8 книг, часть из которых профильные
+# под ДРУГИЕ методы — 26 синастрия, 28/29 транзиты/прогрессии) до
+# фиксированного списка релевантных книг. 22 — главный источник (наибольший
+# приоритет), 25 и 23 — дополнение.
+NATAL_BOOK_IDS = [22, 25, 23]
+
+# Транзиты и прогрессии — тот же принцип: фиксированный список вместо "одна
+# приоритетная книга + весь остальной каталог" (то, что раньше делала
+# search_chunks_priority_book). Оба метода используют один и тот же узкий
+# набор (28, 29), а не разные приоритетные книги каждый.
+TRANSITS_PROGRESSIONS_BOOK_IDS = [28, 29]
+
+
+async def _fetch_book_titles(book_ids: List[int]) -> Dict[int, str]:
+    """
+    Названия книг по списку id — один запрос на весь анализ (натальный/
+    транзиты/прогрессии), а не на каждый RAG-подзапрос по планете/аспекту,
+    как было в search_chunks_all_books/search_chunks_priority_book (там
+    таблица books запрашивалась заново на каждый вызов).
+    """
+    from supabase import create_client
+    from app.core.config import settings
+    from app.services.supabase_async import run_sync_in_thread
+
+    try:
+        supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+        table_call = supabase.table("books").select("id, title").in_("id", book_ids)
+        response = await run_sync_in_thread(table_call.execute)
+        return {b["id"]: b.get("title", "") for b in (response.data or [])}
+    except Exception as e:
+        print(f"[_fetch_book_titles] Error: {e}")
+        return {}
+
+
+async def search_chunks_by_book_ids(
+    query: str,
+    book_ids: List[int],
+    book_titles: Dict[int, str],
+    top_k_per_book: int = 3,
+) -> List[Dict[str, Any]]:
+    """
+    RAG-поиск, ограниченный конкретным фиксированным списком книг — не всей
+    библиотекой (search_chunks_all_books) и не "одна приоритетная + весь
+    остальной каталог" (search_chunks_priority_book). Один параллельный
+    search_chunks_hybrid на каждую книгу из book_ids; названия книг переданы
+    готовыми через book_titles (см. _fetch_book_titles) — не запрашиваются
+    здесь заново на каждый подзапрос.
+    """
+    import asyncio as _asyncio
+    from app.services.search_service import search_chunks_hybrid
+
+    results = await _asyncio.gather(
+        *[search_chunks_hybrid(query, top_k=top_k_per_book, book_id=bid) for bid in book_ids],
+        return_exceptions=True,
+    )
+    unique: List[Dict[str, Any]] = []
+    seen = set()
+    for r in results:
+        if isinstance(r, Exception):
+            print(f"[search_chunks_by_book_ids] Error: {r}")
+            continue
+        for chunk in (r or []):
+            c_id = chunk.get("id")
+            if c_id and c_id in seen:
+                continue
+            if c_id:
+                seen.add(c_id)
+            chunk["book_title"] = book_titles.get(chunk.get("book_id"), "")
+            unique.append(chunk)
+    return unique
+
 
 async def search_chunks_priority_book(
     query: str,
@@ -524,7 +596,7 @@ async def generate_summary(text: str, language: str = "ru") -> str:
 async def full_chart_analysis_v2(
     chart_data: Dict[str, Any],
     language: str = "ru",
-    top_k_per_book: int = 3,
+    top_k_per_book: int = 5,
     mode: str = 'advanced'
 ) -> Dict[str, Any]:
     """
@@ -552,14 +624,17 @@ async def full_chart_analysis_v2(
     houses_meta = chart_data.get("houses_meta", {})
 
     # Ограничивает число одновременных запросов к Supabase — та же причина, что
-    # у синастрии/прогрессий/транзитов (synastry_service.py:599), но с другим
-    # множителем: search_chunks_all_books делает 2 обращения к пулу потоков за
-    # вызов (запрос списка книг + один search_chunks_hybrid), не 3, как
-    # search_chunks_priority_book (см. specs/semaphore_thread_pool_sizing_bug.md
-    # — тот баг про неправильно посчитанный множитель, здесь считаем заранее:
-    # 12 задач × 2 = 24 потоковых вызова одновременно, под лимитом пула ~32).
-    # План: app/services/specs/natal_synastry_pattern_plan.md.
-    search_semaphore = asyncio.Semaphore(12)
+    # у синастрии/прогрессий/транзитов (synastry_service.py:599). С переходом
+    # на NATAL_BOOK_IDS (3 книги вместо всей библиотеки, решение пользователя
+    # 2026-08-02) каждый вызов search_chunks_by_book_ids делает 3 обращения к
+    # пулу потоков (по одному search_chunks_hybrid на книгу; названия книг
+    # приходят через book_titles, без отдельного запроса на каждый вызов —
+    # см. _fetch_book_titles). 8 задач × 3 = 24 потоковых вызова одновременно,
+    # под тем же бюджетом, что и раньше (было 12 × 2 = 24 при search_chunks_all_books).
+    search_semaphore = asyncio.Semaphore(8)
+
+    # Названия книг — один запрос на весь анализ, не на каждый RAG-подзапрос.
+    book_titles = await _fetch_book_titles(NATAL_BOOK_IDS)
 
     # --- Шаг 1: Параллельный RAG-поиск по каждой планете ---
     async def search_planet(planet_name: str, planet_data: Dict) -> tuple:
@@ -570,7 +645,7 @@ async def full_chart_analysis_v2(
         search_name = "pars fortuna" if planet_name.lower() in ["ft", "pars fortuna", "part of fortune", "fortuna", "парс фортуны"] else planet_name.lower()
         query = f"{search_name} {house_word} house {sign.lower()}"
         async with search_semaphore:
-            chunks = await search_chunks_all_books(query, top_k_per_book=top_k_per_book)
+            chunks = await search_chunks_by_book_ids(query, NATAL_BOOK_IDS, book_titles, top_k_per_book=top_k_per_book)
         return planet_name, chunks
 
     # --- Шаг 2: Параллельный RAG-поиск по каждому аспекту ---
@@ -580,7 +655,7 @@ async def full_chart_analysis_v2(
         asp_type = asp.get("aspect", asp.get("aspect_ru", ""))
         query = f"{p1.lower()} {asp_type.lower()} {p2.lower()}"
         async with search_semaphore:
-            chunks = await search_chunks_all_books(query, top_k_per_book=2)
+            chunks = await search_chunks_by_book_ids(query, NATAL_BOOK_IDS, book_titles, top_k_per_book=5)
         return f"{p1} {asp_type} {p2}", chunks
 
     print(f"[full_chart_analysis_v2] Starting parallel RAG for {len(planets)} planets and {len(aspects)} aspects")
@@ -594,7 +669,7 @@ async def full_chart_analysis_v2(
         async def search_pars_fortuna():
             query = "pars fortuna (парс фортуны) дом"
             async with search_semaphore:
-                chunks = await search_chunks_all_books(query, top_k_per_book=top_k_per_book)
+                chunks = await search_chunks_by_book_ids(query, NATAL_BOOK_IDS, book_titles, top_k_per_book=top_k_per_book)
             return "Pars Fortuna", chunks
         planet_tasks.append(search_pars_fortuna())
 
@@ -770,7 +845,7 @@ async def progressions_analysis(
     natal_chart: Dict[str, Any],
     progressions: Dict[str, Any],
     language: str = "ru",
-    top_k_per_book: int = 2,
+    top_k_per_book: int = 5,
     mode: str = 'advanced'
 ) -> Dict[str, Any]:
     """
@@ -796,23 +871,30 @@ async def progressions_analysis(
     PERSONAL_PLANETS = ["Sun", "Moon", "Mercury", "Venus", "Mars"]
 
     # Ограничивает число одновременных запросов к Supabase — та же причина,
-    # что у синастрии (full_synastry_analysis_v2, synastry_service.py:599):
-    # без него asyncio.gather запускает все задачи разом, а пул потоков под
-    # run_sync_in_thread это не выдерживает при большом числе аспектов.
-    # Здесь это на будущее — аспектов в прогрессиях обычно мало (орб 1.5°),
-    # но срез aspects[:10] ниже снят, и семафор — дешёвая страховка от роста.
+    # что у синастрии (full_synastry_analysis_v2, synastry_service.py:599).
+    # С переходом на TRANSITS_PROGRESSIONS_BOOK_IDS (фиксированные 2 книги
+    # вместо "приоритетная + весь остальной каталог", решение пользователя
+    # 2026-08-02) каждый вызов search_chunks_by_book_ids делает 2 обращения к
+    # пулу потоков (не 3, как раньше делал search_chunks_priority_book —
+    # приоритет + остальные + отдельный запрос названий книг на каждый вызов).
+    # 12 задач × 2 = 24 — даже безопаснее прежнего (было 12 × 3 = 36,
+    # задокументированный нерешённый баг, specs/semaphore_thread_pool_sizing_bug.md;
+    # этот переход закрывает его побочным эффектом).
     search_semaphore = asyncio.Semaphore(12)
 
+    # Названия книг — один запрос на весь анализ, не на каждый RAG-подзапрос.
+    book_titles = await _fetch_book_titles(TRANSITS_PROGRESSIONS_BOOK_IDS)
+
     # --- Шаг 1: Параллельный RAG-поиск ---
-    # Профильная книга прогрессий — Brady "The Eagle and the Lark" (id=29):
-    # её чанки идут первыми, остальные книги — дополнение
+    # Книги прогрессий/транзитов — фиксированный список (28, 29), не одна
+    # приоритетная + весь каталог.
     async def search_progressed_planet(planet_name: str, planet_data: Dict) -> tuple:
         sign = planet_data.get("sign", "")
         house = planet_data.get("natal_house", "")
         house_word = HOUSE_WORDS.get(house, str(house))
         query = f"progressed {planet_name.lower()} {sign.lower()} {house_word} house"
         async with search_semaphore:
-            chunks = await search_chunks_priority_book(query, PROGRESSIONS_PRIORITY_BOOK_ID, top_k_priority=3, top_k_others=top_k_per_book)
+            chunks = await search_chunks_by_book_ids(query, TRANSITS_PROGRESSIONS_BOOK_IDS, book_titles, top_k_per_book=5)
         return planet_name, chunks
 
     async def search_aspect(asp: Dict) -> tuple:
@@ -821,14 +903,14 @@ async def progressions_analysis(
         asp_type = asp.get("aspect", "")
         query = f"progressed {p1.lower()} {asp_type.lower()} natal {p2.lower()}"
         async with search_semaphore:
-            chunks = await search_chunks_priority_book(query, PROGRESSIONS_PRIORITY_BOOK_ID, top_k_priority=3, top_k_others=2)
+            chunks = await search_chunks_by_book_ids(query, TRANSITS_PROGRESSIONS_BOOK_IDS, book_titles, top_k_per_book=5)
         return f"{p1} {asp_type} {p2}", chunks
 
     async def search_general() -> tuple:
         async with search_semaphore:
-            chunks = await search_chunks_priority_book(
+            chunks = await search_chunks_by_book_ids(
                 "secondary progressions progressed chart day for a year",
-                PROGRESSIONS_PRIORITY_BOOK_ID, top_k_priority=4, top_k_others=top_k_per_book
+                TRANSITS_PROGRESSIONS_BOOK_IDS, book_titles, top_k_per_book=5
             )
         return "Secondary Progressions", chunks
 
@@ -837,9 +919,9 @@ async def progressions_analysis(
         if not phase:
             return "Lunar Phase", []
         async with search_semaphore:
-            chunks = await search_chunks_priority_book(
+            chunks = await search_chunks_by_book_ids(
                 f"progressed lunar phase {phase.lower()} moon cycle",
-                PROGRESSIONS_PRIORITY_BOOK_ID, top_k_priority=3, top_k_others=top_k_per_book
+                TRANSITS_PROGRESSIONS_BOOK_IDS, book_titles, top_k_per_book=5
             )
         return f"Progressed Lunar Phase: {phase}", chunks
 
@@ -1155,7 +1237,14 @@ async def transits_analysis(
     # что у синастрии и прогрессий (synastry_service.py:599). У транзитов
     # ищутся ВСЕ аспекты (aspect_pool ниже), запросов заметно больше, чем у
     # прогрессий, — здесь семафор не страховка на будущее, а нужен уже сейчас.
+    # С переходом на TRANSITS_PROGRESSIONS_BOOK_IDS (2 книги вместо
+    # "приоритетная + весь каталог", решение пользователя 2026-08-02) каждый
+    # вызов делает 2 обращения к пулу потоков, не 3, как раньше
+    # search_chunks_priority_book — тот же выигрыш, что и в прогрессиях.
     search_semaphore = asyncio.Semaphore(12)
+
+    # Названия книг — один запрос на весь анализ, не на каждый RAG-подзапрос.
+    book_titles = await _fetch_book_titles(TRANSITS_PROGRESSIONS_BOOK_IDS)
 
     # --- Шаг 1: Параллельный RAG-поиск ---
     async def search_transit_planet(planet_name: str, planet_data: Dict) -> tuple:
@@ -1164,7 +1253,7 @@ async def transits_analysis(
         house_word = HOUSE_WORDS.get(house, str(house))
         query = f"transit {planet_name.lower()} {sign.lower()} {house_word} house"
         async with search_semaphore:
-            chunks = await search_chunks_priority_book(query, TRANSITS_PRIORITY_BOOK_ID, top_k_priority=3, top_k_others=top_k_per_book)
+            chunks = await search_chunks_by_book_ids(query, TRANSITS_PROGRESSIONS_BOOK_IDS, book_titles, top_k_per_book=5)
         return planet_name, chunks
 
     async def search_aspect(asp: Dict) -> tuple:
@@ -1173,7 +1262,7 @@ async def transits_analysis(
         asp_type = asp.get("aspect", "")
         query = f"transit {p1.lower()} {asp_type.lower()} natal {p2.lower()}"
         async with search_semaphore:
-            chunks = await search_chunks_priority_book(query, TRANSITS_PRIORITY_BOOK_ID, top_k_priority=3, top_k_others=2)
+            chunks = await search_chunks_by_book_ids(query, TRANSITS_PROGRESSIONS_BOOK_IDS, book_titles, top_k_per_book=5)
         return f"{p1} {asp_type} {p2}", chunks
 
     async def search_lunar_phase() -> tuple:
@@ -1181,9 +1270,8 @@ async def transits_analysis(
         if not phase:
             return "Lunar Phase", []
         async with search_semaphore:
-            chunks = await search_chunks_priority_book(
-                f"lunar phase {phase.lower()} moon", TRANSITS_PRIORITY_BOOK_ID,
-                top_k_priority=2, top_k_others=top_k_per_book
+            chunks = await search_chunks_by_book_ids(
+                f"lunar phase {phase.lower()} moon", TRANSITS_PROGRESSIONS_BOOK_IDS, book_titles, top_k_per_book=5
             )
         return f"Lunar Phase: {phase}", chunks
 
