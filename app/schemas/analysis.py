@@ -349,3 +349,36 @@ class ProgressedSynastryAnalysisResponse(BaseModel):
     summary: str
     progressed_synastry_summary: Optional[Dict[str, Any]] = None
     progressed_synastry_data: Optional[Dict[str, Any]] = None
+
+
+class ProgressedSynastryAspectRequest(BaseModel):
+    """Запрос на анализ одного аспекта прогрессивной синастрии (клик на аспект)"""
+    planet1: str
+    planet2: str
+    aspect_name: str
+    aspect_name_ru: Optional[str] = None
+    aspect_name_uk: Optional[str] = None
+    orb: float = 0.0
+    # Из какого из пяти блоков ответа /progressed-synastry взят аспект —
+    # определяет, как именно его трактовать (см. progressed_synastry_aspect_click_plan.md)
+    layer: str  # "progressed" | "prog1_to_natal2" | "prog2_to_natal1" | "new" | "faded"
+    applying: Optional[bool] = None
+    planet1_house: Optional[int] = None
+    planet2_house: Optional[int] = None
+    person1_name: Optional[str] = None
+    person2_name: Optional[str] = None
+    language: str = "ru"
+    mode: Optional[str] = 'advanced'
+
+
+class ProgressedSynastryAspectResponse(BaseModel):
+    """Ответ с анализом одного аспекта прогрессивной синастрии"""
+    planet1: str
+    planet2: str
+    aspect: str
+    aspect_ru: Optional[str] = None
+    aspect_uk: Optional[str] = None
+    orb: float
+    layer: str
+    analysis: str
+    relevant_chunks: List[Dict[str, Any]] = []

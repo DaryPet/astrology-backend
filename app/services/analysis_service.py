@@ -607,14 +607,20 @@ async def full_chart_analysis_v2(
     # Системный промпт (используем существующий шаблон synthesis)
     synthesis_template = get_template("synthesis", language, mode)
 
-    # Аспекты для шаблона
+    # Аспекты для шаблона — имена планет и название аспекта переводятся по
+    # language (раньше p1/p2 брались сырым английским ключом, а asp_ru —
+    # безусловно русским текстом даже для uk/en; из-за этого промпт-инструкция
+    # "жирная формула ровно как дана в списке" протаскивала непереведённые
+    # имена/названия в заголовки, хотя в свободном тексте модель сама себя
+    # поправляла — см. analysis_service.py INSIGHTS.md).
     aspects_list = []
     for asp in aspects:
-        p1 = asp.get("planet1", "?")
-        p2 = asp.get("planet2", "?")
-        asp_ru = asp.get("aspect_ru", asp.get("aspect", "?"))
-        aspects_list.append(f"{p1} {asp_ru} {p2}")
-    aspects_str = "\n".join(aspects_list) if aspects_list else "Нет аспектов"
+        p1 = _planet_display(asp.get("planet1", "?"), language)
+        p2 = _planet_display(asp.get("planet2", "?"), language)
+        asp_name = _localized(asp, "aspect", language, asp.get("aspect", "?"))
+        aspects_list.append(f"{p1} {asp_name} {p2}")
+    _no_aspects = {'ru': "Нет аспектов", 'uk': "Немає аспектів", 'en': "No aspects"}
+    aspects_str = "\n".join(aspects_list) if aspects_list else _no_aspects.get(normalize_language(language), _no_aspects['en'])
 
     # Собираем контент книг как структурированные фрагменты (не целые книги)
     planet_chunks_text = ""
@@ -1462,6 +1468,71 @@ async def transits_analysis(
 
 
 
+def _collect_progressed_synastry_layers(
+    p1: Dict[str, Any], p2: Dict[str, Any],
+    layer1: List[Dict[str, Any]], prog1_to_natal2: List[Dict[str, Any]], prog2_to_natal1: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """
+    Именованные слои (планета -> знак) для find_fabricated_positions_layered.
+
+    ВАЖНО: 4 отдельных слоя (p1_progressed/p2_progressed/p1_natal/p2_natal),
+    НЕ один смёрженный словарь — у одной и той же планеты (например, Луны)
+    одновременно 4 РАЗНЫХ валидных знака (прогр.1 ≠ натал.1 ≠ прогр.2 ≠
+    натал.2), а find_fabricated_positions_layered объединяет валидные пары
+    через set() ПО СЛОЯМ (planet, sign) — объединение работает корректно
+    только между отдельными слоями, не внутри одного плоского словаря
+    "планета -> один знак" (там просто негде хранить 4 значения на ключ).
+
+    progressed_synastry не хранит полные натальные карты партнёров —
+    natal_summary даёт только Sun/Moon/Ascendant (astrology_v2.py:1061-1068).
+    Остальные натальные планеты (Меркурий, Марс и т.д.) восстанавливаем из
+    sign1/sign2 самих аспектов cross_overlay — единственное место, где они
+    встречаются. planet1 в аспектах — всегда прогрессивная планета стороны
+    "a", planet2 в cross_overlay — всегда натальная планета принимающей
+    стороны (см. calculate_progressed_synastry, astrology_v2.py:1499-1509).
+    """
+    from app.utils.astrology_v2 import ZODIAC_SIGNS, ZODIAC_SIGNS_RU, ZODIAC_SIGNS_UK
+    en_to_ru = dict(zip(ZODIAC_SIGNS, ZODIAC_SIGNS_RU))
+    en_to_uk = dict(zip(ZODIAC_SIGNS, ZODIAC_SIGNS_UK))
+
+    def from_sign_en(sign_en: Optional[str]) -> Dict[str, Optional[str]]:
+        return {'sign': sign_en, 'sign_ru': en_to_ru.get(sign_en), 'sign_uk': en_to_uk.get(sign_en)}
+
+    layers: Dict[str, Any] = {
+        'p1_progressed': {'planets': dict(p1.get("progressed_planets") or {})},
+        'p2_progressed': {'planets': dict(p2.get("progressed_planets") or {})},
+    }
+    for idx, person in ((1, p1), (2, p2)):
+        ns = person.get("natal_summary") or {}
+        layers[f'p{idx}_natal'] = {
+            'planets': {
+                'Sun': {'sign': ns.get("sun_sign"), 'sign_ru': ns.get("sun_sign_ru"), 'sign_uk': en_to_uk.get(ns.get("sun_sign"))},
+                'Moon': {'sign': ns.get("moon_sign"), 'sign_ru': ns.get("moon_sign_ru"), 'sign_uk': en_to_uk.get(ns.get("moon_sign"))},
+            },
+            'ascendant': ns.get("ascendant"),
+            'ascendant_ru': ns.get("ascendant_ru"),
+            'ascendant_uk': en_to_uk.get(ns.get("ascendant")),
+        }
+
+    for asp in (layer1 or []):
+        if asp.get("planet1"):
+            layers['p1_progressed']['planets'].setdefault(asp["planet1"], from_sign_en(asp.get("sign1")))
+        if asp.get("planet2"):
+            layers['p2_progressed']['planets'].setdefault(asp["planet2"], from_sign_en(asp.get("sign2")))
+    for asp in (prog1_to_natal2 or []):
+        if asp.get("planet1"):
+            layers['p1_progressed']['planets'].setdefault(asp["planet1"], from_sign_en(asp.get("sign1")))
+        if asp.get("planet2"):
+            layers['p2_natal']['planets'].setdefault(asp["planet2"], from_sign_en(asp.get("sign2")))
+    for asp in (prog2_to_natal1 or []):
+        if asp.get("planet1"):
+            layers['p2_progressed']['planets'].setdefault(asp["planet1"], from_sign_en(asp.get("sign1")))
+        if asp.get("planet2"):
+            layers['p1_natal']['planets'].setdefault(asp["planet2"], from_sign_en(asp.get("sign2")))
+
+    return layers
+
+
 async def progressed_synastry_analysis(
     progressed_synastry: Dict[str, Any],
     language: str = "ru",
@@ -1483,8 +1554,14 @@ async def progressed_synastry_analysis(
 
     p1 = progressed_synastry.get("person1", {})
     p2 = progressed_synastry.get("person2", {})
-    name1 = p1.get("name") or ("первый партнёр" if language == 'ru' else "the first partner")
-    name2 = p2.get("name") or ("второй партнёр" if language == 'ru' else "the second partner")
+    _default_names = {
+        'ru': ("первый партнёр", "второй партнёр"),
+        'uk': ("перший партнер", "другий партнер"),
+        'en': ("the first partner", "the second partner"),
+    }
+    _dn1, _dn2 = _default_names.get(language, _default_names['en'])
+    name1 = p1.get("name") or _dn1
+    name2 = p2.get("name") or _dn2
 
     layer1 = progressed_synastry.get("progressed_synastry_aspects", [])
     cross = progressed_synastry.get("cross_overlay", {})
@@ -1535,6 +1612,10 @@ async def progressed_synastry_analysis(
             asp_name = asp.get("aspect_ru", asp.get("aspect", "?"))
             applying_str = "набирает силу" if asp.get("applying") else "завершается"
             base = f"{p_a} ({asp.get('sign1', '?')}) {asp_name} {p_b} ({asp.get('sign2', '?')}) — орб {orb_val}°, {applying_str}"
+        elif language == 'uk':
+            asp_name = asp.get("aspect_uk", asp.get("aspect", "?"))
+            applying_str = "аплікуючий" if asp.get("applying") else "сепаруючий"
+            base = f"{p_a} ({asp.get('sign1', '?')}) {asp_name} {p_b} ({asp.get('sign2', '?')}) — орбіс {orb_val}°, {applying_str}"
         else:
             asp_name = asp.get("aspect", "?")
             applying_str = "gaining strength" if asp.get("applying") else "wrapping up"
@@ -1542,10 +1623,11 @@ async def progressed_synastry_analysis(
         h1 = asp.get("planet1_house_in_2")
         h2 = asp.get("planet2_house_in_1")
         houses = []
+        house_word = "дом" if language == 'ru' else "будинок" if language == 'uk' else "house"
         if h1:
-            houses.append(f"{p_a}→дом {h1}" if language == 'ru' else f"{p_a}→house {h1}")
+            houses.append(f"{p_a}→{house_word} {h1}")
         if h2:
-            houses.append(f"{p_b}→дом {h2}" if language == 'ru' else f"{p_b}→house {h2}")
+            houses.append(f"{p_b}→{house_word} {h2}")
         if houses:
             base += " (" + ", ".join(houses) + ")"
         return base
@@ -1566,8 +1648,16 @@ async def progressed_synastry_analysis(
             'l3new': "【LAYER 3 — NEW aspects (appeared in progression)】",
             'l3fade': "【LAYER 3 — Natal aspects NOT active now】",
             'none': "(no exact aspects)",
+        },
+        'uk': {
+            'l1': f"【ШАР 1 — Прогресивна синастрія: {name1} ↔ {name2}】",
+            'l2a': f"【ШАР 2 — Прогресії {name1} → натальна карта {name2}】",
+            'l2b': f"【ШАР 2 — Прогресії {name2} → натальна карта {name1}】",
+            'l3new': "【ШАР 3 — НОВІ аспекти (з'явилися в прогресії)】",
+            'l3fade': "【ШАР 3 — Натальні аспекти, зараз НЕ активні】",
+            'none': "(немає точних аспектів)",
         }
-    }[language if language in ('ru', 'en') else 'en']
+    }[language if language in ('ru', 'en', 'uk') else 'en']
 
     def block(title, items, **kw):
         body = "\n".join(fmt(a, **kw) for a in items) if items else L['none']
@@ -1578,7 +1668,7 @@ async def progressed_synastry_analysis(
         block(L['l2a'], prog1_to_natal2),
         block(L['l2b'], prog2_to_natal1),
         block(L['l3new'], dynamics.get("new_aspects", []), cross_houses=True),
-        block(L['l3fade'], dynamics.get("faded_aspects", [])[:10]),
+        block(L['l3fade'], dynamics.get("faded_aspects", [])),
     ])
 
     # --- Шаг 3: Фрагменты книг ---
@@ -1599,28 +1689,71 @@ async def progressed_synastry_analysis(
     prompt = template.replace("{aspects_list}", aspects_list).replace("{books_content}", books_content)
 
     # Данные партнёров
-    prompt += f"\n\n=== ДАННЫЕ ПАРТНЁРОВ ==="
+    _partner_headers = {
+        'ru': "=== ДАННЫЕ ПАРТНЁРОВ ===",
+        'uk': "=== ДАНІ ПАРТНЕРІВ ===",
+        'en': "=== PARTNER DATA ===",
+    }
+    prompt += f"\n\n{_partner_headers.get(language, _partner_headers['en'])}"
     for label, person in ((name1, p1), (name2, p2)):
         lp = person.get("lunar_phase") or {}
-        phase = lp.get("phase_ru" if language == 'ru' else "phase", "?")
+        phase_key = "phase_ru" if language == 'ru' else "phase_uk" if language == 'uk' else "phase"
+        phase = lp.get(phase_key, lp.get("phase", "?"))
         ns = person.get("natal_summary") or {}
-        prompt += f"\n\n{label} (возраст {person.get('age_years', '?')}):"
-        prompt += f"\n  Прогрессивная лунная фаза: {phase}"
+        age_word = "вік" if language == 'uk' else "age" if language == 'en' else "возраст"
+        moon_phase_word = "Прогресивна місячна фаза" if language == 'uk' \
+            else "Progressed lunar phase" if language == 'en' else "Прогрессивная лунная фаза"
+        prog_label_prefix = "Прогр." if language != 'en' else "Prog."
+        prompt += f"\n\n{label} ({age_word} {person.get('age_years', '?')}):"
+        prompt += f"\n  {moon_phase_word}: {phase}"
         prog_planets = person.get("progressed_planets", {})
         for key in ("Moon", "Sun", "Venus", "Mars", "Mercury"):
             pd = prog_planets.get(key)
             if pd:
-                sign = pd.get("sign_ru", pd.get("sign", "?"))
+                sign_key = "sign_ru" if language == 'ru' else "sign_uk" if language == 'uk' else "sign"
+                sign = pd.get(sign_key, pd.get("sign", "?"))
                 rx = " R" if pd.get("is_retrograde") else ""
-                prompt += f"\n  Прогр.{key}: {sign}{rx}"
+                prompt += f"\n  {prog_label_prefix}{key}: {sign}{rx}"
 
     dyn = dynamics
-    prompt += f"\n\n=== ДИНАМИКА: натальная синастрия {dyn.get('natal_total', '?')} аспектов → прогрессивная {dyn.get('progressed_total', '?')} ==="
+    _dyn_labels = {
+        'ru': "=== ДИНАМИКА: натальная синастрия {n} аспектов → прогрессивная {p} ===",
+        'uk': "=== ДИНАМІКА: натальна синастрія {n} аспектів → прогресивна {p} ===",
+        'en': "=== DYNAMICS: natal synastry {n} aspects → progressed {p} ===",
+    }
+    _dyn_tmpl = _dyn_labels.get(language, _dyn_labels['en'])
+    prompt += "\n\n" + _dyn_tmpl.format(n=dyn.get('natal_total', '?'), p=dyn.get('progressed_total', '?'))
 
     # --- Шаг 5: LLM ---
     print(f"[progressed_synastry_analysis] Final prompt ~{len(prompt)//4} tokens")
     try:
         full_analysis = await adapter.generate(prompt, language)
+
+        if language in ('ru', 'en', 'uk'):
+            _fabrication_layers = _collect_progressed_synastry_layers(
+                p1, p2, layer1, prog1_to_natal2, prog2_to_natal1
+            )
+            position_issues = find_fabricated_positions_layered(
+                full_analysis, _fabrication_layers, language=language
+            )
+            if position_issues.get('fabricated'):
+                print(f"[progressed_synastry_analysis] Fabricated positions detected (not fixed): {position_issues['fabricated']}")
+
+            # Тип аспекта — только для СЛОЯ 2 (прогр.→натал.): промпт там реально
+            # пишет "прогрессивная"/"натальная" рядом с планетой. Для СЛОЯ 1
+            # (прогр.↔прогр., оба партнёра "прогрессивные") эта ось маркеров не
+            # различает партнёров — не проверяем, задокументированный пробел.
+            cross_aspects = (prog1_to_natal2 or []) + (prog2_to_natal1 or [])
+            fabricated_aspects = find_fabricated_aspect_types_layered(
+                full_analysis, cross_aspects, language=language, layer_keys=('progressed', 'natal')
+            )
+            if fabricated_aspects:
+                print(f"[progressed_synastry_analysis] Fabricated aspect types detected (layer 2 only): {fabricated_aspects}")
+
+            all_aspects = (layer1 or []) + cross_aspects
+            undercovered = find_undercovered_aspects_generic(full_analysis, all_aspects, language=language)
+            if undercovered:
+                print(f"[progressed_synastry_analysis] Undercovered aspects detected: {undercovered}")
     except Exception as e:
         full_analysis = f"Ошибка анализа: {str(e)}"
 
@@ -1641,6 +1774,105 @@ async def progressed_synastry_analysis(
         },
         "language": language,
         "version": "progressed_synastry_v1"
+    }
+
+
+async def analyze_progressed_synastry_aspect(
+    planet1: str,
+    planet2: str,
+    aspect_name: str,
+    layer: str,
+    aspect_name_ru: Optional[str] = None,
+    aspect_name_uk: Optional[str] = None,
+    orb: float = 0.0,
+    applying: Optional[bool] = None,
+    house1: Optional[int] = None,
+    house2: Optional[int] = None,
+    partner1_name: Optional[str] = None,
+    partner2_name: Optional[str] = None,
+    language: str = "ru",
+    mode: str = "advanced",
+) -> Dict[str, Any]:
+    """
+    Анализ ОДНОГО аспекта прогрессивной синастрии (клик на аспект во фронте).
+    Образец: analyze_synastry_aspect (synastry_service.py:534). См.
+    specs/progressed_synastry_aspect_click_plan.md.
+
+    layer — из какого из пяти блоков ответа /progressed-synastry взят аспект:
+    'progressed' (Слой 1, прогр↔прогр), 'prog1_to_natal2'/'prog2_to_natal1'
+    (Слой 2, кросс-наложение), 'new'/'faded' (Слой 3, динамика) — определяет
+    формулировку разбора через PROGRESSED_SYNASTRY_ASPECT_LAYER_CONTEXT.
+
+    house1/house2 — дом, в который попадает planet1/planet2 в карте ДРУГОГО
+    партнёра (как planet1_house_in_2/planet2_house_in_1 в основном разборе).
+    """
+    from app.services.llm_adapter import get_llm_adapter
+    from app.services.prompt_templates import get_template
+    from app.services.prompt_templates.progressed_synastry import PROGRESSED_SYNASTRY_ASPECT_LAYER_CONTEXT
+
+    lang = normalize_language(language)
+
+    aspect_display = aspect_name
+    if lang == 'ru' and aspect_name_ru:
+        aspect_display = aspect_name_ru
+    elif lang == 'uk' and aspect_name_uk:
+        aspect_display = aspect_name_uk
+
+    query = f"progressed {planet1.lower()} {aspect_display.lower()} {planet2.lower()} synastry relationship"
+    chunks = await search_chunks_priority_book(query, PROGRESSIONS_PRIORITY_BOOK_ID, top_k_priority=4, top_k_others=4)
+
+    layer_ctx_by_lang = PROGRESSED_SYNASTRY_ASPECT_LAYER_CONTEXT.get(lang, PROGRESSED_SYNASTRY_ASPECT_LAYER_CONTEXT['en'])
+    layer_context = layer_ctx_by_lang.get(layer, layer_ctx_by_lang['progressed'])
+
+    _labels = {
+        'ru': {'partner': 'Партнёр', 'aspect': 'Аспект', 'applying': 'набирает силу', 'separating': 'завершается', 'house': 'дом'},
+        'uk': {'partner': 'Партнер', 'aspect': 'Аспект', 'applying': 'набирає силу', 'separating': 'завершується', 'house': 'будинок'},
+        'en': {'partner': 'Partner', 'aspect': 'Aspect', 'applying': 'gaining strength', 'separating': 'wrapping up', 'house': 'house'},
+    }[lang if lang in ('ru', 'uk') else 'en']
+
+    p1_label = partner1_name or f"{_labels['partner']} 1"
+    p2_label = partner2_name or f"{_labels['partner']} 2"
+
+    aspect_lines = [f"{p1_label}: {planet1}", f"{_labels['aspect']}: {aspect_display}", f"{p2_label}: {planet2}"]
+    if applying is not None:
+        aspect_lines.append(_labels['applying'] if applying else _labels['separating'])
+    if house1:
+        aspect_lines.append(f"{planet1} → {p2_label} {_labels['house']} {house1}")
+    if house2:
+        aspect_lines.append(f"{planet2} → {p1_label} {_labels['house']} {house2}")
+    aspect_data = "\n".join(aspect_lines)
+
+    books_content = ""
+    for i, chunk in enumerate(chunks, 1):
+        text = chunk.get("text", "")[:700]
+        book_title = chunk.get("book_title", "")
+        books_content += f"[{i}] ({book_title}):\n{text}\n\n"
+    if not books_content:
+        books_content = {
+            'ru': "В библиотеке не найдено специфических фрагментов по этому аспекту.",
+            'uk': "У бібліотеці не знайдено специфічних фрагментів щодо цього аспекту.",
+            'en': "No specific fragments found in the library for this aspect.",
+        }[lang if lang in ('ru', 'uk') else 'en']
+
+    template = get_template("progressed_synastry_aspect", language, mode)
+    prompt = (template
+              .replace("{layer_context}", layer_context)
+              .replace("{aspect_data}", aspect_data)
+              .replace("{books_content}", books_content))
+
+    adapter = get_llm_adapter()
+    analysis = await adapter.generate(prompt, language)
+
+    return {
+        "planet1": planet1,
+        "planet2": planet2,
+        "aspect": aspect_name,
+        "aspect_ru": aspect_name_ru,
+        "aspect_uk": aspect_name_uk,
+        "orb": orb,
+        "layer": layer,
+        "analysis": analysis,
+        "relevant_chunks": chunks,
     }
 
 

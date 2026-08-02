@@ -254,8 +254,8 @@ class DeepSeekAdapter(LLMAdapter):
         try:
             response = await client.chat.completions.create(
                 # model="deepseek-chat",  # это DeepSeek V3
-                # model="deepseek-v4-flash",  # это DeepSeek V4 Flash
-                model="deepseek-v4-pro",  # эксперимент: plans/synastry-before-batching.md — временно вернули flash, чтобы отделить model-effect от volume-effect (plans/synastry-aspect-type-verification.md, "Открытые вопросы")
+                model="deepseek-v4-flash",  # это DeepSeek V4 Flash
+                # model="deepseek-v4-pro",  # эксперимент: plans/synastry-before-batching.md — временно вернули flash, чтобы отделить model-effect от volume-effect (plans/synastry-aspect-type-verification.md, "Открытые вопросы")
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
                 # max_tokens=8000,
@@ -270,8 +270,8 @@ class DeepSeekAdapter(LLMAdapter):
         client = self._get_client()
         try:
             response = await client.chat.completions.create(
-                # model="deepseek-v4-flash",  # это DeepSeek V4 Flash
-                model="deepseek-v4-pro",  # эксперимент: plans/synastry-before-batching.md
+                model="deepseek-v4-flash",  # это DeepSeek V4 Flash
+                # model="deepseek-v4-pro",  # эксперимент: plans/synastry-before-batching.md
                 messages=messages,
                 temperature=0.3,
                 # max_tokens=32768,
@@ -286,8 +286,8 @@ class DeepSeekAdapter(LLMAdapter):
         client = self._get_client()
         try:
             stream = await client.chat.completions.create(
-                # model="deepseek-v4-flash",
-                model="deepseek-v4-pro",  # эксперимент: plans/synastry-before-batching.md
+                model="deepseek-v4-flash",
+                # model="deepseek-v4-pro",  # эксперимент: plans/synastry-before-batching.md
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
                 max_tokens=32768,
