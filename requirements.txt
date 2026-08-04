@@ -9,6 +9,11 @@ openai==1.10.0
 python-dotenv==1.0.1
 sqlalchemy==2.0.25
 aiosqlite==0.19.0
+# Postgres driver used by app/db/database.py (postgresql+asyncpg://) and the
+# greenlet bridge SQLAlchemy's async engine runs on. Present locally but never
+# listed here, so the container would fail on the first database call.
+asyncpg==0.31.0
+greenlet==3.2.5
 pyswisseph==2.10.3.2
 email-validator==2.3.0
 passlib==1.7.4

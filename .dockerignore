@@ -1,0 +1,46 @@
+# Only what the application needs at runtime goes into the image.
+# Without this the build context would include the multi-GB venv.
+
+# Environment and housekeeping
+venv/
+.venv/
+env/
+.git/
+.gitignore
+.env
+.env.example
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+**/.DS_Store
+
+# Local data and artifacts
+*.db
+*.sqlite
+*.sqlite3
+*.log
+*.csv
+app.zip
+.pytest_cache/
+.agents_tmp/
+
+# Editor and agent settings
+.vscode/
+.idea/
+.claude/
+.kilo/
+.kilocode/
+
+# Docs, plans, specs, insights — not used at runtime
+**/*.md
+docs/
+plans/
+openspec/
+app/services/specs/
+
+# Tests and helper scripts
+tests/
+scripts/
