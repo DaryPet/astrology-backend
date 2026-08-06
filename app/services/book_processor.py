@@ -31,20 +31,20 @@
 
 
 # async def process_book_async(db, filename: str) -> Dict:
-#     """Обработать книгу: скачать из Supabase -> парсить PDF -> нарезать на чанки -> сохранить в БД"""
+#     """Process a book: download from Supabase -> parse PDF -> chunk -> save to DB"""
 #     source = os.path.splitext(filename)[1].lower()
-    
-#     # Скачиваем из Supabase Storage
+
+#     # Download from Supabase Storage
 #     file_data = download_from_storage(filename)
-    
-#     # Сохраняем во временный файл
+
+#     # Save to a temp file
 #     temp_path = f"/tmp/{filename}"
 #     with open(temp_path, "wb") as f:
 #         f.write(file_data.getvalue())
-    
-#     # Парсим PDF
+
+#     # Parse PDF
 #     parsed = parse_file(temp_path)
-#     text = parsed["text"]  # Извлекаем текст из словаря
+#     text = parsed["text"]  # Extract text from the dict
 #     os.unlink(temp_path)
     
 #     chunks = chunk_text(text, chunk_size=500, overlap=50)
@@ -113,26 +113,26 @@ def download_from_storage(filename: str) -> io.BytesIO:
     return io.BytesIO(data)
 
 async def process_book_async(filename: str) -> Dict:
-    # Скачиваем из Supabase Storage
+    # Download from Supabase Storage
     file_data = download_from_storage(filename)
 
-    # Сохраняем во временный файл
+    # Save to a temp file
     temp_path = f"/tmp/{filename}"
     with open(temp_path, "wb") as f:
         f.write(file_data.getvalue())
 
-    # Парсим
+    # Parse
     parsed = parse_file(temp_path)
     print(f"ДЛИНА ТЕКСТА: {len(parsed['text'])}")
     text = parsed["text"]
     os.unlink(temp_path)
 
-    # Нарезаем на куски
+    # Chunk it
     chunks = chunk_text(text, chunk_size=500, overlap=50)
     chunk_texts = [c["text"] for c in chunks]
     embeddings = generate_embeddings(chunk_texts)
 
-    # Сохраняем книгу в Supabase
+    # Save the book to Supabase
     book_result = supabase.table("books").insert({
         "title": os.path.basename(filename).rsplit(".", 1)[0],
         "content": text,
@@ -142,7 +142,7 @@ async def process_book_async(filename: str) -> Dict:
 
     book_id = book_result.data[0]["id"]
 
-    # Сохраняем куски
+    # Save the chunks
     for idx, (chunk, emb) in enumerate(zip(chunks, embeddings)):
         supabase.table("book_chunks").insert({
             "book_id": book_id,

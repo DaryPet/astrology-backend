@@ -7,23 +7,16 @@ ephem==4.1.5
 numpy==1.26.3
 openai==1.10.0
 python-dotenv==1.0.1
-sqlalchemy==2.0.25
-aiosqlite==0.19.0
-# Postgres driver used by app/db/database.py (postgresql+asyncpg://) and the
-# greenlet bridge SQLAlchemy's async engine runs on. Present locally but never
-# listed here, so the container would fail on the first database call.
-asyncpg==0.31.0
-greenlet==3.2.5
 pyswisseph==2.10.3.2
-email-validator==2.3.0
-passlib==1.7.4
-python-jose==3.5.0
 pytz==2026.1.post1
 timezonefinder==8.2.0
 supabase==2.10.0
 realtime==2.0.2
 sentence-transformers==5.1.2
 PyMuPDF==1.26.5
+langdetect==1.0.9
+pytesseract==0.3.13
+Pillow==11.3.0
 python-docx==1.2.0
 beautifulsoup4==4.14.3
 lxml==6.0.2

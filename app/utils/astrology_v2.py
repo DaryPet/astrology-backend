@@ -25,7 +25,7 @@ ZODIAC_SIGNS_UK = [
     "Терези", "Скорпіон", "Стрілець", "Козеріг", "Водолій", "Риби"
 ]
 
-# Все планеты включая LILITH (Black Moon)
+# All planets including LILITH (Black Moon)
 PLANETS = {
     'Sun': swe.SUN,
     'Moon': swe.MOON,
@@ -37,12 +37,12 @@ PLANETS = {
     'Uranus': swe.URANUS,
     'Neptune': swe.NEPTUNE,
     'Pluto': swe.PLUTO,
-    'NorthNode': swe.TRUE_NODE,  # Северный узел (Раху)
-    'SouthNode': swe.TRUE_NODE,   # Южный узел (Кету)
-    'Lilith': swe.MEAN_APOG,  # Black Moon - средняя апогея (работает в Moshier)
+    'NorthNode': swe.TRUE_NODE,  # North Node (Rahu)
+    'SouthNode': swe.TRUE_NODE,   # South Node (Ketu)
+    'Lilith': swe.MEAN_APOG,  # Black Moon - mean apogee (works in Moshier)
 }
 
-# Minor planets (asteroids) - требуют внешних эфемерид
+# Minor planets (asteroids) - require external ephemerides
 MINOR_PLANETS = {
     'Chiron': swe.CHIRON,
     'Ceres': swe.CERES,
@@ -63,11 +63,11 @@ HOUSE_SYSTEMS = {
 }
 
 ASPECTS = {
-    0: 'Conjunction',      # Соединение
-    60: 'Sextile',         # Секстиль
-    90: 'Square',          # Квадрат
-    120: 'Trine',          # Тригон
-    180: 'Opposition',     # Оппозиция
+    0: 'Conjunction',
+    60: 'Sextile',
+    90: 'Square',
+    120: 'Trine',
+    180: 'Opposition',
 }
 
 ASPECTS_RU = {
@@ -156,7 +156,7 @@ def calculate_planet_position(planet_id: float, jd: float, lat: float, lon: floa
     Использует Swiss Ephemeris (Moshier algorithm) - встроенные таблицы
     Точность: ~1 угловая секунда
     """
-    # Используем Moshier ephemeris + FLG_SPEED для получения скорости
+    # Use Moshier ephemeris + FLG_SPEED to get the speed
     flags = swe.FLG_MOSEPH | swe.FLG_SPEED
     
     # Get coordinates
@@ -175,17 +175,17 @@ def calculate_planet_position(planet_id: float, jd: float, lat: float, lon: floa
             'error': str(e)
         }
     
-    # result[0] = долгота (эклиптическая)
-    # result[1] = широта
-    # result[2] = расстояние
-    # result[3] = скорость по долготе
-    # result[4] = астрономическая скорость
+    # result[0] = longitude (ecliptic)
+    # result[1] = latitude
+    # result[2] = distance
+    # result[3] = speed in longitude
+    # result[4] = astronomical speed
     
     longitude = result[0][0]
     latitude = result[0][1]
     speed = result[0][3] if len(result[0]) > 3 else 0
     
-    # Знак зодиака
+    # Zodiac sign
     sign_en, sign_ru = get_zodiac_sign(longitude)
     sign_uk = get_zodiac_sign_uk(longitude)
     degree_in_sign = get_zodiac_degree(longitude)
@@ -193,7 +193,7 @@ def calculate_planet_position(planet_id: float, jd: float, lat: float, lon: floa
     return {
         'longitude': longitude,  # 0-360
         'latitude': latitude,     # -90 to +90
-        'speed': speed,           # градусов в день
+        'speed': speed,           # degrees per day
         'sign': sign_en,
         'sign_ru': sign_ru,
         'sign_uk': sign_uk,
@@ -209,17 +209,17 @@ def calculate_houses(jd: float, lat: float, lon: float, house_system: str = 'Pla
     flags = swe.FLG_MOSEPH
     hsys = HOUSE_SYSTEMS.get(house_system, b'P')
     
-    # Получаем дома (кортеж: (cusps, ascmc))
-    # houses[0] - массив куспидов (1-12 домов)
-    # houses[1] - массив асцендента, MC, ARMC, и т.д.
+    # Get the houses (tuple: (cusps, ascmc))
+    # houses[0] - array of cusps (houses 1-12)
+    # houses[1] - array of ascendant, MC, ARMC, etc.
     houses = swe.houses(jd, lat, lon, hsys)
-    
-    cusps = houses[0]  # 12 куспидов домов
+
+    cusps = houses[0]  # 12 house cusps
     ascmc = houses[1]   # [ASC, MC, ARMC, Vertex, Equatorial ASC...]
-    
-    # Расшифровка ascmc:
-    # ascmc[0] = ASC (Асцендент)
-    # ascmc[1] = MC (Середина Неба)
+
+    # ascmc breakdown:
+    # ascmc[0] = ASC (Ascendant)
+    # ascmc[1] = MC (Midheaven)
     # ascmc[2] = ARMC (Anti-Meridian Co-Latitude)
     # ascmc[3] = Vertex
     # ascmc[4] = Equatorial Ascendant
@@ -246,8 +246,8 @@ def calculate_houses(jd: float, lat: float, lon: float, house_system: str = 'Pla
     ]
 
     house_planets = {
-        'Sun': 10,  # Традиционно Солнце в 10 доме
-        'Moon': 4,   # Луна в 4 доме
+        'Sun': 10,  # Traditionally the Sun in the 10th house
+        'Moon': 4,   # The Moon in the 4th house
     }
     
     result_houses = {}
@@ -266,7 +266,7 @@ def calculate_houses(jd: float, lat: float, lon: float, house_system: str = 'Pla
             'degree': round(get_zodiac_degree(cusp_longitude), 4),
         }
 
-    # ASC и MC из ascmc
+    # ASC and MC from ascmc
     asc_longitude = ascmc[0]
     mc_longitude = ascmc[1]
 
@@ -315,21 +315,21 @@ def calculate_planet_positions(
         timezone_str: IANA timezone строка (например 'Europe/Moscow')
         house_system: Система домов (Placidus, Koch, Equal, WholeSign, etc.)
     """
-    # Если координаты не переданы, используем UTC
+    # If coordinates aren't passed, use UTC
     if lat is None or lon is None:
-        # Для простоты используем координаты 0,0 - нулевой меридиан
+        # For simplicity use coordinates 0,0 - the prime meridian
         lat, lon = 0.0, 0.0
-    
-    # Правильная конвертация времени в Julian Day
-    # Если datetime уже с timezone - конвертируем в UTC
-    # Если naive datetime и передан timezone_str - применяем timezone перед конвертацией
+
+    # Correct conversion of time to Julian Day
+    # If the datetime already has a timezone - convert to UTC
+    # If it's naive and timezone_str was passed - apply the timezone before converting
     if birth_date.tzinfo is not None:
-        # datetime с timezone - конвертируем в UTC
+        # datetime with a timezone - convert to UTC
         utc_dt = birth_date.astimezone(timezone.utc)
         year, month, day = utc_dt.year, utc_dt.month, utc_dt.day
         hour, minute, second = utc_dt.hour, utc_dt.minute, utc_dt.second
     elif timezone_str:
-        # naive datetime + timezone string - применяем timezone
+        # naive datetime + timezone string - apply the timezone
         try:
             tz = ZoneInfo(timezone_str)
             aware_dt = birth_date.replace(tzinfo=tz)
@@ -337,32 +337,32 @@ def calculate_planet_positions(
             year, month, day = utc_dt.year, utc_dt.month, utc_dt.day
             hour, minute, second = utc_dt.hour, utc_dt.minute, utc_dt.second
         except:
-            # Если не удалось - считаем как UTC
+            # If it failed - treat as UTC
             year, month, day = birth_date.year, birth_date.month, birth_date.day
             hour, minute, second = birth_date.hour, birth_date.minute, birth_date.second
     else:
-        # naive datetime без timezone - считаем как UTC
+        # naive datetime with no timezone - treat as UTC
         year, month, day = birth_date.year, birth_date.month, birth_date.day
         hour, minute, second = birth_date.hour, birth_date.minute, birth_date.second
-    
-    # Julian Day в UTC
+
+    # Julian Day in UTC
     jd = swe.utc_to_jd(year, month, day, hour, minute, second, swe.GREG_CAL)[0]
-    
-    # Расчёт планет
+
+    # Calculate the planets
     planets = {}
-    
-    # Основные планеты
+
+    # Major planets
     for planet_name, planet_id in PLANETS.items():
         if planet_name == 'SouthNode':
-            continue  # Рассчитаем после NorthNode
+            continue  # Calculate after NorthNode
         
         if planet_name == 'NorthNode':
             result = swe.calc_ut(jd, planet_id, swe.FLG_MOSEPH | swe.FLG_SPEED)
             longitude = result[0][0]
             speed = result[0][3] if len(result[0]) > 3 else 0
         elif planet_name == 'Lilith':
-            # Black Moon - средняя апогея (MEAN_APOG)
-            # Рассчитывается через Swiss Ephemeris как обычная планета
+            # Black Moon - mean apogee (MEAN_APOG)
+            # Calculated via Swiss Ephemeris like a regular planet
             pos = calculate_planet_position(planet_id, jd, lat, lon)
             longitude = pos['full_degree']
             speed = pos['speed']
@@ -390,7 +390,7 @@ def calculate_planet_positions(
             'is_retrograde': is_retrograde,
         }
 
-    # Добавляем SouthNode (противоположно NorthNode)
+    # Add SouthNode (opposite of NorthNode)
     nn_longitude = planets['NorthNode']['full_degree']
     sn_longitude = (nn_longitude + 180) % 360
     sn_sign_en, sn_sign_ru = get_zodiac_sign(sn_longitude)
@@ -402,10 +402,10 @@ def calculate_planet_positions(
         'degree': round(get_zodiac_degree(sn_longitude), 4),
         'full_degree': round(sn_longitude, 4),
         'speed': round(-planets['NorthNode']['speed'], 4),
-        'is_retrograde': True,  # South Node всегда ретрограден в астрологии
+        'is_retrograde': True,  # South Node is always retrograde in astrology
     }
-    
-    # Расчёт Chiron (малая планета/астероид)
+
+    # Calculate Chiron (minor planet/asteroid)
     chiron_id = MINOR_PLANETS.get('Chiron')
     if chiron_id is not None:
         try:
@@ -455,26 +455,26 @@ def calculate_planet_positions(
                 'error': str(e)
             }
     
-    # Расчёт всех 12 домов
+    # Calculate all 12 houses
     houses_data = calculate_houses(jd, lat, lon, house_system)
-    
-    # Определяем планеты в домах
-    # Для каждой планеты находим её дом
+
+    # Determine the houses for the planets
+    # Find each planet's house
     for planet_name, planet_data in planets.items():
         planet_degree = planet_data['full_degree']
-        # Ищем дом
+        # Look for the house
         assigned_house = None
         for house_num in range(1, 13):
             cusp_current = houses_data['houses'][house_num]['cusp_longitude']
             cusp_next = houses_data['houses'][house_num % 12 + 1]['cusp_longitude']
-            
-            # Проверяем находится ли планета между куспидами
+
+            # Check whether the planet is between the cusps
             if cusp_next > cusp_current:
                 if cusp_current <= planet_degree < cusp_next:
                     assigned_house = house_num
                     break
             else:
-                # Переход через 0° Овна
+                # Crossing over 0° Aries
                 if cusp_current <= planet_degree or planet_degree < cusp_next:
                     assigned_house = house_num
                     break
@@ -602,14 +602,14 @@ def calculate_aspects(planets: Dict[str, Any], orb_threshold: float = 8.0) -> Li
             lon1 = data1['full_degree']
             lon2 = data2['full_degree']
             
-            # Разница по кратчайшему пути
+            # Difference along the shortest path
             diff = abs(lon1 - lon2)
             if diff > 180:
                 diff = 360 - diff
-            
-            # Проверяем каждый аспект
+
+            # Check each aspect
             for aspect_degree, aspect_name in ASPECTS.items():
-                # Орб для данной пары планет
+                # Orb for this pair of planets
                 key = tuple(sorted([name1, name2]))
                 orb = ORBS.get(key, 6)
                 
@@ -625,9 +625,9 @@ def calculate_aspects(planets: Dict[str, Any], orb_threshold: float = 8.0) -> Li
                     })
                     break
     
-    # Сортируем по точности
+    # Sort by exactness
     aspects.sort(key=lambda x: x['exactness'], reverse=True)
-    
+
     return aspects
 
 
@@ -639,25 +639,25 @@ def calculate_solar_return(birth_date: datetime, year: int, lat: float = None, l
     if lat is None or lon is None:
         lat, lon = 55.7558, 37.6173
     
-    # JD рождения
+    # Birth JD
     birth_jd = swe.utc_to_jd(birth_date.year, birth_date.month, birth_date.day,
                               birth_date.hour, birth_date.minute, birth_date.second,
                               swe.GREG_CAL)[0]
-    
-    # Позиция Солнца при рождении
+
+    # Sun's position at birth
     sun_birth = calculate_planet_position(swe.SUN, birth_jd, lat, lon)
     sun_longitude_birth = sun_birth['full_degree']
-    
-    # Ищем дату солярного возвращения в нужном году
-    # Примерная дата - день рождения в нужном году
+
+    # Look for the solar return date in the target year
+    # Approximate date - the birthday in the target year
     start_jd = swe.utc_to_jd(year, birth_date.month, birth_date.day,
                               birth_date.hour, birth_date.minute, birth_date.second,
                               swe.GREG_CAL)[0]
-    
-    # Ищем точное время, когда Солнце на нужной долготе
-    # Swe.lun_occult_when_loc может помочь, но для Солнца используем итерацию
-    
-    # Сканируем несколько дней вокруг дня рождения
+
+    # Look for the exact moment when the Sun is at the target longitude
+    # Swe.lun_occult_when_loc could help, but for the Sun we use iteration
+
+    # Scan a few days around the birthday
     best_jd = None
     best_diff = 360
     
@@ -680,7 +680,7 @@ def calculate_solar_return(birth_date: datetime, year: int, lat: float = None, l
             'date': solar_return_date.isoformat(),
             'jd': best_jd,
             'sun_position': calculate_planet_position(swe.SUN, best_jd, lat, lon),
-            'exactness': round(100 - best_diff * 10, 2),  # Процент точности
+            'exactness': round(100 - best_diff * 10, 2),  # Exactness percentage
         }
     
     return None
@@ -692,7 +692,7 @@ def calculate_synastry(chart1: Dict[str, Any], chart2: Dict[str, Any]) -> Dict[s
     """
     aspects = []
     
-    # Аспекты между планетами двух карт
+    # Aspects between the two charts' planets
     for planet1_name, planet1_data in chart1['planets'].items():
         for planet2_name, planet2_data in chart2['planets'].items():
             lon1 = planet1_data['full_degree']
@@ -717,7 +717,7 @@ def calculate_synastry(chart1: Dict[str, Any], chart2: Dict[str, Any]) -> Dict[s
                     })
                     break
     
-    # Сортируем по важности
+    # Sort by importance
     aspect_priority = {'Conjunction': 5, 'Opposition': 4, 'Trine': 3, 'Square': 2, 'Sextile': 1}
     aspects.sort(key=lambda x: aspect_priority.get(x['aspect'], 0), reverse=True)
     
@@ -753,12 +753,12 @@ def get_house_for_longitude(longitude: float, houses: Dict) -> Optional[int]:
     return None
 
 
-# Тестовая функция
+# Test function
 if __name__ == "__main__":
-    # Пример расчёта
+    # Example calculation
     birth = datetime(1995, 3, 21, 12, 0, 0)
-    
-    # Москва
+
+    # Moscow
     lat, lon = 55.7558, 37.6173
     
     print("=== Расчёт натальной карты (Swiss Ephemeris) ===")
@@ -793,11 +793,11 @@ if __name__ == "__main__":
 
 
 # ============================================================
-# SECONDARY PROGRESSIONS (Вторичные прогрессии, «день за год»)
+# SECONDARY PROGRESSIONS ("day for a year")
 # ============================================================
 
-TROPICAL_YEAR = 365.2422  # тропический год в днях
-PROGRESSION_ORB = 1.5     # тугой орб для аспектов прогрессий (стандарт 1-1.5°)
+TROPICAL_YEAR = 365.2422  # tropical year in days
+PROGRESSION_ORB = 1.5     # tight orb for progression aspects (standard 1-1.5°)
 
 
 def _datetime_to_utc_jd(dt: datetime) -> float:
@@ -807,8 +807,8 @@ def _datetime_to_utc_jd(dt: datetime) -> float:
     return swe.utc_to_jd(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, swe.GREG_CAL)[0]
 
 
-# Прогрессивная лунная фаза (угол Луна−Солнце) — ядро интерпретации вторичных прогрессий.
-# 8 фаз по 45°: ключевые этапы ~30-летнего цикла внутреннего развития.
+# Progressed lunar phase (Moon−Sun angle) — the core of secondary progression interpretation.
+# 8 phases of 45° each: key stages of the ~30-year cycle of inner development.
 LUNAR_PHASES = [
     (0,   'New Moon',          'Новолуние',           'Молодик'),
     (45,  'Crescent',          'Растущий серп',       'Молодий серп'),
@@ -860,28 +860,28 @@ def calculate_secondary_progressions(
     - аспекты прогрессивных планет к натальным (тугой орб)
     - возраст и период
     """
-    # 1. Натальная карта — переиспользуем основной расчёт
+    # 1. Natal chart — reuse the main calculation
     natal = calculate_planet_positions(
         birth_date, birth_place, lat, lon, timezone_str, house_system
     )
     natal_jd = natal['meta']['jd']
 
-    # 2. Дата, на которую строим прогрессии (по умолчанию — сейчас, UTC)
+    # 2. Date to build progressions for (default — now, UTC)
     if target_date is None:
         target_date = datetime.now(timezone.utc)
     target_jd = _datetime_to_utc_jd(target_date)
 
-    # 3. Формула «день за год»
+    # 3. "Day for a year" formula
     age_years = (target_jd - natal_jd) / TROPICAL_YEAR
     if age_years < 0:
         age_years = 0.0
     progressed_jd = natal_jd + age_years
 
-    # 4. Прогрессивные планеты
+    # 4. Progressed planets
     progressed_planets: Dict[str, Any] = {}
     for planet_name, planet_id in PLANETS.items():
         if planet_name == 'SouthNode':
-            continue  # рассчитаем после NorthNode
+            continue  # calculate after NorthNode
         try:
             result = swe.calc_ut(progressed_jd, planet_id, swe.FLG_MOSEPH | swe.FLG_SPEED)
             longitude = result[0][0]
@@ -906,19 +906,19 @@ def calculate_secondary_progressions(
             'full_degree': round(longitude, 4),
             'speed': round(speed, 4) if speed else 0,
             'is_retrograde': is_retrograde,
-            # дом прогрессивной планеты в НАТАЛЬНОЙ системе домов (стандарт интерпретации)
+            # progressed planet's house in the NATAL house system (interpretation standard)
             'natal_house': prog_house,
-            # сменила ли планета знак относительно натала — ключевой маркер для анализа
+            # whether the planet changed sign relative to the natal — a key marker for analysis
             'changed_sign': sign_en != natal_planet.get('sign'),
             'natal_sign': natal_planet.get('sign'),
-            # дом, в котором планета была в натале, и факт перехода в другой дом —
-            # не менее важный маркер, чем смена знака
+            # the house the planet was in natally, and whether it moved to a different house —
+            # a marker no less important than a sign change
             'natal_planet_house': natal_planet_house,
             'changed_house': (natal_planet_house is not None and prog_house != natal_planet_house),
             'natal_degree': natal_planet.get('degree'),
         }
 
-    # SouthNode — противоположно NorthNode
+    # SouthNode — opposite of NorthNode
     if 'NorthNode' in progressed_planets:
         nn_longitude = progressed_planets['NorthNode']['full_degree']
         sn_longitude = (nn_longitude + 180) % 360
@@ -943,7 +943,7 @@ def calculate_secondary_progressions(
             'natal_degree': natal_sn.get('degree'),
         }
 
-    # Chiron (как в натальном расчёте — с обработкой ошибок эфемерид)
+    # Chiron (same as in the natal calculation — with ephemeris error handling)
     chiron_id = MINOR_PLANETS.get('Chiron')
     if chiron_id is not None:
         try:
@@ -974,13 +974,13 @@ def calculate_secondary_progressions(
         except Exception as e:
             print(f"[progressions] Chiron calc error: {e}")
 
-    # 5. Прогрессивные углы и дома (вторичные угловые на натальных координатах)
+    # 5. Progressed angles and houses (secondary angulars on natal coordinates)
     eff_lat = lat if lat is not None else 0.0
     eff_lon = lon if lon is not None else 0.0
     progressed_houses_data = calculate_houses(progressed_jd, eff_lat, eff_lon, house_system)
 
-    # 6. Аспекты прогрессивных планет к натальным (тугой орб)
-    # Для определения сходящийся/расходящийся считаем позиции чуть позже (+0.1 JD ≈ +36 дней жизни)
+    # 6. Progressed planets' aspects to the natal ones (tight orb)
+    # To determine applying/separating, calculate positions a bit later (+0.1 JD ≈ +36 days of life)
     future_longitudes: Dict[str, float] = {}
     for p_name, p_data in progressed_planets.items():
         speed = p_data.get('speed', 0) or 0
@@ -996,7 +996,7 @@ def calculate_secondary_progressions(
             for aspect_degree, aspect_name in ASPECTS.items():
                 deviation = abs(diff - aspect_degree)
                 if deviation <= orb:
-                    # Сходящийся: через +0.1 JD орб уменьшается (аспект идёт к точности)
+                    # Applying: at +0.1 JD the orb shrinks (the aspect is moving toward exact)
                     f_diff = abs(future_longitudes[p_name] - n_data['full_degree'])
                     if f_diff > 180:
                         f_diff = 360 - f_diff
@@ -1005,7 +1005,7 @@ def calculate_secondary_progressions(
                     aspects_to_natal.append({
                         'progressed': p_name,
                         'natal': n_name,
-                        # дублируем под planet1/planet2 для совместимости с UI-компонентами аспектов
+                        # duplicate under planet1/planet2 for compatibility with aspect UI components
                         'planet1': p_name,
                         'planet2': n_name,
                         'aspect': aspect_name,
@@ -1013,19 +1013,19 @@ def calculate_secondary_progressions(
                         'aspect_uk': ASPECTS_UK[aspect_degree],
                         'orb': round(deviation, 2),
                         'exactness': round(100 - deviation / orb * 100, 1),
-                        'applying': applying,  # сходящийся (True) / расходящийся (False)
+                        'applying': applying,  # applying (True) / separating (False)
                         'progressed_sign': p_data['sign'],
                         'natal_sign': n_data['sign'],
-                        # контекст натальной планеты — нужен LLM для оверлея с наталом
+                        # natal planet context — needed by the LLM for the natal overlay
                         'natal_house': n_data.get('house'),
                         'progressed_house': p_data.get('natal_house'),
                     })
                     break
 
-    # Сортируем по точности (самые точные — самые важные в прогрессиях)
+    # Sort by exactness (most exact — most important in progressions)
     aspects_to_natal.sort(key=lambda x: x['orb'])
 
-    # 7. Прогрессивная лунная фаза — главный маркер этапа ~30-летнего цикла
+    # 7. Progressed lunar phase — the main marker of the ~30-year cycle stage
     lunar_phase = None
     if 'Sun' in progressed_planets and 'Moon' in progressed_planets:
         lunar_phase = get_progressed_lunar_phase(
@@ -1033,20 +1033,20 @@ def calculate_secondary_progressions(
             progressed_planets['Moon']['full_degree'],
         )
 
-    # 8. Тайминги: через сколько лет Солнце и Луна сменят знак
-    # (speed = °/эфемеридный день; в прогрессиях 1 день = 1 год жизни)
+    # 8. Timings: how many years until the Sun and Moon change sign
+    # (speed = °/ephemeris day; in progressions 1 day = 1 year of life)
     for key in ('Sun', 'Moon'):
         p = progressed_planets.get(key)
         if p and p.get('speed') and p['speed'] > 0.001:
             remaining_deg = 30 - p['degree']
             p['years_to_next_sign'] = round(remaining_deg / p['speed'], 1)
 
-    # Нормализованный период (YYYY-MM) — используется как ключ кэширования анализа
+    # Normalized period (YYYY-MM) — used as the analysis cache key
     period = target_date.strftime('%Y-%m')
 
     return {
         'type': 'progressions',
-        'method': 'secondary',  # вторичные прогрессии («день за год»)
+        'method': 'secondary',  # secondary progressions ("day for a year")
         'period': period,
         'age_years': round(age_years, 2),
         'target_date': target_date.isoformat(),
@@ -1079,14 +1079,14 @@ def calculate_secondary_progressions(
 
 
 # ============================================================
-# ТРАНЗИТЫ ПО ДНЯМ
+# DAILY TRANSITS
 # ============================================================
 
-# Орбы транзитов: тугие, день-специфичные. Луна шире (проходит знак за 2.5 дня).
+# Transit orbs: tight, day-specific. The Moon is wider (crosses a sign in 2.5 days).
 TRANSIT_ORB = 2.0
 TRANSIT_MOON_ORB = 3.0
 
-# Медленные планеты — большие темы периода; быстрые — окраска конкретного дня
+# Slow planets — big themes of the period; fast ones — the flavor of a specific day
 SLOW_TRANSIT_PLANETS = {'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto', 'NorthNode', 'SouthNode', 'Chiron'}
 
 
@@ -1124,7 +1124,7 @@ def calculate_transits(
     - лунную фазу дня (реальная фаза Луны)
     - период = YYYY-MM-DD (ключ кэширования анализа)
     """
-    # 1. Натальная карта: готовая из БД (приоритет) или пересчёт
+    # 1. Natal chart: ready-made from the DB (priority) or recalculated
     if natal_override and natal_override.get('planets') and natal_override.get('houses'):
         natal = natal_override
     else:
@@ -1132,17 +1132,17 @@ def calculate_transits(
             birth_date, birth_place, lat, lon, timezone_str, house_system
         )
 
-    # 2. День транзита (по умолчанию — сейчас, UTC; полдень для устойчивости позиций)
+    # 2. Transit day (default — now, UTC; noon for position stability)
     if target_date is None:
         target_date = datetime.now(timezone.utc)
     if not exact_time and target_date.hour == 0 and target_date.minute == 0:
-        # Дата без времени → берём полдень UTC (середина дня).
-        # exact_time=True (напр. точное время начала события) отключает
-        # эту эвристику — иначе полночные события сдвигались бы на 12ч.
+        # Date with no time → use UTC noon (middle of the day).
+        # exact_time=True (e.g. an exact start moment) disables
+        # this heuristic — otherwise midnight moments would shift by 12h.
         target_date = target_date.replace(hour=12)
     transit_jd = _datetime_to_utc_jd(target_date)
 
-    # Координаты места транзита: если не переданы — используем натальные
+    # Transit place coordinates: if not passed — use the natal ones
     eff_transit_lat = transit_lat if transit_lat is not None else lat
     eff_transit_lon = transit_lon if transit_lon is not None else lon
     if eff_transit_lat is None:
@@ -1150,9 +1150,9 @@ def calculate_transits(
     if eff_transit_lon is None:
         eff_transit_lon = 0.0
 
-    # Транзитные дома — дома, построенные на момент транзита по координатам места транзита.
-    # Дают второй угол зрения: в каком ТРАНЗИТНОМ доме находится планета сейчас
-    # (в дополнение к натальному дому, по которому она «идёт» относительно рождения).
+    # Transit houses — houses built for the transit moment using the transit place's coordinates.
+    # Give a second angle: which TRANSIT house the planet is in right now
+    # (in addition to the natal house it "moves through" relative to birth).
     try:
         transit_houses_data = calculate_houses(transit_jd, eff_transit_lat, eff_transit_lon, house_system)
         transit_houses = transit_houses_data['houses']
@@ -1164,7 +1164,7 @@ def calculate_transits(
         transit_ascendant = None
         transit_mc = None
 
-    # 3. Транзитные планеты
+    # 3. Transit planets
     transit_planets: Dict[str, Any] = {}
     for planet_name, planet_id in PLANETS.items():
         if planet_name == 'SouthNode':
@@ -1190,16 +1190,16 @@ def calculate_transits(
             'full_degree': round(longitude, 4),
             'speed': round(speed, 4) if speed else 0,
             'is_retrograde': is_retrograde,
-            # дом транзитной планеты в НАТАЛЬНОЙ системе домов — ключ интерпретации
+            # transit planet's house in the NATAL house system — key to interpretation
             'natal_house': get_house_for_longitude(longitude, natal['houses']),
             'transit_house': get_house_for_longitude(longitude, transit_houses) if transit_houses else None,
             'is_slow': planet_name in SLOW_TRANSIT_PLANETS,
-            # позиция этой же планеты в натале — для контекста (возвраты и т.п.)
+            # this same planet's natal position — for context (returns, etc.)
             'natal_sign': natal_planet.get('sign'),
             'natal_planet_house': natal_planet.get('house'),
         }
 
-    # SouthNode — противоположно NorthNode
+    # SouthNode — opposite of NorthNode
     if 'NorthNode' in transit_planets:
         nn = transit_planets['NorthNode']
         sn_longitude = (nn['full_degree'] + 180) % 360
@@ -1249,8 +1249,8 @@ def calculate_transits(
         except Exception as e:
             print(f"[transits] Chiron calc error: {e}")
 
-    # 4. Аспекты транзитных планет к натальным
-    # Сходящийся/расходящийся: позиции через +0.2 суток (≈5 часов)
+    # 4. Transit planets' aspects to the natal ones
+    # Applying/separating: positions +0.2 days ahead (≈5 hours)
     future_longitudes: Dict[str, float] = {}
     for t_name, t_data in transit_planets.items():
         speed = t_data.get('speed', 0) or 0
@@ -1287,19 +1287,19 @@ def calculate_transits(
                         'transit_sign': t_data['sign'],
                         'natal_sign': n_data['sign'],
                         'natal_house': n_data.get('house'),
-                        # дом транзитной планеты в натальной карте (по чему «идёт»)
+                        # transit planet's house in the natal chart (what it's "moving through")
                         'transit_house': t_data.get('natal_house'),
-                        # дом транзитной планеты в транзитной карте (где она сейчас)
+                        # transit planet's house in the transit chart (where it is right now)
                         'transit_planet_transit_house': t_data.get('transit_house'),
-                        # «возврат» — транзитная планета на своём натальном месте
+                        # "return" — the transit planet is at its own natal position
                         'is_return': (t_name == n_name and aspect_name == 'Conjunction'),
                     })
                     break
 
-    # Медленные и точные — первыми (главные темы), потом быстрые
+    # Slow and exact ones first (main themes), then fast ones
     aspects_to_natal.sort(key=lambda x: (not x['is_slow'], x['orb']))
 
-    # 5. Лунная фаза дня (реальная)
+    # 5. Lunar phase of the day (real)
     lunar_phase = None
     if 'Sun' in transit_planets and 'Moon' in transit_planets:
         lunar_phase = get_progressed_lunar_phase(
@@ -1309,7 +1309,7 @@ def calculate_transits(
 
     period = target_date.strftime('%Y-%m-%d')
 
-    # Информация о месте транзита для фронтенда
+    # Transit place info for the frontend
     transit_location_info = None
     if transit_lat is not None and transit_lon is not None:
         transit_location_info = {
@@ -1357,10 +1357,10 @@ def calculate_transits(
 
 
 # ============================================================
-# ПРОГРЕССИВНАЯ СИНАСТРИЯ
+# PROGRESSED SYNASTRY
 # ============================================================
 
-# Орб для межкарточных прогрессивных аспектов — тугой, как в прогрессиях
+# Orb for cross-chart progressed aspects — tight, like in progressions
 PROGRESSED_SYNASTRY_ORB = 1.5
 
 
@@ -1397,7 +1397,7 @@ def _cross_aspects(
             for aspect_degree, aspect_name in ASPECTS.items():
                 deviation = abs(diff - aspect_degree)
                 if deviation <= orb:
-                    # сходящийся/расходящийся: позиции через +0.1 «дня» (≈ часть года)
+                    # applying/separating: positions +0.1 "day" ahead (≈ a fraction of a year)
                     fa = (a_lon + a_speed * 0.1) % 360
                     fb = (b_lon + b_speed * 0.1) % 360
                     fdiff = abs(fa - fb)
@@ -1406,8 +1406,8 @@ def _cross_aspects(
                     applying = abs(fdiff - aspect_degree) < deviation
 
                     entry = {
-                        'planet1': a_name,  # планета партнёра A
-                        'planet2': b_name,  # планета партнёра B
+                        'planet1': a_name,  # partner A's planet
+                        'planet2': b_name,  # partner B's planet
                         'person1': label_a,
                         'person2': label_b,
                         'aspect': aspect_name,
@@ -1419,7 +1419,7 @@ def _cross_aspects(
                         'sign1': a_data.get('sign'),
                         'sign2': b_data.get('sign'),
                     }
-                    # дом планеты A в карте B (планета A «гостит» в доме B)
+                    # planet A's house in chart B (planet A is "visiting" house B)
                     if houses_b_for_a:
                         entry['planet1_house_in_2'] = get_house_for_longitude(a_lon, houses_b_for_a)
                     if houses_a_for_b:
@@ -1460,7 +1460,7 @@ def calculate_progressed_synastry(
     if target_date is None:
         target_date = datetime.now(timezone.utc)
 
-    # --- Прогрессии каждого партнёра (на свой возраст, одна дата) ---
+    # --- Each partner's progressions (at their own age, one date) ---
     prog1 = calculate_secondary_progressions(
         birth_date=person1['birth_date'], birth_place=person1.get('birth_place', ''),
         target_date=target_date, lat=person1.get('lat'), lon=person1.get('lon'),
@@ -1472,7 +1472,7 @@ def calculate_progressed_synastry(
         timezone_str=person2.get('timezone'), house_system=house_system,
     )
 
-    # --- Натальные карты (для слоёв 2 и 3) ---
+    # --- Natal charts (for layers 2 and 3) ---
     natal1 = calculate_planet_positions(
         person1['birth_date'], person1.get('birth_place', ''),
         person1.get('lat'), person1.get('lon'), person1.get('timezone'), house_system,
@@ -1487,28 +1487,28 @@ def calculate_progressed_synastry(
     p1_houses = prog1['progressed_houses']
     p2_houses = prog2['progressed_houses']
 
-    # === Слой 1: прогрессивная синастрия (прогр A ↔ прогр B) ===
+    # === Layer 1: progressed synastry (prog A ↔ prog B) ===
     progressed_synastry_aspects = _cross_aspects(
         p1_planets, p2_planets,
         houses_b_for_a=p2_houses, houses_a_for_b=p1_houses,
         label_a='person1', label_b='person2',
     )
 
-    # === Слой 2: перекрёстное наложение на натал ===
-    # прогр.A → натал B
+    # === Layer 2: cross overlay onto the natal charts ===
+    # prog.A → natal B
     prog1_to_natal2 = _cross_aspects(
         p1_planets, natal2['planets'],
         houses_b_for_a=natal2['houses'],
         label_a='person1_progressed', label_b='person2_natal',
     )
-    # прогр.B → натал A
+    # prog.B → natal A
     prog2_to_natal1 = _cross_aspects(
         p2_planets, natal1['planets'],
         houses_b_for_a=natal1['houses'],
         label_a='person2_progressed', label_b='person1_natal',
     )
 
-    # === Слой 3: динамика относительно натальной синастрии ===
+    # === Layer 3: dynamics relative to the natal synastry ===
     natal_synastry = calculate_synastry(natal1, natal2)
     natal_pairs = {
         (a['planet1'], a['planet2'], a['aspect']) for a in natal_synastry['aspects']
@@ -1521,7 +1521,7 @@ def calculate_progressed_synastry(
     faded_aspects = [a for a in natal_synastry['aspects']
                      if (a['planet1'], a['planet2'], a['aspect']) not in progressed_pairs]
 
-    # Прогрессивные лунные фазы обоих — ключевой эмоциональный маркер
+    # Both partners' progressed lunar phases — a key emotional marker
     return {
         'type': 'progressed_synastry',
         'target_date': target_date.isoformat(),
@@ -1544,18 +1544,18 @@ def calculate_progressed_synastry(
             'lunar_phase': prog2.get('lunar_phase'),
             'natal_summary': prog2.get('natal_summary'),
         },
-        # Слой 1
+        # Layer 1
         'progressed_synastry_aspects': progressed_synastry_aspects,
-        # Слой 2
+        # Layer 2
         'cross_overlay': {
             'prog1_to_natal2': prog1_to_natal2,
             'prog2_to_natal1': prog2_to_natal1,
         },
-        # Слой 3
+        # Layer 3
         'dynamics': {
             'natal_synastry_aspects': natal_synastry['aspects'],
-            'new_aspects': new_aspects,        # появились в прогрессии
-            'faded_aspects': faded_aspects,    # были в натале, нет в прогрессии
+            'new_aspects': new_aspects,        # appeared in the progression
+            'faded_aspects': faded_aspects,    # were natal, gone in the progression
             'natal_total': natal_synastry['total_aspects'],
             'progressed_total': len(progressed_synastry_aspects),
         },

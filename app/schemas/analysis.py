@@ -80,7 +80,7 @@ class SummaryResponse(BaseModel):
 
 class ChatMessage(BaseModel):
     """Одно сообщение в истории чата"""
-    role: str  # "user" или "assistant"
+    role: str  # "user" or "assistant"
     content: str
 
 
@@ -185,9 +185,9 @@ class RelationshipTypeInfo(BaseModel):
 
 class SynastryRelationshipRequest(BaseModel):
     """Запрос на определение типов отношений в синастрии"""
-    # Новый формат (предпочтительный)
+    # New format (preferred)
     full_analysis: Optional[str] = None
-    # Старый формат (для обратной совместимости)
+    # Old format (for backward compatibility)
     # chart1: Optional[Dict[str, Any]] = None
     # chart2: Optional[Dict[str, Any]] = None
     # aspects: Optional[List[Dict[str, Any]]] = None
@@ -205,7 +205,7 @@ class SynastryRelationshipResponse(BaseModel):
 
 
 # ============================================================
-# SECONDARY PROGRESSIONS (Вторичные прогрессии)
+# SECONDARY PROGRESSIONS
 # ============================================================
 
 class ProgressionsRequest(BaseModel):
@@ -217,17 +217,17 @@ class ProgressionsRequest(BaseModel):
     longitude: Optional[float] = None
     timezone: Optional[str] = None
     house_system: Optional[str] = "Placidus"
-    # Дата, на которую строим прогрессии (по умолчанию — текущий момент)
+    # Date to build progressions for (default — current moment)
     target_date: Optional[datetime] = None
 
 
 class ProgressionsAnalysisRequest(BaseModel):
     """Запрос на AI-анализ вторичных прогрессий"""
-    # Предпочтительный путь: фронтенд передаёт готовые данные (без повторного расчёта)
-    natal_chart: Optional[Dict[str, Any]] = None       # chart_data натальной карты
-    progression_data: Optional[Dict[str, Any]] = None  # результат /api/progressions
+    # Preferred path: the frontend sends ready-made data (no recalculation)
+    natal_chart: Optional[Dict[str, Any]] = None       # natal chart chart_data
+    progression_data: Optional[Dict[str, Any]] = None  # result of /api/progressions
 
-    # Fallback: расчёт на бэкенде из данных рождения
+    # Fallback: calculate on the backend from birth data
     birth_date: Optional[datetime] = None
     birth_time: Optional[str] = None
     birth_place: Optional[str] = None
@@ -260,12 +260,12 @@ class TransitsRequest(BaseModel):
     longitude: Optional[float] = None
     timezone: Optional[str] = None
     house_system: Optional[str] = "Placidus"
-    # День транзита (по умолчанию — сегодня); можно любой день прошлого/будущего
+    # Transit date (default — today); can be any past/future day
     target_date: Optional[datetime] = None
-    # Готовая натальная карта из БД (planets+houses) — чтобы дома транзитных
-    # планет считались по ВЕРНЫМ натальным куспидам, а не по пересчитанным
+    # Ready-made natal chart from the DB (planets+houses) — so transit planet
+    # houses are computed against the CORRECT natal cusps, not recalculated ones
     natal_chart: Optional[Dict[str, Any]] = None
-    # Место для расчёта транзитов (по умолчанию используются координаты натального места)
+    # Place to calculate transits for (defaults to the natal place's coordinates)
     transit_place: Optional[str] = None
     transit_latitude: Optional[float] = None
     transit_longitude: Optional[float] = None
@@ -273,11 +273,11 @@ class TransitsRequest(BaseModel):
 
 class TransitsAnalysisRequest(BaseModel):
     """Запрос на AI-анализ транзитов дня"""
-    # Предпочтительный путь: фронтенд передаёт готовые данные (без повторного расчёта)
-    natal_chart: Optional[Dict[str, Any]] = None    # chart_data натальной карты
-    transit_data: Optional[Dict[str, Any]] = None   # результат /api/transits
+    # Preferred path: the frontend sends ready-made data (no recalculation)
+    natal_chart: Optional[Dict[str, Any]] = None    # natal chart chart_data
+    transit_data: Optional[Dict[str, Any]] = None   # result of /api/transits
 
-    # Fallback: расчёт на бэкенде из данных рождения
+    # Fallback: calculate on the backend from birth data
     birth_date: Optional[datetime] = None
     birth_time: Optional[str] = None
     birth_place: Optional[str] = None
@@ -291,7 +291,7 @@ class TransitsAnalysisRequest(BaseModel):
     mode: str = "advanced"  # simple | advanced
     top_k_per_book: int = 2
 
-    # Место для расчёта транзитов
+    # Place to calculate transits for
     transit_place: Optional[str] = None
     transit_latitude: Optional[float] = None
     transit_longitude: Optional[float] = None
@@ -301,8 +301,8 @@ class DailyForecastRequest(TransitsAnalysisRequest):
     """Прогноз дня: те же входные данные, что у анализа транзитов,
     плюс выбор LLM с фронтенда."""
     llm_provider: Optional[str] = None  # claude | deepseek | gemini | openrouter; None = settings.LLM_PROVIDER
-    llm_model: Optional[str] = None     # слаг модели для openrouter
-    transit_timezone: Optional[str] = None  # IANA-таймзона места транзита: время трактуется как МЕСТНОЕ
+    llm_model: Optional[str] = None     # model slug for openrouter
+    transit_timezone: Optional[str] = None  # IANA timezone of the transit place: time is treated as LOCAL
     # Метод карты события (Frawley, Sports Astrology гл. 2): ход Луны зависит от спорта.
     # Футбол 80+ мин = 5°, короткие форматы = 4°, однодневный крикет = 13°.
     moon_range_degrees: float = Field(default=5.0, gt=0, le=30, allow_inf_nan=False)
@@ -320,19 +320,19 @@ class ProgressedSynastryRequest(BaseModel):
     """Запрос расчёта прогрессивной синастрии (два партнёра)"""
     chart1: ChartRequest
     chart2: ChartRequest
-    target_date: Optional[datetime] = None  # по умолчанию — сегодня; можно любой день
+    target_date: Optional[datetime] = None  # default — today; can be any day
     house_system: Optional[str] = "Placidus"
 
 
 class ProgressedSynastryAnalysisRequest(BaseModel):
     """Запрос AI-анализа прогрессивной синастрии"""
-    # Предпочтительный путь: фронтенд передаёт готовые расчётные данные
+    # Preferred path: the frontend sends ready-made calculation data
     progressed_synastry_data: Optional[Dict[str, Any]] = None
-    # Натальные карты партнёров (для слоёв 2 и 3) — chart_data из БД
+    # Partners' natal charts (for layers 2 and 3) — chart_data from the DB
     natal_chart1: Optional[Dict[str, Any]] = None
     natal_chart2: Optional[Dict[str, Any]] = None
 
-    # Fallback: пересчёт на бэкенде
+    # Fallback: recalculate on the backend
     chart1: Optional[ChartRequest] = None
     chart2: Optional[ChartRequest] = None
     target_date: Optional[datetime] = None
@@ -359,8 +359,8 @@ class ProgressedSynastryAspectRequest(BaseModel):
     aspect_name_ru: Optional[str] = None
     aspect_name_uk: Optional[str] = None
     orb: float = 0.0
-    # Из какого из пяти блоков ответа /progressed-synastry взят аспект —
-    # определяет, как именно его трактовать (см. progressed_synastry_aspect_click_plan.md)
+    # Which of the five /progressed-synastry response blocks the aspect was
+    # taken from — determines how exactly to interpret it (see progressed_synastry_aspect_click_plan.md)
     layer: str  # "progressed" | "prog1_to_natal2" | "prog2_to_natal1" | "new" | "faded"
     applying: Optional[bool] = None
     planet1_house: Optional[int] = None

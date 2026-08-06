@@ -17,8 +17,14 @@ COPY requirements.txt .
 #
 # torch is installed SEPARATELY from the CPU wheel index: the default wheel
 # drags in CUDA (~2 GB), and Cloud Run has no GPU.
+#
+# tesseract-ocr is NOT a build tool and must survive the purge below: pytesseract
+# (book_parser.py:9) is only a wrapper that shells out to this binary, used for
+# scanned book pages with no text layer. tesseract-ocr-eng is listed explicitly
+# because --no-install-recommends skips the language data otherwise, and
+# book_parser.py:87 calls image_to_string(..., lang="eng").
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential \
+    && apt-get install -y --no-install-recommends build-essential tesseract-ocr tesseract-ocr-eng \
     && pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir -r requirements.txt \
     && apt-get purge -y --auto-remove build-essential \

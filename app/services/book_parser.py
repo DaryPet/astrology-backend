@@ -53,16 +53,16 @@ def parse_file(file_path: str) -> dict:
 # def parse_pdf(path: str) -> str:
 #     doc = fitz.open(path)
 #     pages_text = []
-#     print(f"Всего страниц в PDF: {len(doc)}")
+#     print(f"Total pages in PDF: {len(doc)}")
 #     for page_num in range(len(doc)):
 #         page = doc.load_page(page_num)
 #         text = page.get_text()
-#         print(f"Страница {page_num+1}: {len(text)} символов")
+#         print(f"Page {page_num+1}: {len(text)} chars")
 #         if text.strip():
 #             pages_text.append(text)
 #     doc.close()
 #     total = len("\n".join(pages_text))
-#     print(f"ВСЕГО символов: {total}")
+#     print(f"TOTAL chars: {total}")
 #     return "\n".join(pages_text)
 
 
@@ -73,7 +73,7 @@ def parse_file(file_path: str) -> dict:
 #         text=True
 #     )
 #     text = result.stdout
-#     print(f"Первые 500 символов:\n{text[:500]}")
+#     print(f"First 500 chars:\n{text[:500]}")
 #     return text
 
 def parse_pdf(path: str) -> str:
