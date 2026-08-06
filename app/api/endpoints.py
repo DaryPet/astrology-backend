@@ -1,6 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from datetime import datetime
 import json
 import time
@@ -10,8 +8,6 @@ from slowapi.util import get_remote_address
 
 # Initialize Swiss Ephemeris via helper (sets Moshier mode)
 from app import swephelper
-from app.db.database import get_db
-from app.models.models import User, NatalChart, ChartInterpretation, Book, BookChunk, FullChartAnalysis
 from app.schemas.schemas import (
     UserCreate, UserResponse, NatalChartCreate, NatalChartResponse,
     InterpretationCreate, InterpretationResponse, BookCreate, BookResponse,
@@ -35,22 +31,22 @@ from app.core.config import settings
 # Rate limiter for endpoints
 limiter = Limiter(key_func=get_remote_address)
 
-# Геокодинг (LocationIQ) и определение таймзон
+# Geocoding (LocationIQ) and timezone detection
 import httpx
 from timezonefinder import TimezoneFinder
 import pytz
 
-# Инициализируем определитель таймзон
+# Initialize the timezone finder
 tf = TimezoneFinder()
 
-# Кэш для геокодинга (упрощенный in-memory кэш)
+# Geocoding cache (simplified in-memory cache)
 _geocode_cache = {}
-_cache_ttl = 3600  # 1 час
+_cache_ttl = 3600  # 1 hour
 
-# Кэш для анализа натальной карты (защита от повторных LLM вызовов)
+# Natal chart analysis cache (protection against repeat LLM calls)
 _analysis_cache = {}  # key: "birth_date|birth_place" -> (result_dict, timestamp)
-_ANALYSIS_CACHE_TTL = 300  # 5 минут
-_ANALYSIS_CACHE_MAX_SIZE = 1000  # макс 1000 записей
+_ANALYSIS_CACHE_TTL = 300  # 5 minutes
+_ANALYSIS_CACHE_MAX_SIZE = 1000  # max 1000 entries
 
 async def get_coordinates(place: str) -> tuple:
     """
@@ -61,7 +57,7 @@ async def get_coordinates(place: str) -> tuple:
     """
     cache_key = f"geocode:{place.lower().strip()}"
 
-    # Проверяем кэш
+    # Check the cache
     if cache_key in _geocode_cache:
         cached_data, timestamp = _geocode_cache[cache_key]
         if time.time() - timestamp < _cache_ttl:
@@ -112,7 +108,7 @@ def get_timezone(lat: float, lon: float) -> Optional[str]:
         if timezone_str:
             return timezone_str
         
-        # Если не нашли точную, пробуем nearby
+        # If we didn't find an exact match, try nearby
         timezone_str = tf.closest_timezone_at(lat=lat, lng=lon)
         return timezone_str or "UTC"
     except Exception as e:
@@ -124,7 +120,7 @@ async def autocomplete_place(query: str, lang: Optional[str] = None) -> List[Dic
     if len(query) < 2:
         return []
 
-    # Определить язык если не передан
+    # Determine the language if not passed
     if lang is None:
         if any('\u0400' <= c <= '\u04FF' for c in query):
             lang = 'ru'
@@ -149,7 +145,7 @@ async def autocomplete_place(query: str, lang: Optional[str] = None) -> List[Dic
         if not locations:
             return []
 
-        # Сортируем по релевантности (крупные города сначала)
+        # Sort by relevance (major cities first)
         def location_score(loc):
             address = loc["display_name"].lower()
             query_lower = query.lower()
@@ -230,7 +226,7 @@ router = APIRouter()
 #     if not user:
 #         raise HTTPException(status_code=404, detail="User not found")
     
-#     # Простая геокодирование - для продвинутого нужно добавить geocoding
+#     # Simple geocoding - advanced needs geocoding added
 #     lat, lon = get_coordinates(user.birth_place)
     
 #     # Calculate planetary positions (Swiss Ephemeris)
@@ -380,17 +376,17 @@ router = APIRouter()
 # @router.post("/chart/calculate")
 # async def calculate_natal_chart(request: NatalChartRequest) -> NatalChartResponseFull:
 #     """
-#     Расчёт натальной карты напрямую (без сохранения в БД)
-    
-#     Требует:
-#     - birth_date: Дата и время рождения
-#     - birth_place: Название места
-#     - latitude: Широта
-#     - longitude: Долгота
-#     - timezone: Временная зона (IANA, например "Europe/Moscow")
-#     - house_system: Система домов (Placidus, Equal, WholeSign, etc.)
+#     Calculate a natal chart directly (without saving to the DB)
+
+#     Requires:
+#     - birth_date: Date and time of birth
+#     - birth_place: Place name
+#     - latitude: Latitude
+#     - longitude: Longitude
+#     - timezone: Timezone (IANA, e.g. "Europe/Moscow")
+#     - house_system: House system (Placidus, Equal, WholeSign, etc.)
 #     """
-#     # Используем переданные координаты
+#     # Use the coordinates that were passed
 #     lat = request.latitude
 #     lon = request.longitude
     
@@ -459,11 +455,11 @@ router = APIRouter()
 # @router.post("/transits")
 # async def calculate_transits_direct(request: TransitRequest):
 #     """
-#     Расчёт текущих транзитов к натальной карте
-    
-#     Требует:
-#     - birth_date, birth_place, latitude, longitude, timezone - данные натальной карты
-#     - transit_date - дата транзитов
+#     Calculate current transits to a natal chart
+
+#     Requires:
+#     - birth_date, birth_place, latitude, longitude, timezone - natal chart data
+#     - transit_date - date of the transits
 #     """
 #     # Get natal chart
 #     natal = calculate_planet_positions(
@@ -555,7 +551,7 @@ router = APIRouter()
 # @router.post("/synastry/direct")
 # async def calculate_synastry_direct(request: SynastryRequestDirect):
 #     """
-#     Прямой расчёт синастрии между двумя картами
+#     Direct synastry calculation between two charts
 #     """
 #     # Calculate first chart
 #     chart1 = calculate_planet_positions(
@@ -624,15 +620,11 @@ router = APIRouter()
 #     }
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from datetime import datetime
 
 # Initialize Swiss Ephemeris via helper (sets Moshier mode)
 from app import swephelper
 
-from app.db.database import get_db
-from app.models.models import User, NatalChart, ChartInterpretation, Book, FullChartAnalysis
 from app.schemas.schemas import (
     UserCreate, UserResponse, NatalChartCreate, NatalChartResponse,
     InterpretationCreate, InterpretationResponse, BookCreate, BookResponse,
@@ -652,240 +644,12 @@ from app.services.synastry_service import analyze_synastry_aspect
 
 router = APIRouter()
 
-# Users
-@router.post("/users", response_model=UserResponse)
-async def create_user(user: UserCreate, db: AsyncSession = Depends(get_db)):
-    db_user = User(
-        name=user.name,
-        birth_date=user.birth_date,
-        birth_time=user.birth_time,
-        birth_place=user.birth_place,
-        created_at=datetime.utcnow()
-    )
-    db.add(db_user)
-    await db.commit()
-    await db.refresh(db_user)
-    return db_user
-
-@router.get("/users/{user_id}", response_model=UserResponse)
-async def get_user(user_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return user
-
-# Natal Charts - Swiss Ephemeris
-@router.post("/charts", response_model=NatalChartResponse)
-async def create_chart(chart: NatalChartCreate, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.id == chart.user_id))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    # ТОЧНОЕ геокодирование для астрологических расчетов
-    try:
-        lat, lon = await get_coordinates(user.birth_place)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot determine coordinates for user location: '{user.birth_place}'. "
-                   f"Please update user profile with valid city name. Error: {str(e)}"
-        )
-    
-    # Calculate planetary positions (Swiss Ephemeris)
-    positions = calculate_planet_positions(user.birth_date, user.birth_place, lat, lon)
-    aspects = calculate_aspects(positions['planets'])
-    
-    db_chart = NatalChart(
-        user_id=user.id,
-        sun_sign=positions.get('sun_sign'),
-        moon_sign=positions.get('moon_sign'),
-        ascendant=positions.get('ascendant'),
-        planets=json.dumps(positions['planets']),
-        houses=json.dumps(positions.get('houses', {})),
-        aspects=json.dumps(aspects),
-        created_at=datetime.utcnow()
-    )
-    db.add(db_chart)
-    await db.commit()
-    await db.refresh(db_chart)
-    return db_chart
-
-@router.get("/charts/{chart_id}", response_model=NatalChartResponse)
-async def get_chart(chart_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(NatalChart).where(NatalChart.id == chart_id))
-    chart = result.scalar_one_or_none()
-    if not chart:
-        raise HTTPException(status_code=404, detail="Chart not found")
-    return chart
-
-# Interpretations
-@router.post("/charts/{chart_id}/interpret", response_model=InterpretationResponse)
-async def interpret_chart(chart_id: int, interpretation: InterpretationCreate, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(NatalChart).where(NatalChart.id == chart_id))
-    chart = result.scalar_one_or_none()
-    if not chart:
-        raise HTTPException(status_code=404, detail="Chart not found")
-    
-    # Generate interpretation using AI (simplified)
-    planets = json.loads(chart.planets) if chart.planets else {}
-    interpretation_text = f"Натальная карта {chart.sun_sign} солнечного знака. "
-    interpretation_text += f"Луна в {chart.moon_sign}. Асцендент {chart.ascendant}. "
-    interpretation_text += "Это базовая интерпретация. Для полной версии требуется AI."
-    
-    db_interp = ChartInterpretation(
-        chart_id=chart_id,
-        type=interpretation.type,
-        interpretation=interpretation_text,
-        created_at=datetime.utcnow()
-    )
-    db.add(db_interp)
-    await db.commit()
-    await db.refresh(db_interp)
-    return db_interp
-
-# Solar Return
-@router.get("/charts/{chart_id}/solar-return")
-async def get_solar_return(chart_id: int, year: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(NatalChart).where(NatalChart.id == chart_id))
-    chart = result.scalar_one_or_none()
-    if not chart:
-        raise HTTPException(status_code=404, detail="Chart not found")
-    
-    result = await db.execute(select(User).where(User.id == chart.user_id))
-    user = result.scalar_one()
-    
-    solar = calculate_solar_return(user.birth_date, year)
-    return solar
-
-# Transits
-@router.get("/charts/{chart_id}/transits")
-async def get_transits(chart_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(NatalChart).where(NatalChart.id == chart_id))
-    chart = result.scalar_one_or_none()
-    if not chart:
-        raise HTTPException(status_code=404, detail="Chart not found")
-    
-    transits = calculate_transits(chart.created_at, datetime.utcnow())
-    return transits
-
-# Synastry
-@router.post("/synastry")
-async def create_synastry(request: SynastryRequest, db: AsyncSession = Depends(get_db)):
-    result1 = await db.execute(select(NatalChart).where(NatalChart.id == request.chart1_id))
-    chart1 = result1.scalar_one_or_none()
-    if not chart1:
-        raise HTTPException(status_code=404, detail="First chart not found")
-    
-    result2 = await db.execute(select(NatalChart).where(NatalChart.id == request.chart2_id))
-    chart2 = result2.scalar_one_or_none()
-    if not chart2:
-        raise HTTPException(status_code=404, detail="Second chart not found")
-    
-    planets1 = json.loads(chart1.planets) if chart1.planets else {}
-    planets2 = json.loads(chart2.planets) if chart2.planets else {}
-    
-    synastry = calculate_synastry(
-        {'planets': planets1},
-        {'planets': planets2}
-    )
-    return synastry
-
-# Books
-@router.post("/books", response_model=BookResponse)
-async def create_book(book: BookCreate, db: AsyncSession = Depends(get_db)):
-    db_book = Book(
-        title=book.title,
-        content=book.content,
-        created_at=datetime.utcnow()
-    )
-    db.add(db_book)
-    await db.commit()
-    await db.refresh(db_book)
-    return db_book
-
-@router.get("/books")
-async def get_books(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Book))
-    books = result.scalars().all()
-    return books
-
-
-@router.post("/books/import")
-async def import_book(
-    file_path: str,
-    title: str,
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Import a book from file system.
-    Parses PDF/EPUB/DOCX/TXT, chunks into 500-word pieces with 50-word overlap,
-    and saves to database.
-    """
-    from app.services.book_parser import parse_file
-    from app.services.chunker import chunk_text
-    
-    parsed = parse_file(file_path)
-    
-    book = Book(
-        title=title,
-        content=parsed["text"],
-        language=parsed["language"],
-        format=parsed["format"],
-        created_at=datetime.utcnow()
-    )
-    db.add(book)
-    await db.flush()
-    
-    chunks = chunk_text(parsed["text"], chunk_size=500, overlap=50)
-    
-    for idx, chunk in enumerate(chunks):
-        book_chunk = BookChunk(
-            book_id=book.id,
-            chunk_index=idx,
-            text=chunk["text"],
-            word_count=chunk["word_count"]
-        )
-        db.add(book_chunk)
-    
-    await db.commit()
-    await db.refresh(book)
-    
-    return {"id": book.id, "title": book.title, "chunks_count": len(chunks)}
-
-
 @router.post("/books/process")
-async def process_book_api(
-    filename: str,
-    db: AsyncSession = Depends(get_db)
-):
+async def process_book_api(filename: str):
     """Обработать книгу: скачать из Supabase -> парсить -> нарезать на чанки -> сохранить в БД"""
     from app.services.book_processor import process_book_async
     result = await process_book_async(filename)
     return result
-
-
-@router.post("/books/{book_id}/query")
-async def query_book(book_id: int, request: QueryRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Book).where(Book.id == book_id))
-    book = result.scalar_one_or_none()
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
-    
-    # Simple search (in production, use vector DB)
-    content_lower = book.content.lower()
-    query_lower = request.query.lower()
-    
-    if query_lower in content_lower:
-        # Find context around the match
-        idx = content_lower.find(query_lower)
-        start = max(0, idx - 200)
-        end = min(len(book.content), idx + len(request.query) + 200)
-        context = book.content[start:end]
-        return {"result": context, "book_title": book.title}
-    
-    return {"result": "No match found", "book_title": book.title}
 
 
 # ============================================
@@ -936,9 +700,9 @@ async def calculate_natal_chart(request: NatalChartRequest) -> NatalChartRespons
                        "Please enter a valid birth location."
             )
     
-    # Получаем ТОЧНЫЕ координаты из названия места
-    # Для астрологии критически важна точность - нет fallback на Москву!
-    # Используем переданные координаты или определяем сами
+    # Get PRECISE coordinates from the place name
+    # Precision is critical for astrology - no fallback to Moscow!
+    # Use the coordinates that were passed, or determine them ourselves
     if request.latitude is not None and request.longitude is not None:
         lat, lon = request.latitude, request.longitude
     else:
@@ -1029,8 +793,8 @@ async def calculate_synastry_direct(request: SynastryRequestDirect):
     """
     Прямой расчёт синастрии между двумя картами
     """
-    # Получаем ТОЧНЫЕ координаты для первой карты
-    # Используем переданные координаты или определяем сами
+    # Get PRECISE coordinates for the first chart
+    # Use the coordinates that were passed, or determine them ourselves
     if request.chart1.latitude is not None and request.chart1.longitude is not None:
         lat1, lon1 = request.chart1.latitude, request.chart1.longitude
     else:
@@ -1052,8 +816,8 @@ async def calculate_synastry_direct(request: SynastryRequestDirect):
         timezone_str=request.chart1.timezone,
     )
     
-    # Получаем ТОЧНЫЕ координаты для второй карты
-    # Используем переданные координаты или определяем сами
+    # Get PRECISE coordinates for the second chart
+    # Use the coordinates that were passed, or determine them ourselves
     if request.chart2.latitude is not None and request.chart2.longitude is not None:
         lat2, lon2 = request.chart2.latitude, request.chart2.longitude
     else:
@@ -1310,7 +1074,7 @@ async def analyze_planet_endpoint(
     """
     from app.services.analysis_service import analyze_planet
     
-    # Узлы всегда ретроградны — хардкод до любой логики
+    # The Nodes are always retrograde — hardcoded ahead of any logic
     if payload.planet in ('NorthNode', 'North Node', 'SouthNode', 'South Node'):
         is_retrograde = True
     else:
@@ -1338,7 +1102,7 @@ async def analyze_planet_endpoint(
 
 
 @router.post("/analysis/full")
-async def full_chart_analysis_endpoint(request: FullAnalysisRequest, db: AsyncSession = Depends(get_db)):
+async def full_chart_analysis_endpoint(request: FullAnalysisRequest):
     """
     Полный анализ натальной карты на основе всех книг (10+ страниц)
     
@@ -1349,17 +1113,17 @@ async def full_chart_analysis_endpoint(request: FullAnalysisRequest, db: AsyncSe
     from app.services.analysis_service import full_chart_analysis_v2 as do_full_analysis
     from datetime import datetime
     
-    # === ПРОВЕРКА КЭША ===
+    # === CACHE CHECK ===
     # cache_key = f"{request.birth_date}|{request.birth_place}"
-    cache_key = f"{request.birth_date}|{request.birth_place}|{request.mode}"
+    cache_key = f"{request.birth_date}|{request.birth_place}|{request.mode}|{request.language}"
 
-#     # СТАЛО:
-# cache_key = None  # временно отключить кэш
-    
+#     # BECAME:
+# cache_key = None  # temporarily disable cache
+
     if cache_key in _analysis_cache:
         cached_result, timestamp = _analysis_cache[cache_key]
         if time.time() - timestamp < _ANALYSIS_CACHE_TTL:
-            # Кэш свежий! Возвращаем БЕЗ LLM вызова!
+            # Cache is fresh! Returning WITHOUT an LLM call!
             print(f"[CACHE] Returning cached analysis for {cache_key}")
             return {
                 **cached_result,
@@ -1367,7 +1131,7 @@ async def full_chart_analysis_endpoint(request: FullAnalysisRequest, db: AsyncSe
                 "cached_at": datetime.fromtimestamp(timestamp).isoformat()
             }
         else:
-            # Кэш истёк - удаляем
+            # Cache expired - remove it
             del _analysis_cache[cache_key]
     
     chart_data = None
@@ -1437,26 +1201,9 @@ async def full_chart_analysis_endpoint(request: FullAnalysisRequest, db: AsyncSe
         raise HTTPException(status_code=400, detail="Either chart_data or birth_date must be provided")
     
     result = await do_full_analysis(chart_data=chart_data, language=request.language,  mode=request.mode)
-    
-    # === СОХРАНЯЕМ В БД ===
-    try:
-        db_analysis = FullChartAnalysis(
-            user_id=None,  # TODO: получить из аутентификации
-            full_analysis=result['analysis'],
-            summary=result.get('summary', ''),
-            book_analyses=result.get('book_analyses', []),
-            chart_data=json.dumps(chart_data),
-            language=result.get('language', 'ru'),
-            created_at=datetime.utcnow()
-        )
-        db.add(db_analysis)
-        await db.commit()
-        await db.refresh(db_analysis)
-    except Exception as e:
-        print(f"Error saving analysis to DB: {e}")
-    
-    # === СОХРАНЯЕМ В КЭШ ===
-    # Очищаем старые записи если кэш полный
+
+    # === SAVE TO CACHE ===
+    # Clear old entries if the cache is full
     if len(_analysis_cache) >= _ANALYSIS_CACHE_MAX_SIZE:
         oldest_key = next(iter(_analysis_cache))
         del _analysis_cache[oldest_key]
@@ -1550,9 +1297,9 @@ async def full_synastry_analysis_endpoint(request: Request, payload: SynastryAna
     from app.utils.astrology_v2 import calculate_planet_positions, calculate_aspects
     from datetime import datetime
     
-    # Функция для расчёта карты
+    # Function to calculate a chart
     async def calculate_chart(chart_req, chart_num: int):
-        # Получаем координаты
+        # Get coordinates
         if chart_req.latitude is not None and chart_req.longitude is not None:
             lat, lon = chart_req.latitude, chart_req.longitude
         else:
@@ -1564,7 +1311,7 @@ async def full_synastry_analysis_endpoint(request: Request, payload: SynastryAna
                     detail=f"Cannot determine coordinates for chart {chart_num}: {str(e)}"
                 )
         
-        # Парсим время рождения
+        # Parse the birth time
         birth_datetime = chart_req.birth_date
         if chart_req.birth_time:
             try:
@@ -1576,7 +1323,7 @@ async def full_synastry_analysis_endpoint(request: Request, payload: SynastryAna
             except:
                 pass
         
-        # Применяем таймзону
+        # Apply the timezone
         if chart_req.timezone:
             try:
                 from zoneinfo import ZoneInfo
@@ -1586,7 +1333,7 @@ async def full_synastry_analysis_endpoint(request: Request, payload: SynastryAna
             except:
                 pass
         
-        # Рассчитываем карту
+        # Calculate the chart
         chart = calculate_planet_positions(
             birth_date=birth_datetime,
             birth_place=chart_req.birth_place,
@@ -1596,20 +1343,20 @@ async def full_synastry_analysis_endpoint(request: Request, payload: SynastryAna
             house_system=chart_req.house_system or 'Placidus'
         )
         
-        # Добавляем аспекты
+        # Add aspects
         aspects = calculate_aspects(chart['planets'])
         chart['aspects'] = aspects
-        
+
         return chart
-    
-    # Рассчитываем обе карты
+
+    # Calculate both charts
     chart1_data = await calculate_chart(payload.chart1, 1)
     chart2_data = await calculate_chart(payload.chart2, 2)
-    
-    # Определяем язык
+
+    # Determine the language
     language = payload.language or "ru"
-    
-    # Выполняем полный анализ синастрии
+
+    # Run the full synastry analysis
     result = await full_synastry_analysis_v2(
         chart1_data=chart1_data,
         chart2_data=chart2_data,
@@ -1657,9 +1404,9 @@ async def analyze_relationship_types_endpoint(request: Request, payload: Synastr
 
 
 # ============================================
-# SECONDARY PROGRESSIONS (Вторичные прогрессии)
-# Доступ только для авторизованных пользователей —
-# фича привязана к СОХРАНЁННЫМ картам (как чат)
+# SECONDARY PROGRESSIONS
+# Access for authenticated users only —
+# the feature is tied to SAVED charts (like chat)
 # ============================================
 
 def _prepare_birth_datetime(birth_date, birth_time: Optional[str], tz_str: Optional[str]):
@@ -1720,7 +1467,7 @@ async def _resolve_transit_coordinates(
                 status_code=400,
                 detail=f"Cannot determine coordinates for transit location: '{transit_place}'. Error: {str(e)}"
             )
-    # Fallback: используем натальные координаты
+    # Fallback: use the natal coordinates
     if natal_lat is not None and natal_lon is not None:
         return natal_lat, natal_lon
     raise HTTPException(
@@ -1772,7 +1519,7 @@ async def progressions_analysis_endpoint(request: Request, payload: Progressions
     from app.services.analysis_service import progressions_analysis
     from datetime import datetime as dt
 
-    # --- Прогрессии: берём готовые из запроса или считаем на бэкенде ---
+    # --- Progressions: take ready-made from the request, or calculate on the backend ---
     progressions = payload.progression_data
     if not progressions:
         if not payload.birth_date:
@@ -1792,7 +1539,7 @@ async def progressions_analysis_endpoint(request: Request, payload: Progressions
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Progressions calculation error: {str(e)}")
 
-    # --- Натальная карта: из запроса или восстановление из meta прогрессий ---
+    # --- Natal chart: from the request, or reconstructed from progressions meta ---
     natal_chart = payload.natal_chart
     if not natal_chart:
         meta = progressions.get('meta', {})
@@ -1811,7 +1558,7 @@ async def progressions_analysis_endpoint(request: Request, payload: Progressions
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Cannot rebuild natal chart: {str(e)}")
 
-    # --- Кэш (тот же механизм, что у /analysis/full) ---
+    # --- Cache (same mechanism as /analysis/full) ---
     meta = progressions.get('meta', {})
     period = progressions.get('period', '')
     cache_key = f"progressions|{meta.get('birth_date')}|{meta.get('birth_place')}|{period}|{payload.mode}|{payload.language}"
@@ -1836,7 +1583,7 @@ async def progressions_analysis_endpoint(request: Request, payload: Progressions
         mode=payload.mode or 'advanced',
     )
 
-    # Прикладываем расчётные данные — фронтенд может показать их без второго запроса
+    # Attach the calculated data — the frontend can show it without a second request
     result["progression_data"] = progressions
 
     if len(_analysis_cache) < _ANALYSIS_CACHE_MAX_SIZE:
@@ -1861,7 +1608,7 @@ async def calculate_transits_endpoint(request: Request, payload: TransitsRequest
     lat, lon = await _resolve_coordinates(payload.latitude, payload.longitude, payload.birth_place)
     birth_datetime = _prepare_birth_datetime(payload.birth_date, payload.birth_time, payload.timezone)
 
-    # Координаты места транзита (если не указаны — используем натальные)
+    # Transit place coordinates (if not specified — use the natal ones)
     transit_lat, transit_lon = await _resolve_transit_coordinates(
         payload.transit_latitude, payload.transit_longitude, payload.transit_place, lat, lon
     )
@@ -1901,9 +1648,9 @@ async def transits_analysis_endpoint(request: Request, payload: TransitsAnalysis
     from app.services.analysis_service import transits_analysis
     from datetime import datetime as dt
 
-    # --- Транзиты: берём готовые из запроса или считаем на бэкенде ---
+    # --- Transits: take ready-made from the request, or calculate on the backend ---
     transits = payload.transit_data
-    # Координаты места транзита (будут определены при необходимости)
+    # Transit place coordinates (will be determined if needed)
     transit_lat = payload.transit_latitude
     transit_lon = payload.transit_longitude
 
@@ -1913,7 +1660,7 @@ async def transits_analysis_endpoint(request: Request, payload: TransitsAnalysis
         lat, lon = await _resolve_coordinates(payload.latitude, payload.longitude, payload.birth_place)
         birth_datetime = _prepare_birth_datetime(payload.birth_date, payload.birth_time, payload.timezone)
 
-        # Координаты места транзита (если не указаны — используем натальные)
+        # Transit place coordinates (if not specified — use the natal ones)
         transit_lat, transit_lon = await _resolve_transit_coordinates(
             payload.transit_latitude, payload.transit_longitude, payload.transit_place, lat, lon
         )
@@ -1934,15 +1681,15 @@ async def transits_analysis_endpoint(request: Request, payload: TransitsAnalysis
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Transits calculation error: {str(e)}")
 
-    # --- Натальная карта для оверлея ---
-    # Берём ГОТОВУЮ натальную карту из chart_data (она пришла с фронта и уже
-    # содержит правильные дома — те же, что показывает натальный анализ).
-    # НЕ пересчитываем: пересчёт может дать другой ASC и сломать дома.
+    # --- Natal chart for the overlay ---
+    # Take the READY-MADE natal chart from chart_data (it came from the frontend
+    # and already contains the correct houses — the same ones the natal analysis shows).
+    # DO NOT recalculate: recalculating could give a different ASC and break the houses.
     natal_chart = payload.natal_chart
     if not natal_chart:
         raise HTTPException(status_code=400, detail="natal_chart is required")
 
-    # --- Кэш (тот же механизм, что у /analysis/progressions) ---
+    # --- Cache (same mechanism as /analysis/progressions) ---
     meta = transits.get('meta', {})
     period = transits.get('period', '')
     transit_loc = f"{payload.transit_latitude},{payload.transit_longitude}" if payload.transit_latitude else "natal"
@@ -1971,7 +1718,7 @@ async def transits_analysis_endpoint(request: Request, payload: TransitsAnalysis
         transit_lon=transit_lon,
     )
 
-    # Прикладываем расчётные данные — фронтенд может показать их без второго запроса
+    # Attach the calculated data — the frontend can show it without a second request
     result["transit_data"] = transits
 
     _analysis_cache[cache_key] = (result, time.time())
@@ -2156,7 +1903,7 @@ async def progressed_synastry_analysis_endpoint(request: Request, payload: Progr
     from app.services.analysis_service import progressed_synastry_analysis
     from datetime import datetime as dt
 
-    # --- Расчётные данные: готовые из запроса или пересчёт ---
+    # --- Calculated data: ready-made from the request, or recalculate ---
     progressed_synastry = payload.progressed_synastry_data
     if not progressed_synastry:
         if not payload.chart1 or not payload.chart2:
@@ -2172,7 +1919,7 @@ async def progressed_synastry_analysis_endpoint(request: Request, payload: Progr
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Progressed synastry calculation error: {str(e)}")
 
-    # --- Кэш ---
+    # --- Cache ---
     period = progressed_synastry.get('period', '')
     p1n = (progressed_synastry.get('person1') or {}).get('name', 'p1')
     p2n = (progressed_synastry.get('person2') or {}).get('name', 'p2')

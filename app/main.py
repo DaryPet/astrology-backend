@@ -9,7 +9,6 @@ from fastapi.responses import JSONResponse
 from app.api.endpoints import router as api_router
 # from app.auth_routes_simple import router as auth_router
 # from app.db.database import init_db, engine
-from app.db.database import engine 
 from app.auth import router as supabase_auth_router
 # from app.auth_models import AuthBase
 import os
@@ -42,7 +41,7 @@ app.add_middleware(
 app.include_router(api_router, prefix="/api")
 app.include_router(supabase_auth_router, prefix="/api/auth")
 
-# Include authentication router (без префикса, так как он уже встроен в пути)
+# Include authentication router (no prefix, already built into the paths)
 # app.include_router(auth_router)
 
 # Serve static files from frontend build - AFTER API routes

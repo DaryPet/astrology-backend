@@ -36,9 +36,9 @@ PLANET_RU = {
     'Lilith': 'Лилит', 'Ascendant': 'Асцендент', 'Vertex': 'Вертекс',
 }
 
-# Английские имена планет в тексте LLM совпадают с этими значениями буквально
-# (Sun, Moon, ..., "North Node") — в отличие от PLANET_RU это не перевод,
-# а просто нормализованное отображаемое имя (NorthNode -> "North Node").
+# English planet names in the LLM's text match these values literally
+# (Sun, Moon, ..., "North Node") — unlike PLANET_RU this isn't a translation,
+# just a normalized display name (NorthNode -> "North Node").
 PLANET_EN = {
     'Sun': 'Sun', 'Moon': 'Moon', 'Mercury': 'Mercury',
     'Venus': 'Venus', 'Mars': 'Mars', 'Jupiter': 'Jupiter',
@@ -57,8 +57,8 @@ PLANET_UK = {
     'Lilith': 'Ліліт', 'Ascendant': 'Асцендент', 'Vertex': 'Вертекс',
 }
 
-# Диспетчер по языку — единая точка выбора таблицы вместо разбросанных
-# `X if is_ru else Y`, тот же приём, что в text_verification.py.
+# Language dispatcher — a single point for picking the table instead of scattered
+# `X if is_ru else Y`, the same trick as in text_verification.py.
 PLANET_DISPLAY_BY_LANG = {'ru': PLANET_RU, 'uk': PLANET_UK, 'en': PLANET_EN}
 PLANET_STEM_BY_LANG = {'ru': PLANET_STEM_RU, 'uk': PLANET_STEM_UK, 'en': PLANET_STEM_EN}
 ASPECT_STEM_BY_LANG = {'ru': ASPECT_STEM_RU, 'uk': ASPECT_STEM_UK, 'en': ASPECT_STEM_EN}
@@ -131,8 +131,8 @@ def find_fabricated_planet_positions(
 
 _PARTNER_MARKER_RE_SRC = r"[Пп]артн[её]р\w*\s*(1|2)"
 _PARTNER_MARKER_RE_SRC_EN = r"[Pp]artner\s*(1|2)"
-# Украинское "партнер" пишется без "ё" (в украинском алфавите такой буквы
-# нет вообще) — иначе тот же паттерн, что и русский.
+# Ukrainian "партнер" is spelled without "ё" (that letter doesn't exist at
+# all in the Ukrainian alphabet) — otherwise the same pattern as Russian.
 _PARTNER_MARKER_RE_SRC_UK = r"[Пп]артнер\w*\s*(1|2)"
 _PARTNER_MARKER_SRC_BY_LANG = {
     'ru': _PARTNER_MARKER_RE_SRC, 'uk': _PARTNER_MARKER_RE_SRC_UK, 'en': _PARTNER_MARKER_RE_SRC_EN,
@@ -209,7 +209,7 @@ def fix_fabricated_planet_positions(
         planet_name, sign_form = m.group(1), m.group(2)
         sign_nom = sign_forms[sign_form] if lang in ('ru', 'uk') else sign_form
         if (planet_name, sign_nom) in valid_pairs:
-            continue  # верно, не трогаем
+            continue  # correct, leave it alone
 
         window_start = max(0, m.start() - 400)
         preceding = text[window_start:m.start()]
@@ -233,10 +233,10 @@ def fix_fabricated_planet_positions(
     return "".join(pieces), unresolved
 
 
-# Синастрия-специфичная пометка партнёра рядом с планетой в заголовке
-# аспекта — в отличие от PLANET_STEM_RU/ASPECT_STEM_RU (вынесены в
-# text_verification.py), это понятие есть только у синастрии (два чарта),
-# натал/транзиты его не имеют — остаётся здесь.
+# Synastry-specific partner marker next to the planet in the aspect heading —
+# unlike PLANET_STEM_RU/ASPECT_STEM_RU (moved to text_verification.py), this
+# concept only exists for synastry (two charts); natal/transits don't have
+# it, so it stays here.
 _ASPECT_PARTNER_MARKER_RE = re.compile(r"[Пп]артн[её]р\w*\s*(1|2)")
 _ASPECT_PARTNER_MARKER_RE_EN = re.compile(r"[Pp]artner\s*(1|2)")
 _ASPECT_PARTNER_MARKER_RE_UK = re.compile(r"[Пп]артнер\w*\s*(1|2)")
@@ -274,7 +274,7 @@ def attribute_header_planets_to_partners(header: str, language: str = 'ru') -> O
         for m in re.finditer(stem_pattern, header):
             planet_hits.append((m.start(), planet_en))
     if len(planet_hits) != 2:
-        return None  # ожидаем ровно две планеты в заголовке — иначе неоднозначно
+        return None  # we expect exactly two planets in the heading — otherwise it's ambiguous
 
     planet_hits.sort(key=lambda x: x[0])
     assigned: Dict[str, str] = {}
@@ -343,11 +343,11 @@ def find_fabricated_aspect_types(
     aspect_stems = ASPECT_STEM_BY_LANG[lang]
     partner_word = {'ru': 'Партнёра', 'uk': 'Партнера', 'en': 'Partner'}[lang]
 
-    # planet1 в aspects — всегда карта 1 (Партнёр 1), planet2 — всегда карта 2
-    # (Партнёр 2): так строит calculate_synastry (astrology_v2.py), порядок
-    # не варьируется. Один и тот же неупорядоченный набор планет может дать
-    # ДВЕ разных записи (Сатурн,Хирон) и (Хирон,Сатурн) — это два разных
-    # реальных аспекта, ключ по упорядоченной паре их не путает.
+    # planet1 in aspects is always chart 1 (Partner 1), planet2 is always chart 2
+    # (Partner 2): that's how calculate_synastry (astrology_v2.py) builds it, the
+    # order never varies. The same unordered pair of planets can produce
+    # TWO different entries (Saturn,Chiron) and (Chiron,Saturn) — these are two
+    # distinct real aspects, keying by the ordered pair doesn't confuse them.
     truth: Dict[tuple, str] = {}
     for asp in aspects:
         truth[(asp.get('planet1'), asp.get('planet2'))] = asp.get('aspect')
@@ -369,12 +369,12 @@ def find_fabricated_aspect_types(
             for m in re.finditer(stem_pattern, header):
                 aspect_hits.append((m.start(), aspect_en))
         if len(aspect_hits) != 1:
-            continue  # ноль или несколько слов аспекта в одном заголовке — пропускаем
+            continue  # zero or several aspect words in one heading — skip
 
         pair = (assigned['1'], assigned['2'])
         true_aspect = truth.get(pair)
         if true_aspect is None:
-            continue  # такой пары нет в расчёте вообще — не наш случай, не считаем ошибкой
+            continue  # this pair isn't in the calculation at all — not our case, not counted as an error
 
         stated_aspect = aspect_hits[0][1]
         if stated_aspect != true_aspect:
@@ -399,10 +399,10 @@ def find_fabricated_aspect_types(
     return mismatches
 
 
-# Фразы-отсылки вместо реального разбора ("разобрано выше" и т.п.) — сигнал,
-# что аспект формально упомянут, но не получил своих 200-300 слов (найдено
-# на живых прогонах 2026-07-23, см. plans/ — модель ссылается на другой
-# раздел вместо повторного разбора).
+# Reference phrases instead of a real breakdown ("covered above" etc.) — a
+# signal that the aspect is formally mentioned but didn't get its own 200-300
+# words (found in live runs on 2026-07-23, see plans/ — the model refers to
+# another section instead of covering it again).
 _COP_OUT_PHRASES_RU = [
     "разобран", "уже обсужда", "уже опис", "уже сказ", "уже говорили",
     "смотри выше", "см. выше", "как уже", "как мы уже",
@@ -612,46 +612,46 @@ async def full_synastry_analysis_v2(
     adapter = get_llm_adapter()
     labels = get_labels(language)
 
-    # 1. Расчёт аспектов синастрии (если не переданы напрямую)
+    # 1. Calculate synastry aspects (if not passed directly)
     if not aspects:
         synastry_result = calculate_synastry(chart1_data, chart2_data)
         aspects = synastry_result.get('aspects', [])
 
-    # 1.5 Расчёт house overlay (если не передан)
+    # 1.5 Calculate the house overlay (if not passed)
     if not overlays:
         overlays = {"planets_1_in_houses_2": {}, "planets_2_in_houses_1": {}}
-        
+
         houses_2 = chart2_data.get('houses', {})
         houses_1 = chart1_data.get('houses', {})
-        
-        # Планеты партнера 1 в домах партнера 2
+
+        # Partner 1's planets in partner 2's houses
         for p_name, p_data in chart1_data.get('planets', {}).items():
             lon = p_data.get('full_degree', 0)
             house_num = get_house_for_longitude(lon, houses_2)
             if house_num:
                 overlays["planets_1_in_houses_2"][p_name] = house_num
-        
-        # Планеты партнера 2 в домах партнера 1
+
+        # Partner 2's planets in partner 1's houses
         for p_name, p_data in chart2_data.get('planets', {}).items():
             lon = p_data.get('full_degree', 0)
             house_num = get_house_for_longitude(lon, houses_1)
             if house_num:
                 overlays["planets_2_in_houses_1"][p_name] = house_num
 
-    # 2. Эксперимент plans/synastry-before-batching.md: все аспекты, без среза.
-    # calculate_synastry (astrology_v2.py) уже сортирует их тем же приоритетом.
+    # 2. Experiment from plans/synastry-before-batching.md: all aspects, no cutoff.
+    # calculate_synastry (astrology_v2.py) already sorts them by the same priority.
     top_aspects = aspects
 
     print(f"[full_synastry_analysis_v2] Total aspects: {len(aspects)}, sent to RAG search: {len(top_aspects)}")
 
-    # 3. Параллельный RAG-поиск по аспектам
-    # Семафор ограничивает число одновременных запросов к Supabase. Без него
-    # asyncio.gather запускает все ~64 задачи разом, а run_sync_in_thread
-    # (asyncio.to_thread) держит пул максимум ~32 потока — при 44 аспектах
-    # это на реальном прогоне давало 34 из 64 запросов с "[Errno 35] Resource
-    # temporarily unavailable" (план: plans/synastry-before-batching.md).
-    # Семафор не уменьшает охват — ищутся всё те же все аспекты и планеты,
-    # просто не одним залпом.
+    # 3. Parallel RAG search over aspects
+    # The semaphore limits the number of concurrent requests to Supabase. Without
+    # it, asyncio.gather fires all ~64 tasks at once, while run_sync_in_thread
+    # (asyncio.to_thread) caps the pool at ~32 threads — with 44 aspects this
+    # produced 34 of 64 requests failing with "[Errno 35] Resource
+    # temporarily unavailable" on a real run (plan: plans/synastry-before-batching.md).
+    # The semaphore doesn't reduce coverage — the same aspects and planets are
+    # still all searched, just not in a single burst.
     search_semaphore = asyncio.Semaphore(12)
 
     async def search_aspect(asp: Dict) -> tuple:
@@ -661,17 +661,17 @@ async def full_synastry_analysis_v2(
         orb = asp.get('orb', 0)
         asp_ru = asp.get('aspect_ru', asp_type)
 
-        # Строим поисковый запрос
+        # Build the search query
         query = f"{p1} {asp_type} {p2} synastry"
         async with search_semaphore:
             chunks = await search_chunks_by_query(query, top_k=top_k_per_book, book_id=JEFF_GREEN_BOOK_ID)
         return f"{p1} {asp_ru} {p2} (орб: {orb}°)", chunks
 
-    # 4. Параллельный RAG-поиск по ключевым планетам
+    # 4. Parallel RAG search over key planets
     key_planets = ['Pluto', 'NorthNode', 'SouthNode', 'Saturn', 'Sun', 'Moon', 'Ascendant', 'Venus', 'Mars', 'Jupiter']
 
     async def search_planet_synastry(planet_name: str, chart_num: int, chart_data: Dict) -> tuple:
-        # Проверяем есть ли планета в карте
+        # Check whether the planet is in the chart
         planets = chart_data.get('planets', {})
         if planet_name not in planets and planet_name != 'Ascendant':
             return f"Planet {planet_name} (Chart {chart_num})", []
@@ -681,7 +681,7 @@ async def full_synastry_analysis_v2(
             chunks = await search_chunks_by_query(query, top_k=top_k_per_book, book_id=JEFF_GREEN_BOOK_ID)
         return f"Planet {planet_name} (Chart {chart_num})", chunks
 
-    # Запуск параллельного поиска
+    # Launch the parallel search
     aspect_tasks = [search_aspect(asp) for asp in top_aspects]
 
     planet_tasks_chart1 = [
@@ -696,7 +696,7 @@ async def full_synastry_analysis_v2(
 
     print(f"[full_synastry_analysis_v2] RAG search completed. Tasks: {len(all_tasks)}")
 
-    # 5. Сборка промпта
+    # 5. Assemble the prompt
     synastry_template = get_template("synastry", language, mode)
     
     # Add relationship context to prompt
@@ -704,7 +704,7 @@ async def full_synastry_analysis_v2(
     if context_prompt:
         synastry_template = synastry_template + context_prompt
 
-    # Подготовка списка аспектов
+    # Prepare the list of aspects
     aspects_list = []
     for asp in aspects:
         p1 = asp.get('planet1', '?')
@@ -712,11 +712,11 @@ async def full_synastry_analysis_v2(
         asp_ru = asp.get('aspect_ru', asp.get('aspect', '?'))
         orb = asp.get('orb', 0)
 
-        # Берем знаки из самого аспекта (они уже добавлены на бэкенде/UI)
+        # Take the signs from the aspect itself (already added on the backend/UI)
         p1_sign = asp.get('planet1_sign', '')
         p2_sign = asp.get('planet2_sign', '')
 
-        # Fallback: если в аспекте нет знаков, берем из карт (для локально рассчитанных аспектов)
+        # Fallback: if the aspect has no signs, take them from the charts (for locally calculated aspects)
         if not p1_sign and chart1_data and 'planets' in chart1_data:
             p1_planet_data = chart1_data['planets'].get(p1, {})
             p1_sign = p1_planet_data.get('sign_ru', p1_planet_data.get('sign', ''))
@@ -725,7 +725,7 @@ async def full_synastry_analysis_v2(
             p2_planet_data = chart2_data['planets'].get(p2, {})
             p2_sign = p2_planet_data.get('sign_ru', p2_planet_data.get('sign', ''))
 
-        # Переводим названия планет на русский язык если нужно
+        # Translate planet names to Russian if needed
         if language == 'ru':
             p1_display = PLANET_RU.get(p1, p1)
             p2_display = PLANET_RU.get(p2, p2)
@@ -737,7 +737,7 @@ async def full_synastry_analysis_v2(
 
     aspects_str = "\n".join(aspects_list) if aspects_list else "Нет аспектов"
 
-    # Формируем информацию об оверлеях
+    # Build the overlay info
     PLANET_NAMES_RU = {
         'Sun': 'Солнце', 'Moon': 'Луна', 'Mercury': 'Меркурий',
         'Venus': 'Венера', 'Mars': 'Марс', 'Jupiter': 'Юпитер',
@@ -757,11 +757,11 @@ async def full_synastry_analysis_v2(
         p_ru = PLANET_NAMES_RU.get(p_name, p_name)
         overlays_str += f"\n  {p_ru} в доме {house_num}"
 
-    # Сборка фрагментов из книг - аспекты
+    # Assemble book excerpts - aspects
     books_content = "\n=== ФРАГМЕНТЫ ПО АСПЕКТАМ СИНАСТРИИ ===\n"
-    # Детерминированный учёт источников по каждому аспекту — сколько чанков
-    # и из какой книги реально нашлось. Не через LLM (модель не умеет надёжно
-    # считать метаданные своего же входа), а прямо из результатов поиска.
+    # Deterministic source accounting per aspect — how many chunks and from
+    # which book were actually found. Not via the LLM (the model can't reliably
+    # count metadata about its own input), but straight from the search results.
     aspect_sources_debug = []
     for i, result in enumerate(results[:len(top_aspects)]):
         if isinstance(result, Exception):
@@ -778,7 +778,7 @@ async def full_synastry_analysis_v2(
                 book_title = chunk.get("book_title", "")
                 books_content += f"[{j}] ({book_title}):\n{text}\n"
 
-    # Сборка фрагментов из книг - планеты
+    # Assemble book excerpts - planets
     books_content += "\n=== ФРАГМЕНТЫ ПО ПЛАНЕТАМ ===\n"
     for i, result in enumerate(results[len(top_aspects):], start=len(top_aspects)):
         if isinstance(result, Exception):
@@ -792,26 +792,26 @@ async def full_synastry_analysis_v2(
                 book_title = chunk.get("book_title", "")
                 books_content += f"[{j}] ({book_title}):\n{text}\n"
 
-    # Подставляем в шаблон
+    # Substitute into the template
     prompt = synastry_template
     prompt = prompt.replace("{aspects_list}", aspects_str)
     prompt = prompt.replace("{books_content}", books_content)
 
-    # Данные карт идут в промпт один раз, через плейсхолдеры шаблона ниже
-    # (раньше дублировались ещё и блоком "=== КАРТА N ===" — план
-    # plans/synastry-before-batching.md, п.4: дубли и разноязычные записи
-    # знака в одной строке путают модель на этапе генерации).
+    # Chart data goes into the prompt once, via the template placeholders below
+    # (used to also be duplicated in a "=== CHART N ===" block — plan
+    # plans/synastry-before-batching.md, item 4: duplicates and mixed-language
+    # sign entries on the same line confused the model during generation).
     planets1 = chart1_data.get('planets', {})
     houses1 = chart1_data.get('houses', {})
     planets2 = chart2_data.get('planets', {})
     houses2 = chart2_data.get('houses', {})
 
-    # Подставляем данные в шаблон (для совместимости с {planets_1}, {houses_1} и т.д.)
+    # Substitute data into the template (for compatibility with {planets_1}, {houses_1}, etc.)
     prompt = prompt.replace("{sun_sign_1}", chart1_data.get('sun_sign_ru', '?'))
     prompt = prompt.replace("{moon_sign_1}", chart1_data.get('moon_sign_ru', '?'))
     prompt = prompt.replace("{ascendant_1}", chart1_data.get('ascendant_ru', '?'))
 
-    # Формируем строки планет и домов для шаблона
+    # Build the planet and house lines for the template
     planets_1_str = ""
     for p_name, p_data in sorted(planets1.items()):
         sign_ru = p_data.get('sign_ru', p_data.get('sign', '?'))
@@ -848,14 +848,15 @@ async def full_synastry_analysis_v2(
     prompt = prompt.replace("{houses_2}", houses_2_str)
     prompt = prompt.replace("{house_overlays}", overlays_str)
 
-    # 6. Вызов LLM
+    # 6. Call the LLM
     print(f"[full_synastry_analysis_v2] Sending prompt to LLM (~{len(prompt)//4} tokens estimated)")
 
-    # Один вызов — без перегенерации всего документа при найденной ошибке.
-    # Раньше при расхождении позиций код пересылал весь ~240k-токенный промпт
-    # заново (до 3 раз) — это давало ~15 минут на запрос и не гарантированно
-    # чинило суть (план: plans/synastry-before-batching.md, п.5). Вместо этого
-    # ошибка чинится мгновенно строковой заменой по словарю карты.
+    # One call — no regenerating the whole document when an error is found.
+    # It used to resend the whole ~240k-token prompt from scratch (up to 3
+    # times) whenever positions mismatched — that took ~15 minutes per request
+    # and didn't reliably fix the substance (plan: plans/synastry-before-batching.md,
+    # item 5). Instead, the error is now fixed instantly via a string
+    # replacement keyed off the chart data.
     full_analysis = ""
     try:
         full_analysis = await adapter.generate(prompt, language)
@@ -867,15 +868,15 @@ async def full_synastry_analysis_v2(
             if unresolved:
                 print(f"[full_synastry_analysis_v2] Unresolved position mismatches (left as-is): {unresolved}")
 
-            # Только детекция (план: plans/synastry-aspect-type-verification.md)
-            # — текст не трогаем, чтобы не скрывать реальную частоту ошибки
-            # до решения о починке.
+            # Detection only (plan: plans/synastry-aspect-type-verification.md)
+            # — the text is left alone, so as not to mask the real error rate
+            # until a decision is made on fixing it.
             fabricated_aspects = find_fabricated_aspect_types(full_analysis, aspects, language=language)
             if fabricated_aspects:
                 print(f"[full_synastry_analysis_v2] Fabricated aspect types detected (not fixed): {fabricated_aspects}")
 
-            # Только детекция, по тексту (не по markdown-заголовкам) — текст
-            # ответа не трогаем и ничего не дописываем пользователю.
+            # Detection only, from the text (not markdown headings) — the
+            # response text is left alone, nothing is appended for the user.
             undercovered = find_undercovered_aspects(full_analysis, aspects, language=language)
             if undercovered:
                 print(f"[full_synastry_analysis_v2] Undercovered aspects detected (not filled): {undercovered}")
@@ -883,9 +884,9 @@ async def full_synastry_analysis_v2(
         full_analysis = f"Ошибка анализа: {str(e)}"
         print(f"[full_synastry_analysis_v2] LLM error: {e}")
 
-    # 6.5 Сводка источников по аспектам — сколько чанков и из какой книги
-    # реально нашлось на каждый аспект. Точные цифры из кода, не из LLM.
-    # Только в серверный лог: в пользовательский текст не подмешивать.
+    # 6.5 Source summary per aspect — how many chunks and from which book were
+    # actually found for each aspect. Exact numbers from the code, not the LLM.
+    # Server log only: not to be mixed into the user-facing text.
     print("[full_synastry_analysis_v2] Источники по аспектам:")
     for label, count, book_titles, error in aspect_sources_debug:
         if error:
@@ -894,10 +895,10 @@ async def full_synastry_analysis_v2(
         titles_str = ", ".join(book_titles) if book_titles else "—"
         print(f"  {label}: {count} чанков, книги: {titles_str}")
 
-    # 7. Краткое резюме (первые 500 символов)
+    # 7. Short summary (first 500 chars)
     summary = full_analysis[:500].rsplit('. ', 1)[0] if len(full_analysis) > 500 else full_analysis
 
-    # 8. Возврат результата
+    # 8. Return the result
     return {
         "chart1_summary": {
             "sun_sign": chart1_data.get('sun_sign', '?'),
@@ -955,7 +956,7 @@ async def chat_with_synastry_astrologer(
     orb_word = {'ru': 'орб', 'uk': 'орбіс', 'en': 'orb'}[lang]
     partner_word = {'ru': 'Партнёра', 'uk': 'Партнера', 'en': 'Partner'}[lang]
 
-    # RAG поиск по вопросу
+    # RAG search on the question
     chunks = await search_chunks_by_query(question, top_k=10, book_id=JEFF_GREEN_BOOK_ID)
     if not chunks:
         chunks = await search_chunks_by_query(question, top_k=10)

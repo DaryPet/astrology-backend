@@ -34,9 +34,9 @@ PROMPT_LABELS = {
         'house_num': 'Дом',
         'pars_fortuna': 'Pars Fortuna',
 
-        # Блок данных прогрессий (progressions_analysis, analysis_service.py) —
-        # раньше был захардкожен по-русски независимо от language; ключи ниже
-        # чинят это для обоих языков (план:
+        # Progressions data block (progressions_analysis, analysis_service.py) —
+        # used to be hardcoded in Russian regardless of language; the keys below
+        # fix this for both languages (plan:
         # app/services/specs/progressions_synastry_pattern_plan.md).
         'progressions_data_header': '=== ДАННЫЕ ВТОРИЧНЫХ ПРОГРЕССИЙ ===',
         'age': 'Возраст',
@@ -47,9 +47,9 @@ PROMPT_LABELS = {
         'progressed_ascendant_label': 'Прогрессивный Асцендент',
         'progressed_mc_label': 'Прогрессивный MC',
         'progressed_planets_header': '=== ПРОГРЕССИВНЫЕ ПЛАНЕТЫ (знак, градус, натальный дом, изменения) ===',
-        # Слой-маркеры для блока данных (не для вывода модели) — ставятся перед
-        # каждой строкой планеты, ЗАГЛАВНЫМИ, без склонения по роду планеты
-        # (тот же приём, что ПАРТНЕР1:/ПАРТНЕР2: в synastry_service.py).
+        # Layer markers for the data block (not for the model's output) — placed
+        # before each planet line, UPPERCASE, without gender-declining the planet
+        # (same trick as ПАРТНЕР1:/ПАРТНЕР2: in synastry_service.py).
         'layer_progressed': 'ПРОГРЕССИВНАЯ',
         'layer_natal': 'НАТАЛЬНАЯ',
         'retrograde_inline': ' (ретроградная)',
@@ -60,9 +60,9 @@ PROMPT_LABELS = {
         'natal_chart_overlay_header': '=== НАТАЛЬНАЯ КАРТА (основа для оверлея) ===',
         'natal_planets_list_label': 'Натальные планеты (знак, дом):',
 
-        # Блок данных транзитов (transits_analysis, analysis_service.py) — та
-        # же причина и тот же план, что у прогрессий: раньше был захардкожен
-        # по-русски независимо от language.
+        # Transits data block (transits_analysis, analysis_service.py) — same
+        # reason and same plan as progressions: used to be hardcoded in
+        # Russian regardless of language.
         'transits_data_header': '=== ДАННЫЕ ТРАНЗИТОВ ===',
         'day_label': 'День',
         'transit_place_label': 'Место транзита',
@@ -72,7 +72,7 @@ PROMPT_LABELS = {
         'transiting_mc_label': 'Транзитный MC',
         'day_lunar_phase_label': 'ЛУННАЯ ФАЗА ДНЯ',
         'transit_planets_header': '=== ТРАНЗИТНЫЕ ПЛАНЕТЫ (знак, градус, дома) ===',
-        # Слой-маркер для транзитного блока данных — тот же приём, что
+        # Layer marker for the transits data block — same trick as
         # layer_progressed/layer_natal.
         'layer_transit': 'ТРАНЗИТНАЯ',
         'natal_house_word': 'натальный дом',

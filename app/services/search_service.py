@@ -123,7 +123,7 @@ def cosine_similarity(a: List[float], b: List[float]) -> float:
 #     top_k: int = 5,
 #     chart_data: Optional[Dict[str, Any]] = None
 # ) -> List[Dict[str, Any]]:
-#     """Поиск релевантных чанков по запросу"""
+#     """Search for chunks relevant to the query"""
 #     supabase = get_supabase()
 #     if not supabase:
 #         return []
@@ -197,11 +197,11 @@ async def search_chunks_hybrid(
     if not supabase:
         return []
     
-    # Генерируем эмбеддинг для запроса
+    # Generate the embedding for the query
     query_embedding = generate_embedding(query)
-    
+
     try:
-        # Оборачиваем синхронный вызов в async executor чтобы не блокировать event loop
+        # Wrap the sync call in an async executor so it doesn't block the event loop
         rpc_call = supabase.rpc("hybrid_search", {
             "query_embedding": query_embedding,
             "query_text": query,
@@ -227,10 +227,10 @@ async def search_chunks_hybrid(
 #     house: Optional[int] = None
 # ) -> List[Dict[str, Any]]:
 #     """
-#     Поиск чанков по запросу - с приоритетом текстового поиска
-    
-#     1. СНАЧАЛА текстовый поиск (ILIKE)
-#     2. ПОТОМ эмбеддинг поиск как fallback
+#     Search for chunks by query - text search takes priority
+
+#     1. FIRST text search (ILIKE)
+#     2. THEN embedding search as a fallback
 #     """
 #     supabase = get_supabase()
 #     if not supabase:
@@ -238,19 +238,19 @@ async def search_chunks_hybrid(
 
 #     query_lower = query.lower()
     
-#     # Извлекаем ключевые слова из запроса (ТОЛЬКО АНГЛИЙСКИЙ)
+#     # Extract keywords from the query (ENGLISH ONLY)
 #     planet = None
 #     house_num = None
 #     sign = None
-    
-#     # Ищем планету (ТОЛЬКО английские названия)
+
+#     # Look for a planet (ENGLISH names only)
 #     english_planets = PLANET_NAMES['en']
 #     for name in english_planets:
 #         if name in query_lower:
 #             planet = name
 #             break
-    
-#     # Ищем номер дома (ищем английские слова first, second... и цифры)
+
+#     # Look for a house number (English words first, second... and digits)
 #     house_words = {
 #         1: ['first', '1st', '1', 'house 1', '1st house', 'i', 'i house', 'first house'],
 #         2: ['second', '2nd', '2', 'house 2', '2nd house', 'ii', 'ii house', 'second house'],
@@ -274,20 +274,20 @@ async def search_chunks_hybrid(
 #         if house_num:
 #             break
     
-#     # Ищем знак (ТОЛЬКО английские названия)
+#     # Look for a sign (ENGLISH names only)
 #     english_signs = ZODIAC_SIGNS['en']
 #     for name in english_signs:
 #         if name in query_lower:
 #             sign = name
 #             break
-    
+
 #     print(f"[SEARCH] Query: {query}, planet: {planet}, house: {house_num}, sign: {sign}")
-    
-#     # Шаг 1: Текстовый поиск (ПРИОРИТЕТ)
+
+#     # Step 1: Text search (PRIORITY)
 #     chunks = await search_chunks_text(planet, house_num, sign, top_k=top_k)
 #     print(f"[SEARCH] Text search found: {len(chunks)} chunks")
-    
-#     # Шаг 2: Если пусто - пробуем эмбеддинги
+
+#     # Step 2: If empty - try embeddings
 #     if not chunks:
 #         print("[SEARCH] Trying embedding search...")
 #         chunks = await search_chunks_embedding(query, top_k=top_k)
@@ -302,7 +302,7 @@ async def search_chunks_hybrid(
 #     sign: Optional[str] = None,
 #     top_k: int = 50
 # ) -> List[Dict[str, Any]]:
-#     """Текстовый поиск через ILIKE в БД (СТАРЫЙ КОД - не используется)"""
+#     """Text search via ILIKE in the DB (OLD CODE - not used)"""
 #     supabase = get_supabase()
 #     if not supabase:
 #         return []
@@ -310,7 +310,7 @@ async def search_chunks_hybrid(
 #     conditions = []
     
 #     if planet:
-#         # Ищем ТОЛЬКО эту планету (pluto, saturn, etc.)
+#         # Look for ONLY this planet (pluto, saturn, etc.)
 #         conditions.append(f"text ILIKE '%{planet}%'")
     
 #     if house:
@@ -333,7 +333,7 @@ async def search_chunks_hybrid(
 #         conditions.append(f"({' OR '.join(house_conditions)})")
     
 #     if sign:
-#         # Ищем ТОЛЬКО этот знак (libra, scorpio, etc.)
+#         # Look for ONLY this sign (libra, scorpio, etc.)
 #         conditions.append(f"text ILIKE '%{sign}%'")
     
 #     if not conditions:
@@ -353,7 +353,7 @@ async def search_chunks_hybrid(
 #         print(f"[TEXT SEARCH] Found: {len(response.data) if response.data else 0} chunks")
 #         return response.data if response.data else []
 #     except Exception as e:
-#         # Fallback через supabase client
+#         # Fallback via supabase client
 #         try:
 #             query_builder = supabase.table("book_chunks").select("id, book_id, text, chunk_index, word_count")
             
@@ -396,12 +396,12 @@ async def search_chunks_hybrid(
 #     sign: Optional[str] = None,
 #     top_k: int = 50
 # ) -> List[Dict[str, Any]]:
-#     """Текстовый поиск чанков по ключевым словам (ILIKE)"""
+#     """Text search for chunks by keywords (ILIKE)"""
 #     supabase = get_supabase()
 #     if not supabase:
 #         return []
-#     
-#     # Собираем все чанки (ограничим для производительности)
+#
+#     # Gather all chunks (limited for performance)
 #     try:
 #         response = supabase.table("book_chunks").select(
 #             "id, book_id, text, chunk_index, word_count"
@@ -415,7 +415,7 @@ async def search_chunks_hybrid(
 #         for chunk in response.data:
 #             text_lower = chunk.get('text', '').lower()
 #             
-#             # Проверяем совпадение по планете (ТОЛЬКО АНГЛИЙСКИЙ)
+#             # Check for a planet match (ENGLISH ONLY)
 #             if planet:
 #                 planet_found = False
 #                 english_planets = PLANET_NAMES['en']  # ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto', ...]
@@ -426,10 +426,10 @@ async def search_chunks_hybrid(
 #                 if not planet_found:
 #                     continue
 #             
-#             # Проверяем совпадение по дому (ТОЛЬКО АНГЛИЙСКИЙ)
+#             # Check for a house match (ENGLISH ONLY)
 #             if house:
 #                 house_found = False
-#                 # Маппинг чисел на слова (для английского), включая римские цифры
+#                 # Mapping numbers to words (for English), including Roman numerals
 #                 house_words = {
 #                     1: ['first', '1st', '1', 'i', ' house i', 'first house'],
 #                     2: ['second', '2nd', '2', 'ii', ' house ii', 'second house'],
@@ -453,7 +453,7 @@ async def search_chunks_hybrid(
 #                 if not house_found:
 #                     continue
 #             
-#             # Проверяем совпадение по знаку (ТОЛЬКО АНГЛИЙСКИЙ)
+#             # Check for a sign match (ENGLISH ONLY)
 #             if sign:
 #                 sign_found = False
 #                 english_signs = ZODIAC_SIGNS['en']  # ['aries', 'taurus', 'gemini', 'cancer', 'leo', 'virgo', 'libra', ...]
@@ -485,7 +485,7 @@ async def search_chunks_hybrid(
 #     query: str,
 #     top_k: int = 20
 # ) -> List[Dict[str, Any]]:
-#     """Эмбеддинг поиск через Supabase RPC (СТАРЫЙ КОД - не используется)"""
+#     """Embedding search via Supabase RPC (OLD CODE - not used)"""
 #     supabase = get_supabase()
 #     if not supabase:
 #         return []
@@ -548,7 +548,7 @@ async def search_chunks_simple(
     query_lower = query.lower()
     
     try:
-        # Оборачиваем синхронный вызов в async executor чтобы не блокировать event loop
+        # Wrap the sync call in an async executor so it doesn't block the event loop
         table_call = supabase.table("book_chunks").select("id, book_id, text, chunk_index, word_count")
         response = await run_sync_in_thread(table_call.execute)
         

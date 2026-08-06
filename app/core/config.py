@@ -3,7 +3,6 @@ from typing import Optional
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Astrology API"
-    DATABASE_URL: str = "sqlite+aiosqlite:///./astrology.db"
     OPENAI_API_KEY: Optional[str] = None
 
     # Supabase settings
@@ -17,7 +16,7 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: Optional[str] = None
     DEEPSEEK_API_KEY: Optional[str] = None
     OPENROUTER_API_KEY: Optional[str] = None
-    OPENROUTER_MODEL: str = "anthropic/claude-sonnet-4.5"  # дефолт если фронт не прислал model
+    OPENROUTER_MODEL: str = "anthropic/claude-sonnet-4.5"  # default if the frontend didn't send a model
 
     # Geocoding (LocationIQ)
     LOCATIONIQ_ACCESS_TOKEN: Optional[str] = None

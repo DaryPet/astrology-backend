@@ -248,10 +248,10 @@ Write in English.""",
 }
 
 
-# Клик на отдельный аспект прогрессивной синастрии (см. specs/progressed_synastry_aspect_click_plan.md).
-# {layer_context} — короткий абзац, какой из пяти блоков это (progressed / prog1_to_natal2 /
-# prog2_to_natal1 / new / faded) и как его трактовать; подставляется из
-# PROGRESSED_SYNASTRY_ASPECT_LAYER_CONTEXT в analyze_progressed_synastry_aspect().
+# Click on an individual progressed synastry aspect (see specs/progressed_synastry_aspect_click_plan.md).
+# {layer_context} — short paragraph on which of the five blocks this is (progressed / prog1_to_natal2 /
+# prog2_to_natal1 / new / faded) and how to interpret it; substituted from
+# PROGRESSED_SYNASTRY_ASPECT_LAYER_CONTEXT in analyze_progressed_synastry_aspect().
 PROGRESSED_SYNASTRY_ASPECT_PROMPTS = {
     'ru': """Ты эксперт по эволюционной астрологии (Джефф Грин) и прогностической астрологии отношений (метод вторичных прогрессий, книга Brady "The Eagle and the Lark").
 

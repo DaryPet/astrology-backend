@@ -31,7 +31,7 @@ PLANET_TO_BOOK_ID = {
 }
 
 
-# Числительные домов для RAG-запросов (используется в full_chart_analysis_v2 и progressions_analysis)
+# House ordinal words for RAG queries (used in full_chart_analysis_v2 and progressions_analysis)
 HOUSE_WORDS = {
     1: "first", 2: "second", 3: "third", 4: "fourth",
     5: "fifth", 6: "sixth", 7: "seventh", 8: "eighth",
@@ -331,8 +331,8 @@ async def analyze_planet(
 #     top_k_per_book: int = 3
 # ) -> List[Dict[str, Any]]:
 #     """
-#     [v2] Гибридный RAG: берёт топ-N чанков из КАЖДОЙ книги отдельно.
-#     Гарантирует что все книги участвуют в анализе.
+#     [v2] Hybrid RAG: takes the top-N chunks from EACH book separately.
+#     Guarantees that every book participates in the analysis.
 #     """
 #     from supabase import create_client
 #     from app.core.config import settings
@@ -345,7 +345,7 @@ async def analyze_planet(
 #         if not books_response.data:
 #             return []
 
-#         # Параллельный поиск по всем книгам через asyncio.gather
+#         # Parallel search across all books via asyncio.gather
 #         import asyncio
 
 #         async def search_one_book(book: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -384,23 +384,23 @@ async def analyze_planet(
 
 
 
-# Приоритетные книги для прогностических методов (id из таблицы books):
-# 29 — "Predictive Astrology: The Eagle and the Lark" (Bernadette Brady) — прогрессии
-# 28 — "Planets in Transit: Life Cycles for Living" (Robert Hand) — транзиты
+# Priority books for the predictive methods (id from the books table):
+# 29 — "Predictive Astrology: The Eagle and the Lark" (Bernadette Brady) — progressions
+# 28 — "Planets in Transit: Life Cycles for Living" (Robert Hand) — transits
 PROGRESSIONS_PRIORITY_BOOK_ID = 29
 TRANSITS_PRIORITY_BOOK_ID = 28
 
-# Решение пользователя (2026-08-02): сузить RAG для натальной карты (все
-# языки) с поиска по всей библиотеке (~8 книг, часть из которых профильные
-# под ДРУГИЕ методы — 26 синастрия, 28/29 транзиты/прогрессии) до
-# фиксированного списка релевантных книг. 22 — главный источник (наибольший
-# приоритет), 25 и 23 — дополнение.
+# User decision (2026-08-02): narrow the RAG for the natal chart (all
+# languages) from searching the whole library (~8 books, some of which are
+# specialized for OTHER methods — 26 synastry, 28/29 transits/progressions)
+# down to a fixed list of relevant books. 22 is the main source (highest
+# priority), 25 and 23 supplement it.
 NATAL_BOOK_IDS = [22, 25, 23]
 
-# Транзиты и прогрессии — тот же принцип: фиксированный список вместо "одна
-# приоритетная книга + весь остальной каталог" (то, что раньше делала
-# search_chunks_priority_book). Оба метода используют один и тот же узкий
-# набор (28, 29), а не разные приоритетные книги каждый.
+# Transits and progressions — same principle: a fixed list instead of "one
+# priority book + the entire rest of the catalog" (what search_chunks_priority_book
+# used to do). Both methods use the same narrow set (28, 29), rather than
+# different priority books each.
 TRANSITS_PROGRESSIONS_BOOK_IDS = [28, 29]
 
 
@@ -484,13 +484,13 @@ async def search_chunks_priority_book(
         others_task = search_chunks_hybrid(query, top_k=top_k_others)
         priority_chunks, other_chunks = await _asyncio.gather(priority_task, others_task)
 
-        # Названия книг
+        # Book titles
         supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
         table_call = supabase.table("books").select("id, title")
         books_response = await run_sync_in_thread(table_call.execute)
         book_map = {b["id"]: b.get("title", "") for b in (books_response.data or [])}
 
-        # Приоритетные первыми, затем остальные; дедуп по id чанка
+        # Priority ones first, then the rest; dedup by chunk id
         unique: List[Dict[str, Any]] = []
         seen = set()
         for chunk in (priority_chunks or []) + (other_chunks or []):
@@ -515,8 +515,8 @@ async def search_chunks_all_books(
     top_k_per_book: int = 3
 ) -> List[Dict[str, Any]]:
     """
-    [v2] Гибридный RAG: ОДИН запрос ко всем книгам сразу.
-    Устраняет проблему множественных вызовов RPC.
+    [v2] Hybrid RAG: ONE request across all books at once.
+    Eliminates the problem of multiple RPC calls.
     """
     from supabase import create_client
     from app.core.config import settings
@@ -525,30 +525,30 @@ async def search_chunks_all_books(
 
     try:
         supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
-        
-        # 1. Получаем список книг для маппинга названий
-        # Оборачиваем синхронный вызов в async executor чтобы не блокировать event loop
+
+        # 1. Get the list of books to map titles
+        # Wrap the sync call in an async executor so it doesn't block the event loop
         table_call = supabase.table("books").select("id, title")
         books_response = await run_sync_in_thread(table_call.execute)
         if not books_response.data:
             return []
-        
+
         book_map = {b["id"]: b.get("title", "") for b in books_response.data}
         total_books = len(books_response.data)
-        
-        # 2. ОДИН запрос без фильтра по book_id.
-        # Запрашиваем больше чанков, чтобы охватить все книги
+
+        # 2. ONE request with no book_id filter.
+        # Request more chunks to cover all the books
         chunks = await search_chunks_hybrid(
             query,
-            top_k=top_k_per_book * total_books 
+            top_k=top_k_per_book * total_books
         )
-        
-        # 3. Добавляем названия книг
+
+        # 3. Add the book titles
         if chunks:
             for chunk in chunks:
                 chunk["book_title"] = book_map.get(chunk.get("book_id", ""), "")
-        
-        # Удаляем дубликаты
+
+        # Remove duplicates
         unique_chunks = []
         seen_ids = set()
         for chunk in chunks:
@@ -623,20 +623,20 @@ async def full_chart_analysis_v2(
     houses = chart_data.get("houses", {})
     houses_meta = chart_data.get("houses_meta", {})
 
-    # Ограничивает число одновременных запросов к Supabase — та же причина, что
-    # у синастрии/прогрессий/транзитов (synastry_service.py:599). С переходом
-    # на NATAL_BOOK_IDS (3 книги вместо всей библиотеки, решение пользователя
-    # 2026-08-02) каждый вызов search_chunks_by_book_ids делает 3 обращения к
-    # пулу потоков (по одному search_chunks_hybrid на книгу; названия книг
-    # приходят через book_titles, без отдельного запроса на каждый вызов —
-    # см. _fetch_book_titles). 8 задач × 3 = 24 потоковых вызова одновременно,
-    # под тем же бюджетом, что и раньше (было 12 × 2 = 24 при search_chunks_all_books).
+    # Limits the number of concurrent requests to Supabase — same reason as
+    # synastry/progressions/transits (synastry_service.py:599). With the switch
+    # to NATAL_BOOK_IDS (3 books instead of the whole library, user decision
+    # 2026-08-02) each search_chunks_by_book_ids call makes 3 calls to the
+    # thread pool (one search_chunks_hybrid per book; book titles come via
+    # book_titles, with no separate request per call — see _fetch_book_titles).
+    # 8 tasks × 3 = 24 concurrent thread-pool calls, within the same budget
+    # as before (was 12 × 2 = 24 with search_chunks_all_books).
     search_semaphore = asyncio.Semaphore(8)
 
-    # Названия книг — один запрос на весь анализ, не на каждый RAG-подзапрос.
+    # Book titles — one request for the whole analysis, not per RAG sub-request.
     book_titles = await _fetch_book_titles(NATAL_BOOK_IDS)
 
-    # --- Шаг 1: Параллельный RAG-поиск по каждой планете ---
+    # --- Step 1: Parallel RAG search for each planet ---
     async def search_planet(planet_name: str, planet_data: Dict) -> tuple:
         sign = planet_data.get("sign", "")
         house = planet_data.get("house", "")
@@ -648,7 +648,7 @@ async def full_chart_analysis_v2(
             chunks = await search_chunks_by_book_ids(query, NATAL_BOOK_IDS, book_titles, top_k_per_book=top_k_per_book)
         return planet_name, chunks
 
-    # --- Шаг 2: Параллельный RAG-поиск по каждому аспекту ---
+    # --- Step 2: Parallel RAG search for each aspect ---
     async def search_aspect(asp: Dict) -> tuple:
         p1 = asp.get("planet1", "")
         p2 = asp.get("planet2", "")
@@ -661,7 +661,7 @@ async def full_chart_analysis_v2(
     print(f"[full_chart_analysis_v2] Starting parallel RAG for {len(planets)} planets and {len(aspects)} aspects")
 
     planet_tasks = [search_planet(name, data) for name, data in planets.items()]
-    aspect_tasks = [search_aspect(asp) for asp in aspects]  # ВСЕ аспекты, без среза
+    aspect_tasks = [search_aspect(asp) for asp in aspects]  # ALL aspects, no cutoff
 
     # Add Pars Fortuna search task
     pf = houses_meta.get('pars_fortuna', {})
@@ -676,18 +676,18 @@ async def full_chart_analysis_v2(
     planet_results = await asyncio.gather(*planet_tasks, return_exceptions=True)
     aspect_results = await asyncio.gather(*aspect_tasks, return_exceptions=True)
 
-    # --- Шаг 3: Сборка структурированного промпта ---
+    # --- Step 3: Assemble the structured prompt ---
     prompt_parts = []
 
-    # Системный промпт (используем существующий шаблон synthesis)
+    # System prompt (use the existing synthesis template)
     synthesis_template = get_template("synthesis", language, mode)
 
-    # Аспекты для шаблона — имена планет и название аспекта переводятся по
-    # language (раньше p1/p2 брались сырым английским ключом, а asp_ru —
-    # безусловно русским текстом даже для uk/en; из-за этого промпт-инструкция
-    # "жирная формула ровно как дана в списке" протаскивала непереведённые
-    # имена/названия в заголовки, хотя в свободном тексте модель сама себя
-    # поправляла — см. analysis_service.py INSIGHTS.md).
+    # Aspects for the template — planet names and aspect name are translated
+    # per language (used to take p1/p2 as the raw English key, with asp_ru
+    # unconditionally Russian text even for uk/en; because of this, the prompt
+    # instruction "bold formula exactly as given in the list" dragged
+    # untranslated names into the headings, even though in free text the model
+    # corrected itself — see analysis_service.py INSIGHTS.md).
     aspects_list = []
     for asp in aspects:
         p1 = _planet_display(asp.get("planet1", "?"), language)
@@ -697,7 +697,7 @@ async def full_chart_analysis_v2(
     _no_aspects = {'ru': "Нет аспектов", 'uk': "Немає аспектів", 'en': "No aspects"}
     aspects_str = "\n".join(aspects_list) if aspects_list else _no_aspects.get(normalize_language(language), _no_aspects['en'])
 
-    # Собираем контент книг как структурированные фрагменты (не целые книги)
+    # Assemble book content as structured excerpts (not whole books)
     planet_chunks_text = ""
     for result in planet_results:
         if isinstance(result, Exception):
@@ -730,12 +730,12 @@ async def full_chart_analysis_v2(
 {aspect_chunks_text}
 """
 
-    # Подставляем в шаблон
+    # Substitute into the template
     prompt = synthesis_template
     prompt = prompt.replace("{aspects_list}", aspects_str)
     prompt = prompt.replace("{books_content}", books_content)
 
-    # Данные натальной карты
+    # Natal chart data
     prompt += f"\n\n=== {labels.get('natal_chart_label', 'НАТАЛЬНАЯ КАРТА')} ==="
     prompt += f"\nСолнце: {chart_data.get('sun_sign_ru', '?')} в {chart_data.get('sun_sign', '?')}"
     prompt += f"\nЛуна: {chart_data.get('moon_sign_ru', '?')} в {chart_data.get('moon_sign', '?')}"
@@ -765,14 +765,14 @@ async def full_chart_analysis_v2(
             h = houses[key]
             prompt += f"\n{labels.get('house_num', 'Дом')} {house_num}: {h.get('sign_ru', '?')}"
 
-    # --- Шаг 4: Один финальный вызов LLM ---
+    # --- Step 4: One final LLM call ---
     print(f"[full_chart_analysis_v2] Sending final prompt to LLM (~{len(prompt)//4} tokens estimated)")
 
-    # "Слой" для проверки текста после генерации — у натала он один (в отличие
-    # от прогрессий/транзитов, где слоя два): find_fabricated_positions_layered/
-    # fix_fabricated_positions_layered работают и с одним слоем — "fabricated"
-    # (знака нет в чарте вообще) не требует маркера атрибуции, только
-    # "layer_confused" требует, а с одним слоем он всегда пуст (см. план:
+    # The "layer" for post-generation text checking — for natal there's only
+    # one (unlike progressions/transits, which have two): find_fabricated_positions_layered/
+    # fix_fabricated_positions_layered work fine with a single layer — "fabricated"
+    # (the sign doesn't exist in the chart at all) doesn't need an attribution
+    # marker, only "layer_confused" does, and with one layer it's always empty (see plan:
     # app/services/specs/natal_synastry_pattern_plan.md).
     natal_chart_like = {
         'planets': planets,
@@ -786,29 +786,30 @@ async def full_chart_analysis_v2(
         full_analysis = await adapter.generate(prompt, language)
 
         if language in ('ru', 'en', 'uk'):
-            # Позиции: чинится только то, что не существует в чарте вообще.
+            # Positions: only fixes what doesn't exist in the chart at all.
             full_analysis, unresolved = fix_fabricated_positions_layered(
                 full_analysis, layers, language=language
             )
             if unresolved:
                 print(f"[full_chart_analysis_v2] Unresolved position mismatches (left as-is): {unresolved}")
 
-            # Только детекция — тип заявленного аспекта сверяется с реально
-            # посчитанным (chart_data['aspects']). Без атрибуции по слою/партнёру
-            # — карта одна, две планеты в жирном заголовке однозначны сами по себе.
+            # Detection only — the claimed aspect type is checked against the
+            # actually calculated one (chart_data['aspects']). No layer/partner
+            # attribution — there's one chart, two planets in a bold heading
+            # are unambiguous on their own.
             fabricated_aspects = find_fabricated_aspect_types_single(full_analysis, aspects, language=language)
             if fabricated_aspects:
                 print(f"[full_chart_analysis_v2] Fabricated aspect types detected (not fixed): {fabricated_aspects}")
 
-            # Только детекция, по прозе — текст не трогаем и не дописываем.
+            # Detection only, from prose — the text is left alone, nothing added.
             undercovered = find_undercovered_aspects_generic(full_analysis, aspects, language=language)
             if undercovered:
                 print(f"[full_chart_analysis_v2] Undercovered aspects detected (not filled): {undercovered}")
 
-            # Только детекция — дом планеты, названный в тексте, сверяется с
-            # реальным домом из чарта (в пределах предложения, где встретилась
-            # планета). Не чинится — риск разъехаться с согласованием текста
-            # (см. докстринг find_fabricated_houses_single).
+            # Detection only — the planet's house named in the text is checked
+            # against the real house from the chart (within the sentence where
+            # the planet appears). Not fixed — risk of drifting out of sync
+            # with the text's agreement (see find_fabricated_houses_single's docstring).
             fabricated_houses = find_fabricated_houses_single(full_analysis, natal_chart_like, language=language)
             if fabricated_houses:
                 print(f"[full_chart_analysis_v2] Fabricated house claims detected (not fixed): {fabricated_houses}")
@@ -816,7 +817,7 @@ async def full_chart_analysis_v2(
         full_analysis = f"Ошибка анализа: {str(e)}"
         print(f"[full_chart_analysis_v2] LLM error: {e}")
 
-    # --- Шаг 5: Генерация краткого резюме (summary) ---
+    # --- Step 5: Generate the short summary ---
     summary = await generate_summary(full_analysis, language)
 
     return {
@@ -838,7 +839,7 @@ async def full_chart_analysis_v2(
 
 
 # ============================================================
-# SECONDARY PROGRESSIONS ANALYSIS (анализ вторичных прогрессий)
+# SECONDARY PROGRESSIONS ANALYSIS
 # ============================================================
 
 async def progressions_analysis(
@@ -867,27 +868,27 @@ async def progressions_analysis(
     natal_summary = progressions.get("natal_summary", {})
     natal_planets = (natal_chart or {}).get("planets", {})
 
-    # В прогрессиях интерпретационно значимы личные планеты (внешние почти не двигаются)
+    # In progressions the personal planets carry interpretive weight (outer planets barely move)
     PERSONAL_PLANETS = ["Sun", "Moon", "Mercury", "Venus", "Mars"]
 
-    # Ограничивает число одновременных запросов к Supabase — та же причина,
-    # что у синастрии (full_synastry_analysis_v2, synastry_service.py:599).
-    # С переходом на TRANSITS_PROGRESSIONS_BOOK_IDS (фиксированные 2 книги
-    # вместо "приоритетная + весь остальной каталог", решение пользователя
-    # 2026-08-02) каждый вызов search_chunks_by_book_ids делает 2 обращения к
-    # пулу потоков (не 3, как раньше делал search_chunks_priority_book —
-    # приоритет + остальные + отдельный запрос названий книг на каждый вызов).
-    # 12 задач × 2 = 24 — даже безопаснее прежнего (было 12 × 3 = 36,
-    # задокументированный нерешённый баг, specs/semaphore_thread_pool_sizing_bug.md;
-    # этот переход закрывает его побочным эффектом).
+    # Limits the number of concurrent requests to Supabase — same reason as
+    # synastry (full_synastry_analysis_v2, synastry_service.py:599).
+    # With the switch to TRANSITS_PROGRESSIONS_BOOK_IDS (fixed 2 books instead
+    # of "priority + the entire rest of the catalog", user decision
+    # 2026-08-02) each search_chunks_by_book_ids call makes 2 calls to the
+    # thread pool (not 3, like search_chunks_priority_book used to make —
+    # priority + others + a separate book-titles request per call).
+    # 12 tasks × 2 = 24 — even safer than before (was 12 × 3 = 36, a
+    # documented unresolved bug, specs/semaphore_thread_pool_sizing_bug.md;
+    # this switch closes it as a side effect).
     search_semaphore = asyncio.Semaphore(12)
 
-    # Названия книг — один запрос на весь анализ, не на каждый RAG-подзапрос.
+    # Book titles — one request for the whole analysis, not per RAG sub-request.
     book_titles = await _fetch_book_titles(TRANSITS_PROGRESSIONS_BOOK_IDS)
 
-    # --- Шаг 1: Параллельный RAG-поиск ---
-    # Книги прогрессий/транзитов — фиксированный список (28, 29), не одна
-    # приоритетная + весь каталог.
+    # --- Step 1: Parallel RAG search ---
+    # Progressions/transits books — a fixed list (28, 29), not one priority
+    # book + the whole catalog.
     async def search_progressed_planet(planet_name: str, planet_data: Dict) -> tuple:
         sign = planet_data.get("sign", "")
         house = planet_data.get("natal_house", "")
@@ -929,18 +930,18 @@ async def progressions_analysis(
         search_progressed_planet(name, prog_planets[name])
         for name in PERSONAL_PLANETS if name in prog_planets
     ]
-    # Планеты, сменившие знак относительно натала — поворотные точки, ищем и их
+    # Planets that changed sign relative to the natal — turning points, search for them too
     for name, data in prog_planets.items():
         if data.get("changed_sign") and name not in PERSONAL_PLANETS:
             planet_tasks.append(search_progressed_planet(name, data))
     planet_tasks.append(search_general())
     planet_tasks.append(search_lunar_phase())
 
-    # Раньше был срез aspects[:10], а промпт при этом требовал "раскрывай ВСЕ"
-    # аспекты из aspects_list (который строится из ПОЛНОГО списка ниже) — для
-    # аспектов после 10-го чанков не было вообще. Аспектов в прогрессиях мало
-    # (орб 1.5°), так что снятие среза не даёт взрывного роста промпта, как
-    # могло бы быть у синастрии с её 44-64 аспектами.
+    # Used to have an aspects[:10] cutoff, while the prompt still demanded "cover ALL"
+    # aspects from aspects_list (which is built from the FULL list below) — aspects
+    # past the 10th had no chunks at all. There are few aspects in progressions
+    # (1.5° orb), so removing the cutoff doesn't blow up the prompt the way it
+    # could for synastry with its 44-64 aspects.
     aspect_tasks = [search_aspect(asp) for asp in aspects]
 
     print(f"[progressions_analysis] Parallel RAG: {len(planet_tasks)} planet queries, {len(aspect_tasks)} aspect queries")
@@ -948,11 +949,11 @@ async def progressions_analysis(
     planet_results = await asyncio.gather(*planet_tasks, return_exceptions=True)
     aspect_results = await asyncio.gather(*aspect_tasks, return_exceptions=True)
 
-    # --- Шаг 2: Сборка структурированного промпта ---
+    # --- Step 2: Assemble the structured prompt ---
     template = get_template("progressions", language, mode)
 
-    # Список аспектов прогрессий к наталу — с полным контекстом для оверлея:
-    # позиция прогрессивной планеты, позиция и ДОМ натальной, орб, сходящийся/расходящийся
+    # List of progressions-to-natal aspects — with full context for the overlay:
+    # progressed planet's position, natal position and HOUSE, orb, applying/separating
     aspects_list = []
     for asp in aspects:
         p1 = asp.get("progressed", asp.get("planet1", "?"))
@@ -960,12 +961,12 @@ async def progressions_analysis(
         orb_val = asp.get("orb", "?")
         n_house = asp.get("natal_house", "?")
         p_house = asp.get("progressed_house", "?")
-        # Явный слой-префикс (ПРОГРЕССИВНЫЙ:/НАТАЛЬНЫЙ:, заглавными, без
-        # склонения по роду планеты — тот же приём, что ПАРТНЕР1:/ПАРТНЕР2:
-        # в synastry_service.py) + переведённое имя планеты: раньше здесь
-        # был необъявленный внутренний ключ ("Прогрессивный Moon"), а не
-        # отображаемое имя. Разграничивает прогрессивную и натальную
-        # позицию ОДНОЙ И ТОЙ ЖЕ планеты — план:
+        # Explicit layer prefix (ПРОГРЕССИВНЫЙ:/НАТАЛЬНЫЙ:, uppercase, without
+        # gender-declining the planet — the same trick as ПАРТНЕР1:/ПАРТНЕР2:
+        # in synastry_service.py) + the translated planet name: this used to
+        # be an undeclared internal key ("Прогрессивный Moon"), not the
+        # display name. Distinguishes the progressed and natal position of
+        # the SAME planet — plan:
         # app/services/specs/progressions_synastry_pattern_plan.md.
         if language == 'ru':
             p1_display = PLANET_RU.get(p1, p1)
@@ -1002,7 +1003,7 @@ async def progressions_analysis(
         else "No exact aspects to the natal chart right now"
     )
 
-    # Фрагменты книг
+    # Book excerpts
     planet_chunks_text = ""
     for result in planet_results:
         if isinstance(result, Exception):
@@ -1039,12 +1040,12 @@ async def progressions_analysis(
     prompt = prompt.replace("{aspects_list}", aspects_str)
     prompt = prompt.replace("{books_content}", books_content)
 
-    # --- Данные прогрессий ---
-    # Язык данных (sign/sign_ru/sign_uk, PLANET_RU/PLANET_UK/PLANET_EN) через
-    # _localized()/_planet_display() — раньше весь этот блок был захардкожен
-    # по-русски НЕЗАВИСИМО от language (шаблон выше уже был двуязычным, а
-    # данные — нет), затем расширен на 3-way вместо бинарного is_ru. План:
-    # app/services/specs/progressions_synastry_pattern_plan.md.
+    # --- Progressions data ---
+    # Data language (sign/sign_ru/sign_uk, PLANET_RU/PLANET_UK/PLANET_EN) via
+    # _localized()/_planet_display() — this whole block used to be hardcoded
+    # in Russian REGARDLESS of language (the template above was already
+    # bilingual, but the data wasn't), then extended to 3-way instead of a
+    # binary is_ru. Plan: app/services/specs/progressions_synastry_pattern_plan.md.
     age = progressions.get("age_years", "?")
     period = progressions.get("period", "?")
 
@@ -1052,7 +1053,7 @@ async def progressions_analysis(
     prompt += f"\n{labels['age']}: {age}"
     prompt += f"\n{labels['period']}: {period}"
 
-    # Прогрессивная лунная фаза — этап ~30-летнего цикла, главный контекст всего анализа
+    # Progressed lunar phase — the stage of the ~30-year cycle, the main context for the whole analysis
     lunar_phase = progressions.get("lunar_phase") or {}
     if lunar_phase:
         phase_name = _localized(lunar_phase, "phase", language, "?")
@@ -1067,9 +1068,9 @@ async def progressions_analysis(
         mc_sign = _localized(prog_mc, "sign", language, "?")
         prompt += f"\n{labels['progressed_mc_label']}: {mc_sign}"
 
-    # Слой-префикс (ПРОГРЕССИВНАЯ:/PROGRESSED:) перед КАЖДОЙ строкой планеты, а
-    # не только в заголовке блока — иначе find_fabricated_positions_layered
-    # ниже не сможет привязать позицию к слою по ближайшему маркеру.
+    # Layer prefix (ПРОГРЕССИВНАЯ:/PROGRESSED:) before EVERY planet line, not
+    # just in the block heading — otherwise find_fabricated_positions_layered
+    # below won't be able to attribute a position to a layer by the nearest marker.
     prompt += f"\n\n{labels['progressed_planets_header']}"
     for planet_name in PERSONAL_PLANETS + [n for n in prog_planets if n not in PERSONAL_PLANETS]:
         planet_data = prog_planets.get(planet_name)
@@ -1096,7 +1097,7 @@ async def progressions_analysis(
             degree_str = f"{degree}°"
         prompt += f"\n{labels['layer_progressed']}: {planet_display}: {degree_str} {sign_display}, {labels['house_word']} {house}{rx_str}{markers_str}"
 
-    # Полная натальная карта — без неё невозможен оверлей «прогрессия поверх натала»
+    # The full natal chart — without it a "progression over natal" overlay is impossible
     prompt += f"\n\n{labels['natal_chart_overlay_header']}"
     sun_display = _planet_display('Sun', language)
     moon_display = _planet_display('Moon', language)
@@ -1116,14 +1117,15 @@ async def progressions_analysis(
             n_rx = labels['retrograde_short'] if n_data.get("is_retrograde") else ""
             prompt += f"\n  {labels['layer_natal']}: {n_display}: {n_sign}, {labels['house_word']} {n_house}{n_rx}"
 
-    # --- Шаг 3: Один финальный вызов LLM ---
+    # --- Step 3: One final LLM call ---
     print(f"[progressions_analysis] Sending final prompt to LLM (~{len(prompt)//4} tokens estimated)")
 
-    # "Слои" для проверки текста после генерации — прогрессивная позиция vs
-    # натальная позиция ОДНОЙ И ТОЙ ЖЕ планеты (обобщение "Партнёр 1/2" из
-    # synastry_service.py на text_verification.py). Форма — {'planets': {...},
-    # 'ascendant':, 'ascendant_ru':} — та же, что у natal_chart, поэтому
-    # natal-слой передаётся как есть, а progressed строится из тех же полей.
+    # "Layers" for post-generation text checking — progressed position vs
+    # natal position of the SAME planet (a generalization of the "Partner 1/2"
+    # pattern from synastry_service.py into text_verification.py). Shape —
+    # {'planets': {...}, 'ascendant':, 'ascendant_ru':} — the same as
+    # natal_chart, so the natal layer is passed as-is, and progressed is
+    # built from the same fields.
     progressed_chart_like = {
         'planets': prog_planets,
         'ascendant': prog_asc.get('sign'),
@@ -1136,9 +1138,9 @@ async def progressions_analysis(
         full_analysis = await adapter.generate(prompt, language)
 
         if language in ('ru', 'en', 'uk'):
-            # Позиции: чинится только то, что не существует НИ В ОДНОМ слое —
-            # то же самое, что fix_fabricated_planet_positions в синастрии
-            # (union-проверка), обобщённое на слои. План:
+            # Positions: only fixes what doesn't exist in ANY layer —
+            # the same as fix_fabricated_planet_positions in synastry
+            # (union check), generalized to layers. Plan:
             # app/services/specs/progressions_synastry_pattern_plan.md.
             full_analysis, unresolved = fix_fabricated_positions_layered(
                 full_analysis, layers, language=language
@@ -1146,22 +1148,22 @@ async def progressions_analysis(
             if unresolved:
                 print(f"[progressions_analysis] Unresolved position mismatches (left as-is): {unresolved}")
 
-            # Перепутанный слой (знак верен, но не для того слоя, что назвал
-            # маркер) — только лог, никогда не правится (см. докстринг
-            # find_fabricated_positions_layered).
+            # Layer confused (sign is correct, but not for the layer the
+            # marker claimed) — log only, never fixed (see
+            # find_fabricated_positions_layered's docstring).
             position_issues = find_fabricated_positions_layered(full_analysis, layers, language=language)
             if position_issues.get('layer_confused'):
                 print(f"[progressions_analysis] Layer-confused positions detected (not fixed): {position_issues['layer_confused']}")
 
-            # Только детекция — тип заявленного аспекта прогрессия→натал
-            # сверяется с реально посчитанным (aspects_to_natal).
+            # Detection only — the claimed progression→natal aspect type is
+            # checked against the actually calculated one (aspects_to_natal).
             fabricated_aspects = find_fabricated_aspect_types_layered(
                 full_analysis, aspects, language=language, layer_keys=('progressed', 'natal')
             )
             if fabricated_aspects:
                 print(f"[progressions_analysis] Fabricated aspect types detected (not fixed): {fabricated_aspects}")
 
-            # Только детекция, по прозе — текст не трогаем и не дописываем.
+            # Detection only, from prose — the text is left alone, nothing added.
             undercovered = find_undercovered_aspects_generic(full_analysis, aspects, language=language)
             if undercovered:
                 print(f"[progressions_analysis] Undercovered aspects detected (not filled): {undercovered}")
@@ -1169,7 +1171,7 @@ async def progressions_analysis(
         full_analysis = f"Ошибка анализа: {str(e)}"
         print(f"[progressions_analysis] LLM error: {e}")
 
-    # --- Шаг 4: Краткое резюме ---
+    # --- Step 4: Short summary ---
     summary = await generate_summary(full_analysis, language)
 
     prog_moon = prog_planets.get("Moon", {})
@@ -1229,24 +1231,24 @@ async def transits_analysis(
     natal_summary = transits.get("natal_summary", {})
     natal_planets = (natal_chart or {}).get("planets", {})
 
-    # Медленные транзиты = главные темы периода; быстрые = окраска дня
+    # Slow transits = the main themes of the period; fast ones = the flavor of the day
     slow_aspects = [a for a in aspects if a.get("is_slow")]
     fast_aspects = [a for a in aspects if not a.get("is_slow")]
 
-    # Ограничивает число одновременных запросов к Supabase — та же причина,
-    # что у синастрии и прогрессий (synastry_service.py:599). У транзитов
-    # ищутся ВСЕ аспекты (aspect_pool ниже), запросов заметно больше, чем у
-    # прогрессий, — здесь семафор не страховка на будущее, а нужен уже сейчас.
-    # С переходом на TRANSITS_PROGRESSIONS_BOOK_IDS (2 книги вместо
-    # "приоритетная + весь каталог", решение пользователя 2026-08-02) каждый
-    # вызов делает 2 обращения к пулу потоков, не 3, как раньше
-    # search_chunks_priority_book — тот же выигрыш, что и в прогрессиях.
+    # Limits the number of concurrent requests to Supabase — same reason as
+    # synastry and progressions (synastry_service.py:599). For transits ALL
+    # aspects are searched (aspect_pool below), noticeably more requests than
+    # progressions — here the semaphore isn't a future safeguard, it's needed already.
+    # With the switch to TRANSITS_PROGRESSIONS_BOOK_IDS (2 books instead of
+    # "priority + the whole catalog", user decision 2026-08-02) each call
+    # makes 2 calls to the thread pool, not 3 like search_chunks_priority_book
+    # used to — the same win as in progressions.
     search_semaphore = asyncio.Semaphore(12)
 
-    # Названия книг — один запрос на весь анализ, не на каждый RAG-подзапрос.
+    # Book titles — one request for the whole analysis, not per RAG sub-request.
     book_titles = await _fetch_book_titles(TRANSITS_PROGRESSIONS_BOOK_IDS)
 
-    # --- Шаг 1: Параллельный RAG-поиск ---
+    # --- Step 1: Parallel RAG search ---
     async def search_transit_planet(planet_name: str, planet_data: Dict) -> tuple:
         sign = planet_data.get("sign", "")
         house = planet_data.get("natal_house", "")
@@ -1275,7 +1277,7 @@ async def transits_analysis(
             )
         return f"Lunar Phase: {phase}", chunks
 
-    # Планеты для поиска: медленные с аспектами + Луна и Солнце (день)
+    # Planets to search: slow ones with aspects + Moon and Sun (the day)
     search_planet_names = []
     for a in slow_aspects:
         name = a.get("transit")
@@ -1291,7 +1293,7 @@ async def transits_analysis(
     ]
     planet_tasks.append(search_lunar_phase())
 
-    # Аспекты: все медленные + все быстрые для полного анализа
+    # Aspects: all slow + all fast, for a complete analysis
     aspect_pool = slow_aspects + fast_aspects
     aspect_tasks = [search_aspect(asp) for asp in aspect_pool]
 
@@ -1300,15 +1302,16 @@ async def transits_analysis(
     planet_results = await asyncio.gather(*planet_tasks, return_exceptions=True)
     aspect_results = await asyncio.gather(*aspect_tasks, return_exceptions=True)
 
-    # --- Шаг 2: Сборка структурированного промпта ---
+    # --- Step 2: Assemble the structured prompt ---
     template = get_template("transits", language, mode)
 
-    # ВНИМАНИЕ на поле 'transit_house' здесь: в aspects_to_natal (calculate_transits,
-    # astrology_v2.py:1230) это НАТАЛЬНЫЙ дом транзитной планеты (по какому натальному
-    # дому она "идёт"), а НЕ дом в транзитной карте текущего места — тот лежит в
-    # 'transit_planet_transit_house' (:1232). Тот же ключ 'transit_house' в
-    # t_planets[X] (:1205 ниже) означает ДРУГОЕ — реальный транзитный дом. Не путать
-    # при чтении/правке — план: app/services/specs/transits_synastry_pattern_plan.md.
+    # NOTE on the 'transit_house' field here: in aspects_to_natal (calculate_transits,
+    # astrology_v2.py:1230) it's the NATAL house of the transit planet (which natal
+    # house it's "moving through"), NOT the house in the current place's transit
+    # chart — that's in 'transit_planet_transit_house' (:1232). The same key
+    # 'transit_house' in t_planets[X] (:1205 below) means something DIFFERENT — the
+    # real transit house. Don't confuse the two when reading/editing — plan:
+    # app/services/specs/transits_synastry_pattern_plan.md.
     lang = normalize_language(language)
 
     def fmt_aspect(asp: Dict) -> str:
@@ -1317,7 +1320,7 @@ async def transits_analysis(
         p1_display = _planet_display(p1, language)
         p2_display = _planet_display(p2, language)
         orb_val = asp.get("orb", "?")
-        natal_house_of_transit_planet = asp.get("transit_house", "?")  # см. комментарий выше
+        natal_house_of_transit_planet = asp.get("transit_house", "?")  # see the comment above
         current_transit_house = asp.get("transit_planet_transit_house", "?")
         if current_transit_house == "?":
             transit_house_str = ""
@@ -1375,7 +1378,7 @@ async def transits_analysis(
     fast_str = "\n".join(fmt_aspect(a) for a in fast_aspects) if fast_aspects else _NO_FAST_ASPECTS[lang]
     aspects_str = _SLOW_HEADER[lang] + slow_str + _FAST_HEADER[lang] + fast_str
 
-    # Фрагменты книг
+    # Book excerpts
     planet_chunks_text = ""
     for result in planet_results:
         if isinstance(result, Exception):
@@ -1412,16 +1415,16 @@ async def transits_analysis(
     prompt = prompt.replace("{aspects_list}", aspects_str)
     prompt = prompt.replace("{books_content}", books_content)
 
-    # --- Данные транзитов ---
-    # Язык данных через _localized()/_planet_display() — раньше весь этот блок
-    # (кроме места транзита и Asc/MC) был захардкожен по-русски независимо от
-    # language, затем расширен на 3-way вместо бинарного is_ru. План:
-    # app/services/specs/transits_synastry_pattern_plan.md.
+    # --- Transits data ---
+    # Data language via _localized()/_planet_display() — this whole block
+    # (except the transit place and Asc/MC) used to be hardcoded in Russian
+    # regardless of language, then extended to 3-way instead of a binary
+    # is_ru. Plan: app/services/specs/transits_synastry_pattern_plan.md.
     period = transits.get("period", "?")
     prompt += f"\n\n{labels['transits_data_header']}"
     prompt += f"\n{labels['day_label']}: {period}"
 
-    # Информация о месте транзита
+    # Transit place info
     transit_summary = transits.get("transit_summary", {})
     if transit_lat is not None and transit_lon is not None:
         location_name = transit_place or labels['not_specified']
@@ -1440,9 +1443,9 @@ async def transits_analysis(
         phase_name = _localized(lunar_phase, "phase", language, "?")
         prompt += f"\n{labels['day_lunar_phase_label']}: {phase_name} ({labels['moon_sun_angle_label']} {lunar_phase.get('angle', '?')}°)"
 
-    # Слой-префикс (ТРАНЗИТНАЯ:/TRANSITING:) перед КАЖДОЙ строкой планеты, а
-    # не только в заголовке блока — иначе find_fabricated_positions_layered
-    # ниже не сможет привязать позицию к слою по ближайшему маркеру.
+    # Layer prefix (ТРАНЗИТНАЯ:/TRANSITING:) before EVERY planet line, not
+    # just in the block heading — otherwise find_fabricated_positions_layered
+    # below won't be able to attribute a position to a layer by the nearest marker.
     TRANSIT_ORDER = ["Moon", "Sun", "Mercury", "Venus", "Mars", "Jupiter", "Saturn",
                      "Uranus", "Neptune", "Pluto", "NorthNode", "SouthNode", "Chiron", "Lilith"]
     prompt += f"\n\n{labels['transit_planets_header']}"
@@ -1453,10 +1456,10 @@ async def transits_analysis(
         planet_display = _planet_display(planet_name, language)
         sign_display = _localized(planet_data, "sign", language, "?")
         degree = planet_data.get("degree", "?")
-        # Здесь 'natal_house'/'transit_house' в t_planets[X] — это НЕ те же
-        # величины, что одноимённые поля в aspects_to_natal (см. комментарий
-        # у fmt_aspect выше): здесь natal_house = натальный дом планеты,
-        # transit_house = реальный дом в транзитной карте текущего места.
+        # Here 'natal_house'/'transit_house' in t_planets[X] are NOT the same
+        # values as the same-named fields in aspects_to_natal (see the comment
+        # by fmt_aspect above): here natal_house = the planet's natal house,
+        # transit_house = the real house in the current place's transit chart.
         house = planet_data.get("natal_house", "?")
         transit_house = planet_data.get("transit_house", "?")
         rx_str = labels['retrograde_inline'] if planet_data.get("is_retrograde") else ""
@@ -1468,7 +1471,7 @@ async def transits_analysis(
         prompt += (f"\n{labels['layer_transit']}: {planet_display}: {degree_str} {sign_display}, "
                    f"{labels['natal_house_word']} {house}, {labels['transit_house_word']} {transit_house}{rx_str}{slow_str2}")
 
-    # Полная натальная карта — основа оверлея
+    # The full natal chart — the basis for the overlay
     prompt += f"\n\n{labels['natal_chart_overlay_header']}"
     sun_display = _planet_display('Sun', language)
     moon_display = _planet_display('Moon', language)
@@ -1488,14 +1491,14 @@ async def transits_analysis(
             n_rx = labels['retrograde_short'] if n_data.get("is_retrograde") else ""
             prompt += f"\n  {labels['layer_natal']}: {n_display}: {n_sign}, {labels['house_word']} {n_house}{n_rx}"
 
-    # --- Шаг 3: Один финальный вызов LLM ---
+    # --- Step 3: One final LLM call ---
     print(f"[transits_analysis] Sending final prompt to LLM (~{len(prompt)//4} tokens estimated)")
 
-    # "Слои" для проверки текста после генерации — транзитная позиция vs
-    # натальная позиция ОДНОЙ И ТОЙ ЖЕ планеты (тот же паттерн, что у
-    # прогрессий, см. progressions_synastry_pattern_plan.md). Форма —
-    # {'planets': {...}, 'ascendant':, 'ascendant_ru':} — natal-слой передаётся
-    # как есть, transit строится из тех же полей transit_summary.
+    # "Layers" for post-generation text checking — transit position vs natal
+    # position of the SAME planet (the same pattern as progressions, see
+    # progressions_synastry_pattern_plan.md). Shape —
+    # {'planets': {...}, 'ascendant':, 'ascendant_ru':} — the natal layer is
+    # passed as-is, transit is built from the same transit_summary fields.
     transit_chart_like = {
         'planets': t_planets,
         'ascendant': transit_asc.get('sign') if transit_asc else None,
@@ -1508,27 +1511,27 @@ async def transits_analysis(
         full_analysis = await adapter.generate(prompt, language)
 
         if language in ('ru', 'en', 'uk'):
-            # Позиции: чинится только то, что не существует НИ В ОДНОМ слое.
+            # Positions: only fixes what doesn't exist in ANY layer.
             full_analysis, unresolved = fix_fabricated_positions_layered(
                 full_analysis, layers, language=language
             )
             if unresolved:
                 print(f"[transits_analysis] Unresolved position mismatches (left as-is): {unresolved}")
 
-            # Перепутанный слой — только лог, никогда не правится.
+            # Layer confused — log only, never fixed.
             position_issues = find_fabricated_positions_layered(full_analysis, layers, language=language)
             if position_issues.get('layer_confused'):
                 print(f"[transits_analysis] Layer-confused positions detected (not fixed): {position_issues['layer_confused']}")
 
-            # Только детекция — тип заявленного аспекта транзит→натал
-            # сверяется с реально посчитанным (aspects_to_natal).
+            # Detection only — the claimed transit→natal aspect type is
+            # checked against the actually calculated one (aspects_to_natal).
             fabricated_aspects = find_fabricated_aspect_types_layered(
                 full_analysis, aspects, language=language, layer_keys=('transit', 'natal')
             )
             if fabricated_aspects:
                 print(f"[transits_analysis] Fabricated aspect types detected (not fixed): {fabricated_aspects}")
 
-            # Только детекция, по прозе.
+            # Detection only, from prose.
             undercovered = find_undercovered_aspects_generic(full_analysis, aspects, language=language)
             if undercovered:
                 print(f"[transits_analysis] Undercovered aspects detected (not filled): {undercovered}")
@@ -1536,7 +1539,7 @@ async def transits_analysis(
         full_analysis = f"Ошибка анализа: {str(e)}"
         print(f"[transits_analysis] LLM error: {e}")
 
-    # --- Шаг 4: Краткое резюме ---
+    # --- Step 4: Short summary ---
     summary = await generate_summary(full_analysis, language)
 
     return {
@@ -1657,7 +1660,7 @@ async def progressed_synastry_analysis(
     prog2_to_natal1 = cross.get("prog2_to_natal1", [])
     dynamics = progressed_synastry.get("dynamics", {})
 
-    # --- Шаг 1: RAG-поиск (приоритет книги прогностики id=29) ---
+    # --- Step 1: RAG search (priority book id=29, predictive) ---
     async def search_aspect(asp: Dict, kind: str) -> tuple:
         p_a = asp.get("planet1", "")
         p_b = asp.get("planet2", "")
@@ -1675,7 +1678,7 @@ async def progressed_synastry_analysis(
         )
         return f"Progressed Moon ({person_label}): {phase}", chunks
 
-    # Поиск по самым точным аспектам каждого слоя (ограничиваем число RPC)
+    # Search the most exact aspects of each layer (limiting the number of RPCs)
     tasks = []
     for asp in layer1[:6]:
         tasks.append(search_aspect(asp, "L1"))
@@ -1691,7 +1694,7 @@ async def progressed_synastry_analysis(
     print(f"[progressed_synastry_analysis] Parallel RAG: {len(tasks)} queries")
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    # --- Шаг 2: Форматирование аспектов по слоям ---
+    # --- Step 2: Format aspects by layer ---
     def fmt(asp: Dict, cross_houses: bool = False) -> str:
         p_a = asp.get("planet1", "?")
         p_b = asp.get("planet2", "?")
@@ -1759,7 +1762,7 @@ async def progressed_synastry_analysis(
         block(L['l3fade'], dynamics.get("faded_aspects", [])),
     ])
 
-    # --- Шаг 3: Фрагменты книг ---
+    # --- Step 3: Book excerpts ---
     books_content = ""
     for result in results:
         if isinstance(result, Exception):
@@ -1772,11 +1775,11 @@ async def progressed_synastry_analysis(
                 book_title = chunk.get("book_title", "")
                 books_content += f"[{i}] ({book_title}):\n{text}\n"
 
-    # --- Шаг 4: Сборка промпта ---
+    # --- Step 4: Assemble the prompt ---
     template = get_template("progressed_synastry", language, mode)
     prompt = template.replace("{aspects_list}", aspects_list).replace("{books_content}", books_content)
 
-    # Данные партнёров
+    # Partner data
     _partner_headers = {
         'ru': "=== ДАННЫЕ ПАРТНЁРОВ ===",
         'uk': "=== ДАНІ ПАРТНЕРІВ ===",
@@ -1812,7 +1815,7 @@ async def progressed_synastry_analysis(
     _dyn_tmpl = _dyn_labels.get(language, _dyn_labels['en'])
     prompt += "\n\n" + _dyn_tmpl.format(n=dyn.get('natal_total', '?'), p=dyn.get('progressed_total', '?'))
 
-    # --- Шаг 5: LLM ---
+    # --- Step 5: LLM ---
     print(f"[progressed_synastry_analysis] Final prompt ~{len(prompt)//4} tokens")
     try:
         full_analysis = await adapter.generate(prompt, language)
@@ -1827,10 +1830,10 @@ async def progressed_synastry_analysis(
             if position_issues.get('fabricated'):
                 print(f"[progressed_synastry_analysis] Fabricated positions detected (not fixed): {position_issues['fabricated']}")
 
-            # Тип аспекта — только для СЛОЯ 2 (прогр.→натал.): промпт там реально
-            # пишет "прогрессивная"/"натальная" рядом с планетой. Для СЛОЯ 1
-            # (прогр.↔прогр., оба партнёра "прогрессивные") эта ось маркеров не
-            # различает партнёров — не проверяем, задокументированный пробел.
+            # Aspect type — LAYER 2 only (prog.→natal): the prompt there really
+            # does write "прогрессивная"/"натальная" next to the planet. For
+            # LAYER 1 (prog.↔prog., both partners "progressed") this marker
+            # axis doesn't distinguish the partners — not checked, a documented gap.
             cross_aspects = (prog1_to_natal2 or []) + (prog2_to_natal1 or [])
             fabricated_aspects = find_fabricated_aspect_types_layered(
                 full_analysis, cross_aspects, language=language, layer_keys=('progressed', 'natal')
@@ -1965,7 +1968,7 @@ async def analyze_progressed_synastry_aspect(
 
 
 # ============================================================
-# СТАРЫЙ КОД (v1) — оставлен для отката, не удалять
+# OLD CODE (v1) — kept for rollback, do not delete
 # ============================================================
 
 async def get_top_books(top_k: int = 5) -> List[Dict[str, Any]]:
@@ -1997,7 +2000,7 @@ async def get_top_books(top_k: int = 5) -> List[Dict[str, Any]]:
 async def full_chart_analysis(
     chart_data: Dict[str, Any],
     language: str = "ru",
-    top_books: int = 1  # ИСПРАВЛЕНО: уменьшено с 5 до 1 (5 полных книг не влезут в контекст LLM)
+    top_books: int = 1  # FIXED: reduced from 5 to 1 (5 full books won't fit in the LLM's context)
 ) -> Dict[str, Any]:
     """
     Полный анализ натальной карты - ОДИН промпт, ОДИН вызов LLM
@@ -2016,10 +2019,10 @@ async def full_chart_analysis(
             "chart_summary": {}
         }
     
-    # ВНИМАНИЕ: читаем ВЕСЬ текст книг (без обрезки).
-    # Убедитесь, что top_books=1 и размер книги не превышает ~300к символов,
-    # иначе LLM вернёт ошибку превышения контекста.
-    # Для анализа нескольких книг используйте RAG endpoints (/analysis/planet, /analysis/query).
+    # NOTE: reads the ENTIRE text of the books (no truncation).
+    # Make sure top_books=1 and the book size doesn't exceed ~300k characters,
+    # otherwise the LLM will return a context-overflow error.
+    # For analyzing multiple books, use the RAG endpoints (/analysis/planet, /analysis/query).
     
     aspects = chart_data.get('aspects', [])
     aspects_list = []
@@ -2041,12 +2044,12 @@ async def full_chart_analysis(
             other_books.append(book)
     
     if nodes_book:
-         # Ограничиваем размер контента чтобы не превысить лимит токенов LLM
+         # Limit the content size so as not to exceed the LLM's token limit
          content = nodes_book.get('content', '')[:400000]
          books_content += f"\n\n--- КНИГА ОБ УЗЛАХ И ПЛУТОНЕ ---\n{content}"
-    
+
     for i, book in enumerate(other_books, 1):
-        # ИСПРАВЛЕНО: убрали обрезку [:10000], читаем всю книгу
+        # FIXED: removed the [:10000] truncation, read the whole book
         #   content = book.get('content', '')[:10000]
         # books_content += f"\n\n--- Другие книги ---\n{content}"
         content = book.get('content', '')
@@ -2102,7 +2105,7 @@ async def full_chart_analysis(
     
 
 
-# ТУТ КОНЕЦ full_chart_analysis ↑
+# END OF full_chart_analysis ↑
 
 async def chat_with_astrologer(
     question: str,
@@ -2158,7 +2161,7 @@ async def chat_with_astrologer(
 
     books_context = f"{question_context}\n=== ФРАГМЕНТЫ ПО ПЛАНЕТАМ ===\n{planet_context}"
     
-    # Если ни одного фрагмента не нашлось — добавляем явное примечание
+    # If no fragments were found at all — add an explicit note
     if not question_context.strip() and not planet_context.strip():
         books_context = "В библиотеке не найдено релевантных фрагментов по этому вопросу. Используйте общие принципы эволюционной астрологии и данные натальной карты."
     
@@ -2226,7 +2229,7 @@ async def chat_with_astrologer_optimized(
     adapter = get_llm_adapter()
     labels = get_labels(language)
 
-    # 1. Краткая сводка карты (только ключевые позиции)
+    # 1. Short chart summary (key positions only)
     chart_summary = f"""{labels.get('natal_chart_label', 'НАТАЛЬНАЯ КАРТА')}
 Солнце: {chart_data.get('sun_sign_ru', chart_data.get('sun_sign', '?'))}
 Луна: {chart_data.get('moon_sign_ru', chart_data.get('moon_sign', '?'))}
@@ -2242,10 +2245,10 @@ async def chat_with_astrologer_optimized(
             retro = " (Rx)" if planet_data.get("is_retrograde") else ""
             chart_summary += f"\n  {planet_name}: {sign_ru} дом {house}{retro}"
 
-    # 2. Поиск релевантных чанков по вопросу
+    # 2. Search for chunks relevant to the question
     chunks = await search_chunks_by_query(question, top_k=top_k, chart_data=chart_data)
 
-    # 3. Сборка промпта
+    # 3. Assemble the prompt
     prompt_parts = []
     system_prompt = get_template('analysis', language)
     prompt_parts.append(system_prompt)
@@ -2274,7 +2277,7 @@ async def chat_with_astrologer_optimized(
 
     prompt = "".join(prompt_parts)
 
-    # 4. Генерация ответа
+    # 4. Generate the answer
     answer = await adapter.generate(prompt, language)
 
     return {

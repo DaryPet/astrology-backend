@@ -22,12 +22,12 @@ from typing import Any, Dict, List, Optional
 from app.services.prompt_templates.languages import normalize_language
 
 # ============================================================
-# Русский
+# Russian
 # ============================================================
 
-# Предложный падеж знаков зодиака ("Луна В РАКЕ") -> именительный ("Рак"),
-# как он хранится в chart_data (sign_ru). Позиции планет детерминированы —
-# сверяем текст LLM с этим словарём вместо доверия модели на слово.
+# Prepositional case of zodiac signs ("Луна В РАКЕ") -> nominative ("Рак"),
+# how it's stored in chart_data (sign_ru). Planet positions are deterministic —
+# we check the LLM's text against this dict instead of trusting the model's word.
 SIGN_PREPOSITIONAL_TO_NOMINATIVE = {
     'Овне': 'Овен', 'Тельце': 'Телец', 'Близнецах': 'Близнецы',
     'Раке': 'Рак', 'Льве': 'Лев', 'Деве': 'Дева',
@@ -37,9 +37,9 @@ SIGN_PREPOSITIONAL_TO_NOMINATIVE = {
 
 SIGN_NOMINATIVE_TO_PREPOSITIONAL = {v: k for k, v in SIGN_PREPOSITIONAL_TO_NOMINATIVE.items()}
 
-# Стемы русских названий планет — не точная форма, а начало слова, потому что
-# в тексте планета склоняется по падежу ("Хирона", "Северным Узлом"), а не
-# стоит в именительном. \w* добирает окончание.
+# Stems of Russian planet names — not the exact form, but the start of the
+# word, because in the text the planet is declined by case ("Хирона",
+# "Северным Узлом"), not in the nominative. \w* picks up the ending.
 PLANET_STEM_RU = {
     'Sun': r'Со?лнц\w*', 'Moon': r'Лун\w*', 'Mercury': r'Меркури\w*',
     'Venus': r'Венер\w*', 'Mars': r'Марс\w*', 'Jupiter': r'Юпитер\w*',
@@ -49,8 +49,8 @@ PLANET_STEM_RU = {
     'Lilith': r'Лилит\w*', 'Ascendant': r'Асцендент\w*', 'Vertex': r'Вертекс\w*',
 }
 
-# Стемы аспектов — та же причина: "в оппозиции", "Соединение", "секстиле" —
-# разные падежи одного из пяти слов. Ключ — как 'aspect' в данных из
+# Aspect stems — same reason: "в оппозиции", "Соединение", "секстиле" — are
+# different cases of one of five words. Key matches 'aspect' in the data from
 # calculate_synastry (astrology_v2.py).
 ASPECT_STEM_RU = {
     'Conjunction': r'[Сс]оединени\w*', 'Opposition': r'[Оо]ппозици\w*',
@@ -62,17 +62,17 @@ ASPECT_STEM_RU = {
 # English
 # ============================================================
 
-# Английский не склоняет существительные — знак в любом месте предложения
-# пишется одинаково (в отличие от русского "в Раке"), отдельная таблица форм
-# не нужна: слово из chart_data.sign и слово в тексте совпадают буквально.
+# English doesn't decline nouns — a sign is written the same way anywhere in
+# a sentence (unlike Russian "в Раке"), no separate forms table is needed:
+# the word from chart_data.sign and the word in the text match literally.
 ZODIAC_SIGNS_EN = {
     "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
     "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
 }
 
-# Английские имена планет в тексте LLM совпадают с ключами chart_data.planets
-# буквально (Moon, Chiron, ...) — переводной словарь, как PLANET_RU, не нужен.
-# \b удерживает от случайных совпадений внутри других слов.
+# English planet names in the LLM's text match the chart_data.planets keys
+# literally (Moon, Chiron, ...) — a translation dict like PLANET_RU isn't needed.
+# \b prevents accidental matches inside other words.
 PLANET_STEM_EN = {
     'Sun': r'\bSun\b', 'Moon': r'\bMoon\b', 'Mercury': r'\bMercury\b',
     'Venus': r'\bVenus\b', 'Mars': r'\bMars\b', 'Jupiter': r'\bJupiter\b',
@@ -88,16 +88,16 @@ ASPECT_STEM_EN = {
 }
 
 # ============================================================
-# Українська
+# Ukrainian
 # ============================================================
-# Українська, як і російська, відмінює іменники за відмінком ("Хірона",
-# "в опозиції", "секстилі") — тому стеми з \w* і окрема таблиця форм знака
-# (місцевий відмінок -> називний), той самий підхід, що і в RU-блоці вище.
+# Ukrainian, like Russian, declines nouns by case ("Хірона",
+# "в опозиції", "секстилі") — hence stems with \w* and a separate sign-forms
+# table (locative -> nominative), the same approach as the RU block above.
 
-# Місцевий відмінок знаків зодіаку ("Місяць У РАКУ") -> називний ("Рак"),
-# як він зберігається в chart_data (sign_uk). Перевірено реальним виводом
-# LLM (DeepSeek, natal analysis, 2026-07): "Венера у Леві в 7-му домі" —
-# форма "у Леві" підтверджена на практиці, не лише теоретично виведена.
+# Locative case of zodiac signs ("Місяць У РАКУ") -> nominative ("Рак"),
+# how it's stored in chart_data (sign_uk). Verified against real LLM output
+# from an LLM (DeepSeek, natal analysis, 2026-07): "Венера у Леві в 7-му домі" —
+# the "у Леві" form is confirmed in practice, not just derived theoretically.
 SIGN_LOCATIVE_TO_NOMINATIVE_UK = {
     'Овні': 'Овен', 'Тельці': 'Телець', 'Близнюках': 'Близнюки',
     'Раку': 'Рак', 'Леві': 'Лев', 'Діві': 'Діва',
@@ -105,11 +105,11 @@ SIGN_LOCATIVE_TO_NOMINATIVE_UK = {
     'Козерозі': 'Козеріг', 'Водолії': 'Водолій', 'Рибах': 'Риби',
 }
 
-# Стеми українських назв планет — початок слова, бо в тексті планета
-# відмінюється ("Хірона", "Північним Вузлом"), а не стоїть у називному.
-# NorthNode/SouthNode: "вузол" має випадний голосний "о" в непрямих
-# відмінках (вузол -> вузла, вузлі) — той самий випадок, що й РОС. "узел",
-# структура патерну ідентична PLANET_STEM_RU.
+# Stems of Ukrainian planet names — the start of the word, because in the
+# text the planet is declined ("Хірона", "Північним Вузлом"), not nominative.
+# NorthNode/SouthNode: "вузол" has a dropped vowel "о" in the oblique
+# cases (вузол -> вузла, вузлі) — the same case as Russian "узел",
+# the pattern structure is identical to PLANET_STEM_RU.
 PLANET_STEM_UK = {
     'Sun': r'Сонц\w*', 'Moon': r'Місяц\w*', 'Mercury': r'Меркурі\w*',
     'Venus': r'Венер\w*', 'Mars': r'Марс\w*', 'Jupiter': r'Юпітер\w*',
@@ -119,7 +119,7 @@ PLANET_STEM_UK = {
     'Lilith': r'Ліліт\w*', 'Ascendant': r'Асцендент\w*', 'Vertex': r'Вертекс\w*',
 }
 
-# Стеми аспектів — та сама причина: "в опозиції", "З'єднання", "секстилі".
+# Aspect stems — the same reason: "в опозиції", "З'єднання", "секстилі".
 ASPECT_STEM_UK = {
     'Conjunction': r"[Зз]'?єднан\w*", 'Opposition': r'[Оо]позиці\w*',
     'Trine': r'[Тт]ригон\w*', 'Square': r'[Кк]вадрат\w*',
@@ -127,28 +127,28 @@ ASPECT_STEM_UK = {
 }
 
 # ============================================================
-# Языко-нейтральное
+# Language-neutral
 # ============================================================
 
-# Жирный markdown-заголовок — общий паттерн, не специфичный ни для языка, ни
-# для аспектов синастрии; модель им же оформляет разделы в натале/транзитах.
+# Bold markdown heading — a generic pattern, not specific to either the
+# language or synastry aspects; the model uses it to format sections in the natal/transits output too.
 _ASPECT_HEADER_RE = re.compile(r"\*\*([^*\n]{1,240})\*\*")
 
 
 # ============================================================
-# Отображаемые имена планет (RU/EN) — общие для всех методов
+# Planet display names (RU/EN) — shared across all methods
 # ============================================================
-# ДУБЛИРУЮТ одноимённые словари в synastry_service.py — не перенос:
-# synastry_service.py остаётся полностью нетронутым (он рабочий, в проде, и
-# его код здесь сознательно не трогается). Причина дублирования, а не общего
-# импорта — цикл: synastry_service.py сам импортирует analysis_service.py
-# (search_chunks_all_books, generate_summary), поэтому analysis_service.py не
-# может импортировать эти константы из synastry_service.py напрямую, а без
-# такого импорта их проще продублировать здесь для прогрессий, чем
-# рефакторить синастрию. Если оба места разъедутся терминологией планет —
-# это осознанный компромисс этого ТЗ, план:
-# app/services/specs/progressions_synastry_pattern_plan.md. Сведение к одному
-# источнику — отдельная задача на будущее, не в этом ТЗ.
+# DUPLICATES the same-named dicts in synastry_service.py — not a move:
+# synastry_service.py stays fully untouched (it's working, in prod, and its
+# code here is deliberately not touched). The reason for duplication instead
+# of a shared import is a cycle: synastry_service.py itself imports
+# analysis_service.py (search_chunks_all_books, generate_summary), so
+# analysis_service.py can't import these constants from synastry_service.py
+# directly, and without that import it's simpler to duplicate them here for
+# progressions than to refactor synastry. If the two places drift apart in
+# planet terminology — that's a deliberate tradeoff of this TЗ, plan:
+# app/services/specs/progressions_synastry_pattern_plan.md. Consolidating to
+# one source is a separate future task, not part of this TЗ.
 
 PLANET_RU = {
     'Sun': 'Солнце', 'Moon': 'Луна', 'Mercury': 'Меркурий',
@@ -159,9 +159,9 @@ PLANET_RU = {
     'Lilith': 'Лилит', 'Ascendant': 'Асцендент', 'Vertex': 'Вертекс',
 }
 
-# Английские имена планет в тексте LLM совпадают с этими значениями буквально
-# (Sun, Moon, ..., "North Node") — в отличие от PLANET_RU это не перевод,
-# а просто нормализованное отображаемое имя (NorthNode -> "North Node").
+# English planet names in the LLM's text match these values literally
+# (Sun, Moon, ..., "North Node") — unlike PLANET_RU this isn't a translation,
+# just a normalized display name (NorthNode -> "North Node").
 PLANET_EN = {
     'Sun': 'Sun', 'Moon': 'Moon', 'Mercury': 'Mercury',
     'Venus': 'Venus', 'Mars': 'Mars', 'Jupiter': 'Jupiter',
@@ -182,15 +182,15 @@ PLANET_UK = {
 
 
 # ============================================================
-# Покрытие аспектов текстом (не по markdown, по прозе) — общее
+# Aspect coverage by text (not by markdown, by prose) — shared
 # ============================================================
-# Тоже дублирует synastry_service.py, по той же причине (см. выше) — не
-# перенос, synastry_service.py не меняется.
+# Also duplicates synastry_service.py, for the same reason (see above) — not
+# a move, synastry_service.py doesn't change.
 
-# Фразы-отсылки вместо реального разбора ("разобрано выше" и т.п.) — сигнал,
-# что аспект формально упомянут, но не получил своих 200-300 слов (найдено
-# на живых прогонах 2026-07-23, см. plans/ — модель ссылается на другой
-# раздел вместо повторного разбора).
+# Reference phrases instead of a real breakdown ("covered above" etc.) — a
+# signal that the aspect is formally mentioned but didn't get its own 200-300
+# words (found in live runs on 2026-07-23, see plans/ — the model refers to
+# another section instead of covering it again).
 _COP_OUT_PHRASES_RU = [
     "разобран", "уже обсужда", "уже опис", "уже сказ", "уже говорили",
     "смотри выше", "см. выше", "как уже", "как мы уже",
@@ -207,16 +207,16 @@ _COP_OUT_PHRASES_UK = [
 SHALLOW_ASPECT_CHAR_THRESHOLD = 220
 
 # ============================================================
-# Диспетчер по языку — единая точка выбора таблицы вместо разбросанных
-# `X if is_ru else Y` по всему файлу. `lang` уже нормализован через
-# normalize_language() перед использованием этих словарей.
+# Language dispatcher — a single point for picking the table instead of
+# scattered `X if is_ru else Y` throughout the file. `lang` is already
+# normalized via normalize_language() before these dicts are used.
 # ============================================================
 PLANET_STEM_BY_LANG = {'ru': PLANET_STEM_RU, 'uk': PLANET_STEM_UK, 'en': PLANET_STEM_EN}
 ASPECT_STEM_BY_LANG = {'ru': ASPECT_STEM_RU, 'uk': ASPECT_STEM_UK, 'en': ASPECT_STEM_EN}
 PLANET_DISPLAY_BY_LANG = {'ru': PLANET_RU, 'uk': PLANET_UK, 'en': PLANET_EN}
 COP_OUT_PHRASES_BY_LANG = {'ru': _COP_OUT_PHRASES_RU, 'uk': _COP_OUT_PHRASES_UK, 'en': _COP_OUT_PHRASES_EN}
-# 'в тексте'/'на деле'/'заголовок' и т.п. — подписи внутри диагностических
-# сообщений о несовпадении (не матчатся регэкспами, просто текст лога).
+# 'в тексте'/'на деле'/'заголовок' etc. — labels inside diagnostic mismatch
+# messages (not matched by regex, just log text).
 _MSG_LABELS_BY_LANG = {
     'ru': {'in_text': 'в тексте', 'actually': 'на деле', 'header': 'заголовок'},
     'uk': {'in_text': 'у тексті', 'actually': 'насправді', 'header': 'заголовок'},
@@ -250,22 +250,23 @@ def _find_aspect_coverage(text: str, planet1_en: str, planet2_en: str, language:
 
 
 # ============================================================
-# Слои одной карты (прогрессивная/натальная, транзитная/натальная...)
+# Layers of one chart (progressed/natal, transit/natal...)
 # ============================================================
-# Обобщение синастрийного паттерна "Партнёр 1/2" (synastry_service.py) на
-# методы с ОДНОЙ картой, но несколькими её "версиями" одной и той же планеты
-# — прогрессивная позиция vs натальная, позже транзитная vs натальная.
-# Ключевое отличие от синастрии: там маркер "Партнёра N" стоит ПОСЛЕ планеты
-# ("Луна Партнёра 1"), а здесь слой-слово стоит ПЕРЕД планетой ("прогрессивная
-# Луна", "progressed Moon", "natal Sun") в обоих языках — поэтому функции
-# ниже не копии синастрийных, а параметризованы направлением поиска маркера
-# (marker_side). План: app/services/specs/progressions_synastry_pattern_plan.md.
+# Generalizes the synastry "Partner 1/2" pattern (synastry_service.py) to
+# methods with a SINGLE chart but several "versions" of the same planet —
+# progressed position vs natal, later transit vs natal.
+# Key difference from synastry: there the "Partner N" marker sits AFTER the
+# planet ("Луна Партнёра 1"), while here the layer word sits BEFORE the
+# planet ("прогрессивная Луна", "progressed Moon", "natal Sun") in both
+# languages — so the functions below aren't copies of the synastry ones, but
+# are parameterized by the marker search direction (marker_side). Plan:
+# app/services/specs/progressions_synastry_pattern_plan.md.
 
 LAYER_MARKER_PATTERNS = {
     'ru': {
         'progressed': r'[Пп]рогрессивн\w*',
         'natal': r'[Нн]атальн\w*',
-        # заготовка на будущее (транзиты) — этим ТЗ нигде не подключается
+        # placeholder for the future (transits) — not wired up anywhere by this TЗ
         'transit': r'[Тт]ранзитн\w*',
     },
     'en': {
@@ -320,7 +321,7 @@ def attribute_header_planets_to_layers(
         for m in re.finditer(stem_pattern, header):
             planet_hits.append((m.start(), planet_en))
     if len(planet_hits) != 2:
-        return None  # ожидаем ровно две планеты в заголовке — иначе неоднозначно
+        return None  # we expect exactly two planets in the heading — otherwise it's ambiguous
     planet_hits.sort(key=lambda x: x[0])
 
     assigned: Dict[str, str] = {}
@@ -469,11 +470,11 @@ def find_fabricated_positions_layered(
         preceding = text[window_start:m.start()]
         claimed_layer = _nearest_preceding_layer(preceding, language, layer_keys)
         if claimed_layer is None:
-            continue  # не можем атрибутировать — не флагуем, чтобы не давать ложных срабатываний
+            continue  # can't attribute it — don't flag it, to avoid false positives
 
         claimed_sign = per_layer_pairs.get(claimed_layer, {}).get(planet_name)
         if claimed_sign == sign_nom:
-            continue  # верно для заявленного слоя
+            continue  # correct for the claimed layer
 
         layer_confused.append(
             f"{planet_name} {joiner} {sign_form} (заявлено как «{claimed_layer}», "
@@ -532,7 +533,7 @@ def fix_fabricated_positions_layered(
         planet_name, sign_form = m.group(1), m.group(2)
         sign_nom = sign_forms[sign_form] if lang in ('ru', 'uk') else sign_form
         if (planet_name, sign_nom) in all_pairs:
-            continue  # совпадает хоть с одним слоем — не трогаем
+            continue  # matches at least one layer — leave it alone
 
         window_start = max(0, m.start() - marker_window)
         preceding = text[window_start:m.start()]
@@ -590,12 +591,12 @@ def find_fabricated_aspect_types_layered(
             for m in re.finditer(stem_pattern, header):
                 aspect_hits.append((m.start(), aspect_en))
         if len(aspect_hits) != 1:
-            continue  # ноль или несколько слов аспекта в одном заголовке — пропускаем
+            continue  # zero or several aspect words in one heading — skip
 
         pair = (assigned[layer1], assigned[layer2])
         true_aspect = truth.get(pair)
         if true_aspect is None:
-            continue  # такой пары нет в расчёте вообще — не наш случай
+            continue  # this pair isn't in the calculation at all — not our case
 
         stated_aspect = aspect_hits[0][1]
         if stated_aspect != true_aspect:
@@ -661,13 +662,13 @@ def find_undercovered_aspects_generic(
 
 
 # ============================================================
-# Одна карта без сторон (натальная синтез-карта) — общее
+# A single chart with no sides (natal synthesis chart) — shared
 # ============================================================
-# В отличие от find_fabricated_aspect_types (synastry_service.py) и
-# find_fabricated_aspect_types_layered (выше) — здесь нет атрибуции по
-# партнёру/слою вообще, потому что карта одна: две планеты в жирном
-# markdown-заголовке однозначны сами по себе, без маркера "чья". План:
-# app/services/specs/natal_synastry_pattern_plan.md.
+# Unlike find_fabricated_aspect_types (synastry_service.py) and
+# find_fabricated_aspect_types_layered (above) — there's no partner/layer
+# attribution at all here, because there's only one chart: two planets in a
+# bold markdown heading are unambiguous on their own, with no "whose" marker
+# needed. Plan: app/services/specs/natal_synastry_pattern_plan.md.
 
 def find_fabricated_aspect_types_single(
     text: str,
@@ -711,19 +712,19 @@ def find_fabricated_aspect_types_single(
             for m in re.finditer(stem_pattern, header):
                 planet_hits.append(planet_en)
         if len(planet_hits) != 2 or planet_hits[0] == planet_hits[1]:
-            continue  # не ровно две РАЗНЫЕ планеты — не наш случай
+            continue  # not exactly two DIFFERENT planets — not our case
 
         aspect_hits = []
         for aspect_en, stem_pattern in aspect_stems.items():
             for m in re.finditer(stem_pattern, header):
                 aspect_hits.append(aspect_en)
         if len(aspect_hits) != 1:
-            continue  # тип не назван явно, либо назван неоднозначно
+            continue  # the type isn't named explicitly, or is named ambiguously
 
         pair = frozenset(planet_hits)
         true_aspect = truth.get(pair)
         if true_aspect is None:
-            continue  # такой пары нет в расчёте вообще — не наш случай
+            continue  # this pair isn't in the calculation at all — not our case
 
         stated_aspect = aspect_hits[0]
         if stated_aspect != true_aspect:
@@ -749,17 +750,18 @@ def find_fabricated_aspect_types_single(
 
 
 # ============================================================
-# Проверка ДОМА (натал, одна карта) — общее
+# HOUSE check (natal, single chart) — shared
 # ============================================================
-# Отдельно от знака: у дома нет фиксированного числа словоформ, как у 12
-# знаков ("в Овне", "во Льве" — конечный список), поэтому дом ищется не
-# regex-парой "<Планета> в <Дом>" целиком, а по слову "дом"/"house" в том же
-# предложении, что и планета — то же ограничение текущим предложением, что и
-# у _nearest_preceding_layer (без него число дома из одного предложения
-# ложно приписалось бы планете из соседнего). Только детекция — правка риск-
-# ованнее, чем у знака: замена номера дома в живой прозе может разъехаться с
-# согласованием в остальной части того же предложения ("в 7-м доме" vs
-# "седьмой дом" в одном месте). План: app/services/specs/natal_synastry_pattern_plan.md.
+# Different from sign checking: a house doesn't have a fixed number of word
+# forms like the 12 signs do ("в Овне", "во Льве" — a finite list), so a house
+# isn't found via a full "<Planet> in <House>" regex pair, but by the word
+# "дом"/"house" being in the same sentence as the planet — the same
+# current-sentence constraint as _nearest_preceding_layer (without it a house
+# number from one sentence would get falsely attributed to a planet in the
+# next one). Detection only — fixing is riskier than for signs: replacing a
+# house number in live prose could get out of sync with agreement elsewhere
+# in the same sentence ("в 7-м доме" vs "седьмой дом" in one place). Plan:
+# app/services/specs/natal_synastry_pattern_plan.md.
 
 _HOUSE_WORD_RU = r'(?:дом|доме|дома|домов|домах)\b'
 _HOUSE_NUMBER_RU = re.compile(
@@ -771,11 +773,11 @@ _HOUSE_NUMBER_EN = re.compile(
     re.IGNORECASE,
 )
 
-# Украинский: LLM реально использует ОБА слова для "дома" — "будинок" (слово
-# из наших prompt_labels.py) И "дім" (более разговорное — подтверждено живым
-# выводом DeepSeek, natal analysis 2026-07: "Венера у Леві в 7-му домі"
-# использует форму "домі", родовое слово "дім", не "будинку"). Обе формы
-# должны матчиться, иначе реальный текст модели пройдёт мимо регэкспа.
+# Ukrainian: the LLM actually uses BOTH words for "house" — "будинок" (the word
+# from our prompt_labels.py) AND "дім" (more colloquial — confirmed by real
+# DeepSeek output, natal analysis 2026-07: "Венера у Леві в 7-му домі"
+# uses the form "домі", root word "дім", not "будинку"). Both forms
+# must match, or real model text would slip past the regex.
 _HOUSE_WORD_UK = r'(?:будинок|будинку|будинки|будинків|будинках|дім|дому|дома|домі|доми|домів|домах)\b'
 _HOUSE_NUMBER_UK = re.compile(
     rf'(?:(\d{{1,2}})[-–]?\s*(?:й|му|го|ому|ім|м)?\s*{_HOUSE_WORD_UK}|{_HOUSE_WORD_UK}\s*(\d{{1,2}}))',
@@ -785,12 +787,12 @@ _HOUSE_NUMBER_UK = re.compile(
 _BOLD_HEADER_RE = re.compile(r'\*\*[^*\n]{1,240}\*\*')
 _SENTENCE_OR_HEADER_BOUNDARY_RE = re.compile(r'\*\*[^*\n]{1,240}\*\*|[.!?]\s+')
 
-# Присоединительный союз после запятой почти всегда значит новое подлежащее
-# ("Марс ... в 6-м доме, И квадрат с Солнцем ..." — дом относится к Марсу,
-# а не к Солнцу, хотя оба в одном "предложении" по точкам). EN: то же для
-# and/but. UK: "і"/"й"/"а"/"але". Без этого разбиения дом ложно приписывался
-# бы любой другой планете, упомянутой в том же предложении, что и настоящий
-# владелец дома.
+# A connecting conjunction after a comma almost always signals a new subject
+# ("Марс ... в 6-м доме, И квадрат с Солнцем ..." — the house belongs to Mars,
+# not the Sun, even though both are in one "sentence" by punctuation). EN: same
+# for and/but. UK: "і"/"й"/"а"/"але". Without this split, the house would be
+# falsely attributed to any other planet mentioned in the same sentence as the
+# actual house owner.
 _CLAUSE_BREAK_RU = re.compile(r',\s*(?:и|а|но)\s+')
 _CLAUSE_BREAK_EN = re.compile(r',\s*(?:and|but)\s+')
 _CLAUSE_BREAK_UK = re.compile(r',\s*(?:і|й|а|але)\s+')
@@ -890,7 +892,7 @@ def find_fabricated_houses_single(
                     if g:
                         numbers.add(int(g))
             if len(numbers) != 1:
-                continue  # 0 или неоднозначно (несколько разных номеров) — пропускаем
+                continue  # 0 or ambiguous (several different numbers) — skip
 
             claimed_house = next(iter(numbers))
             if not (1 <= claimed_house <= 12):

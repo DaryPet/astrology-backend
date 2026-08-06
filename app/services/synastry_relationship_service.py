@@ -56,7 +56,7 @@ def parse_relationship_response(response: str) -> Dict[str, Any]:
         "analysis": response
     }
     
-    # Ищем проценты для русского языка
+    # Look for percentages in Russian
     patterns_ru = {
         "romantic_partners": r"Вторые половинки:\s*(\d+)%\s*-\s*([^\n]+)",
         "friends": r"Друзья:\s*(\d+)%\s*-\s*([^\n]+)",
@@ -121,11 +121,11 @@ async def stream_relationship_types(
     adapter = get_llm_adapter()
     prompt = build_relationship_types_prompt(full_analysis, language)
     
-    # Проверяем, поддерживает ли адаптер стриминг
+    # Check whether the adapter supports streaming
     if hasattr(adapter, 'generate_stream'):
         async for chunk in adapter.generate_stream(prompt, language):
             yield chunk
     else:
-        # Fallback: обычный генерат, имитируем стрим
+        # Fallback: regular generate, simulate streaming
         response = await adapter.generate(prompt, language)
         yield response
