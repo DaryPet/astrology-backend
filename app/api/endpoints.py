@@ -1112,7 +1112,9 @@ async def full_chart_analysis_endpoint(request: FullAnalysisRequest):
     """
     from app.services.analysis_service import full_chart_analysis_v2 as do_full_analysis
     from datetime import datetime
-    
+
+    _t_req = time.perf_counter()
+
     # === CACHE CHECK ===
     # cache_key = f"{request.birth_date}|{request.birth_place}"
     cache_key = f"{request.birth_date}|{request.birth_place}|{request.mode}|{request.language}"
@@ -1199,8 +1201,19 @@ async def full_chart_analysis_endpoint(request: FullAnalysisRequest):
     
     if not chart_data:
         raise HTTPException(status_code=400, detail="Either chart_data or birth_date must be provided")
-    
+
+    # Geocoding + Swiss Ephemeris, i.e. everything before the analysis starts.
+    _t_chart = time.perf_counter()
+
     result = await do_full_analysis(chart_data=chart_data, language=request.language,  mode=request.mode)
+
+    _t_done = time.perf_counter()
+    print(
+        "[timing] /analysis/full"
+        f" prepare={_t_chart - _t_req:.1f}s"
+        f" analysis={_t_done - _t_chart:.1f}s"
+        f" total={_t_done - _t_req:.1f}s"
+    )
 
     # === SAVE TO CACHE ===
     # Clear old entries if the cache is full
@@ -1213,9 +1226,6 @@ async def full_chart_analysis_endpoint(request: FullAnalysisRequest):
     
     return {
         'analysis': result['analysis'],
-        'summary': result.get('summary', ''),
-        'book_analyses': result['book_analyses'],
-        'chart_summary': result['chart_summary'],
         'language': result['language'],
         'created_at': datetime.utcnow().isoformat()
     }
