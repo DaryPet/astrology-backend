@@ -611,9 +611,16 @@ async def full_chart_analysis_v2(
     - Каждая планета/аспект получает релевантные фрагменты
     """
     import asyncio
+    import time as _time
     from app.services.llm_adapter import get_llm_adapter
     from app.services.prompt_labels import get_labels
     from app.services.prompt_templates import get_template
+
+    # Per-phase timing. Added because the log only ever showed "Sending final
+    # prompt": everything happening BEFORE the LLM call was unmeasurable, so the
+    # gap between the 71s prompt-to-response and the ~5 minutes users observe
+    # had nothing to be attributed to.
+    _t_start = _time.perf_counter()
 
     adapter = get_llm_adapter()
     labels = get_labels(language)
@@ -635,6 +642,7 @@ async def full_chart_analysis_v2(
 
     # Book titles — one request for the whole analysis, not per RAG sub-request.
     book_titles = await _fetch_book_titles(NATAL_BOOK_IDS)
+    _t_titles = _time.perf_counter()
 
     # --- Step 1: Parallel RAG search for each planet ---
     async def search_planet(planet_name: str, planet_data: Dict) -> tuple:
@@ -675,6 +683,7 @@ async def full_chart_analysis_v2(
 
     planet_results = await asyncio.gather(*planet_tasks, return_exceptions=True)
     aspect_results = await asyncio.gather(*aspect_tasks, return_exceptions=True)
+    _t_rag = _time.perf_counter()
 
     # --- Step 3: Assemble the structured prompt ---
     prompt_parts = []
@@ -782,8 +791,11 @@ async def full_chart_analysis_v2(
     }
     layers = {'natal': natal_chart_like}
 
+    _t_prompt = _time.perf_counter()
+
     try:
         full_analysis = await adapter.generate(prompt, language)
+        _t_llm = _time.perf_counter()
 
         if language in ('ru', 'en', 'uk'):
             # Positions: only fixes what doesn't exist in the chart at all.
@@ -817,22 +829,22 @@ async def full_chart_analysis_v2(
         full_analysis = f"Ошибка анализа: {str(e)}"
         print(f"[full_chart_analysis_v2] LLM error: {e}")
 
-    # --- Step 5: Generate the short summary ---
-    summary = await generate_summary(full_analysis, language)
+    # _t_llm is unset if generate() raised, so fall back to the prompt mark:
+    # that attributes the elapsed time to the LLM phase rather than to verify.
+    _t_llm = locals().get('_t_llm', _t_prompt)
+    _t_end = _time.perf_counter()
+    print(
+        "[timing] full_chart_analysis_v2"
+        f" titles={_t_titles - _t_start:.1f}s"
+        f" rag={_t_rag - _t_titles:.1f}s"
+        f" build={_t_prompt - _t_rag:.1f}s"
+        f" llm={_t_llm - _t_prompt:.1f}s"
+        f" verify={_t_end - _t_llm:.1f}s"
+        f" total={_t_end - _t_start:.1f}s"
+    )
 
     return {
         "analysis": full_analysis,
-        "summary": summary,
-        "book_analyses": [],
-        "chart_summary": {
-            "sun_sign": chart_data.get("sun_sign", "?"),
-            "sun_sign_ru": chart_data.get("sun_sign_ru", "?"),
-            "moon_sign": chart_data.get("moon_sign", "?"),
-            "moon_sign_ru": chart_data.get("moon_sign_ru", "?"),
-            "ascendant": chart_data.get("ascendant", "?"),
-            "ascendant_ru": chart_data.get("ascendant_ru", "?"),
-            "planets_count": len(planets),
-        },
         "language": language,
         "version": "v2_hybrid_rag"
     }
@@ -1171,15 +1183,11 @@ async def progressions_analysis(
         full_analysis = f"Ошибка анализа: {str(e)}"
         print(f"[progressions_analysis] LLM error: {e}")
 
-    # --- Step 4: Short summary ---
-    summary = await generate_summary(full_analysis, language)
-
     prog_moon = prog_planets.get("Moon", {})
     prog_sun = prog_planets.get("Sun", {})
 
     return {
         "analysis": full_analysis,
-        "summary": summary,
         "progressions_summary": {
             "period": period,
             "age_years": age,
@@ -1539,12 +1547,8 @@ async def transits_analysis(
         full_analysis = f"Ошибка анализа: {str(e)}"
         print(f"[transits_analysis] LLM error: {e}")
 
-    # --- Step 4: Short summary ---
-    summary = await generate_summary(full_analysis, language)
-
     return {
         "analysis": full_analysis,
-        "summary": summary,
         "transits_summary": {
             "period": period,
             "lunar_phase": lunar_phase.get("phase"),
@@ -1848,11 +1852,8 @@ async def progressed_synastry_analysis(
     except Exception as e:
         full_analysis = f"Ошибка анализа: {str(e)}"
 
-    summary = await generate_summary(full_analysis, language)
-
     return {
         "analysis": full_analysis,
-        "summary": summary,
         "progressed_synastry_summary": {
             "period": progressed_synastry.get("period"),
             "person1_name": p1.get("name"),

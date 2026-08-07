@@ -61,9 +61,6 @@ class BookAnalysisResult(BaseModel):
 class FullAnalysisResponse(BaseModel):
     """Ответ с полным анализом натальной карты"""
     analysis: str
-    summary: Optional[str] = None
-    book_analyses: List[BookAnalysisResult]
-    chart_summary: Dict[str, Any]
     language: str
     created_at: datetime
 
@@ -128,7 +125,6 @@ class SynastryAnalysisResponse(BaseModel):
     aspects: List[Dict[str, Any]]
     overlays: Optional[Dict[str, Any]] = None
     analysis: str
-    summary: Optional[str] = None
     relevant_chunks: List[Dict[str, Any]] = []
     language: str
     created_at: datetime
@@ -245,7 +241,6 @@ class ProgressionsAnalysisRequest(BaseModel):
 class ProgressionsAnalysisResponse(BaseModel):
     """Ответ с анализом прогрессий"""
     analysis: str
-    summary: Optional[str] = None
     progressions_summary: Dict[str, Any]
     language: str
     created_at: datetime
@@ -311,7 +306,6 @@ class DailyForecastRequest(TransitsAnalysisRequest):
 
 class TransitsAnalysisResponse(BaseModel):
     analysis: str
-    summary: str
     transits_summary: Optional[Dict[str, Any]] = None
     transit_data: Optional[Dict[str, Any]] = None
 
@@ -346,7 +340,6 @@ class ProgressedSynastryAnalysisRequest(BaseModel):
 
 class ProgressedSynastryAnalysisResponse(BaseModel):
     analysis: str
-    summary: str
     progressed_synastry_summary: Optional[Dict[str, Any]] = None
     progressed_synastry_data: Optional[Dict[str, Any]] = None
 
