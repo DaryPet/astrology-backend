@@ -68,6 +68,24 @@ Without `--env-file .env` the container still starts and serves chart
 calculation, but anything touching Supabase or an LLM will fail — those read
 their keys from the environment.
 
+### Rebuild after a code change
+
+The image holds a snapshot of the code taken at build time, so edits only reach
+the container after a rebuild. Three steps, in this order:
+
+```bash
+docker stop $(docker ps -q)                    # stop whatever holds port 8080
+docker build -t astrology-backend .            # ~30 s, heavy layers come from cache
+docker run -p 8080:8080 -e PORT=8080 --env-file .env astrology-backend
+```
+
+Skipping the first step gives `Bind for :::8080 failed: port is already
+allocated` — a container from an earlier run is still holding the port, and
+`Ctrl+C` does not reach it if it was started with `-d`.
+
+Old images pile up: every rebuild leaves the previous 1.75 GB image dangling.
+`docker image prune -f` clears them.
+
 ### Inspect and stop
 
 ```bash
