@@ -74,7 +74,7 @@ def build_analysis_prompt(
     chunks: List[Dict[str, Any]],
     language: str = "en"
 ) -> str:
-    """Построить промпт для LLM"""
+    """Build the prompt for the LLM"""
     
     prompt_parts = []
     labels = get_labels(language)
@@ -135,7 +135,7 @@ async def analyze_astrology_query(
     llm_provider: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Основная функция для поиска и анализа астрологического запроса
+    Main function for searching and analyzing an astrological query
     """
     
     parsed_query = parse_astrology_query(query)
@@ -168,7 +168,7 @@ async def simple_analyze(
     book_context: str,
     language: str = "en"
 ) -> str:
-    """Простой анализ текста без поиска по БД"""
+    """Simple text analysis without DB search"""
     prompt = f"""Вы эксперт по астрологии. Проанализируйте следующий контекст и ответьте на вопрос пользователя.
 
 Контекст из книг:
@@ -193,7 +193,7 @@ def build_planet_analysis_prompt(
     is_retrograde: bool = False,
     mode: str = 'advanced'
 ) -> str:
-    """Построить промпт для анализа конкретной планеты"""
+    """Build the prompt for analyzing a specific planet"""
     
     prompt_parts = []
     labels = get_labels(language)
@@ -247,7 +247,7 @@ async def analyze_planet(
     mode: str = 'advanced'
 ) -> Dict[str, Any]:
     """
-    Анализ одной планеты
+    Analysis of a single planet
     """
     
     PLANET_TO_RU = {
@@ -406,10 +406,10 @@ TRANSITS_PROGRESSIONS_BOOK_IDS = [28, 29]
 
 async def _fetch_book_titles(book_ids: List[int]) -> Dict[int, str]:
     """
-    Названия книг по списку id — один запрос на весь анализ (натальный/
-    транзиты/прогрессии), а не на каждый RAG-подзапрос по планете/аспекту,
-    как было в search_chunks_all_books/search_chunks_priority_book (там
-    таблица books запрашивалась заново на каждый вызов).
+    Book titles by id list — one request for the whole analysis (natal/
+    transits/progressions), not one per RAG sub-request for each planet/aspect,
+    as was the case in search_chunks_all_books/search_chunks_priority_book
+    (there the books table was queried again on every call).
     """
     from supabase import create_client
     from app.core.config import settings
@@ -432,18 +432,26 @@ async def search_chunks_by_book_ids(
     top_k_per_book: int = 3,
 ) -> List[Dict[str, Any]]:
     """
-    RAG-поиск, ограниченный конкретным фиксированным списком книг — не всей
-    библиотекой (search_chunks_all_books) и не "одна приоритетная + весь
-    остальной каталог" (search_chunks_priority_book). Один параллельный
-    search_chunks_hybrid на каждую книгу из book_ids; названия книг переданы
-    готовыми через book_titles (см. _fetch_book_titles) — не запрашиваются
-    здесь заново на каждый подзапрос.
+    RAG search restricted to a specific fixed list of books — not the whole
+    library (search_chunks_all_books) and not "one priority book + the entire
+    rest of the catalog" (search_chunks_priority_book). One parallel
+    search_chunks_hybrid call per book in book_ids; book titles are passed in
+    already resolved via book_titles (see _fetch_book_titles) — not requeried
+    here on every sub-request.
     """
     import asyncio as _asyncio
-    from app.services.search_service import search_chunks_hybrid
+    from app.services.search_service import search_chunks_hybrid, generate_embedding
 
+    # Same query string goes to every book below — compute the embedding once
+    # instead of letting each search_chunks_hybrid recompute it independently.
+    query_embedding = generate_embedding(query)
     results = await _asyncio.gather(
-        *[search_chunks_hybrid(query, top_k=top_k_per_book, book_id=bid) for bid in book_ids],
+        *[
+            search_chunks_hybrid(
+                query, top_k=top_k_per_book, book_id=bid, query_embedding=query_embedding
+            )
+            for bid in book_ids
+        ],
         return_exceptions=True,
     )
     unique: List[Dict[str, Any]] = []
@@ -470,8 +478,9 @@ async def search_chunks_priority_book(
     top_k_others: int = 4,
 ) -> List[Dict[str, Any]]:
     """
-    RAG с приоритетной книгой: сначала чанки из профильной книги метода
-    (фильтр book_id), затем дополнение из остальных книг. Приоритетные — первыми.
+    RAG with a priority book: first the chunks from the method's dedicated
+    book (book_id filter), then supplemented from the remaining books.
+    Priority ones come first.
     """
     import asyncio as _asyncio
     from supabase import create_client
@@ -600,15 +609,15 @@ async def full_chart_analysis_v2(
     mode: str = 'advanced'
 ) -> Dict[str, Any]:
     """
-    [v2] Полный анализ натальной карты — ГИБРИДНЫЙ подход:
-    - Для каждой планеты/аспекта делаем точечный RAG-поиск по ВСЕМ книгам
-    - Собираем структурированный промпт
-    - Один финальный вызов LLM
+    [v2] Full natal chart analysis — HYBRID approach:
+    - For each planet/aspect, do a targeted RAG search across ALL books
+    - Assemble a structured prompt
+    - One final LLM call
 
-    Преимущества vs full_chart_analysis (v1):
-    - Все книги участвуют в анализе (не только топ-5)
-    - Нет проблемы с превышением контекста (418K токенов)
-    - Каждая планета/аспект получает релевантные фрагменты
+    Advantages vs full_chart_analysis (v1):
+    - All books participate in the analysis (not just the top 5)
+    - No context-overflow problem (418K tokens)
+    - Each planet/aspect gets relevant fragments
     """
     import asyncio
     import time as _time
@@ -862,10 +871,10 @@ async def progressions_analysis(
     mode: str = 'advanced'
 ) -> Dict[str, Any]:
     """
-    AI-анализ вторичных прогрессий — тот же гибридный подход, что и full_chart_analysis_v2:
-    - точечный RAG-поиск по тем же книгам (прогрессивные личные планеты + аспекты к наталу)
-    - сборка структурированного промпта (шаблон 'progressions', advanced/simple)
-    - один финальный вызов LLM + краткое summary
+    AI analysis of secondary progressions — the same hybrid approach as full_chart_analysis_v2:
+    - targeted RAG search across the same books (progressed personal planets + aspects to natal)
+    - assembling a structured prompt (the 'progressions' template, advanced/simple)
+    - one final LLM call + short summary
     """
     import asyncio
     from app.services.llm_adapter import get_llm_adapter
@@ -1218,13 +1227,13 @@ async def transits_analysis(
     transit_lon: Optional[float] = None,
 ) -> Dict[str, Any]:
     """
-    AI-анализ транзитов дня — гибридный подход как у прогрессий:
-    - точечный RAG-поиск (транзитные планеты в натальных домах + аспекты к наталу)
-    - сборка структурированного промпта (шаблон 'transits', advanced/simple)
-    - один финальный вызов LLM + краткое summary
+    AI analysis of the day's transits — the same hybrid approach as progressions:
+    - targeted RAG search (transiting planets in natal houses + aspects to natal)
+    - assembling a structured prompt (the 'transits' template, advanced/simple)
+    - one final LLM call + short summary
 
-    transit_place/lat/lon — место, где человек находится в момент транзита.
-    Это важно для интерпретации транзитных домов и лунной фазы.
+    transit_place/lat/lon — the place where the person is at the moment of the
+    transit. This matters for interpreting the transit houses and moon phase.
     """
     import asyncio
     from app.services.llm_adapter import get_llm_adapter
@@ -1568,23 +1577,23 @@ def _collect_progressed_synastry_layers(
     layer1: List[Dict[str, Any]], prog1_to_natal2: List[Dict[str, Any]], prog2_to_natal1: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
     """
-    Именованные слои (планета -> знак) для find_fabricated_positions_layered.
+    Named layers (planet -> sign) for find_fabricated_positions_layered.
 
-    ВАЖНО: 4 отдельных слоя (p1_progressed/p2_progressed/p1_natal/p2_natal),
-    НЕ один смёрженный словарь — у одной и той же планеты (например, Луны)
-    одновременно 4 РАЗНЫХ валидных знака (прогр.1 ≠ натал.1 ≠ прогр.2 ≠
-    натал.2), а find_fabricated_positions_layered объединяет валидные пары
-    через set() ПО СЛОЯМ (planet, sign) — объединение работает корректно
-    только между отдельными слоями, не внутри одного плоского словаря
-    "планета -> один знак" (там просто негде хранить 4 значения на ключ).
+    IMPORTANT: 4 separate layers (p1_progressed/p2_progressed/p1_natal/p2_natal),
+    NOT one merged dict — the same planet (e.g. the Moon) simultaneously has
+    4 DIFFERENT valid signs (progr.1 ≠ natal.1 ≠ progr.2 ≠ natal.2), and
+    find_fabricated_positions_layered merges valid pairs via set() PER LAYER
+    (planet, sign) — the merge only works correctly across separate layers,
+    not within one flat "planet -> single sign" dict (there's simply nowhere
+    to store 4 values per key).
 
-    progressed_synastry не хранит полные натальные карты партнёров —
-    natal_summary даёт только Sun/Moon/Ascendant (astrology_v2.py:1061-1068).
-    Остальные натальные планеты (Меркурий, Марс и т.д.) восстанавливаем из
-    sign1/sign2 самих аспектов cross_overlay — единственное место, где они
-    встречаются. planet1 в аспектах — всегда прогрессивная планета стороны
-    "a", planet2 в cross_overlay — всегда натальная планета принимающей
-    стороны (см. calculate_progressed_synastry, astrology_v2.py:1499-1509).
+    progressed_synastry doesn't store the partners' full natal charts —
+    natal_summary only gives Sun/Moon/Ascendant (astrology_v2.py:1061-1068).
+    The remaining natal planets (Mercury, Mars, etc.) are reconstructed from
+    the sign1/sign2 of the cross_overlay aspects themselves — the only place
+    they appear. planet1 in the aspects is always the progressed planet of
+    side "a", planet2 in cross_overlay is always the natal planet of the
+    receiving side (see calculate_progressed_synastry, astrology_v2.py:1499-1509).
     """
     from app.utils.astrology_v2 import ZODIAC_SIGNS, ZODIAC_SIGNS_RU, ZODIAC_SIGNS_UK
     en_to_ru = dict(zip(ZODIAC_SIGNS, ZODIAC_SIGNS_RU))
@@ -1635,11 +1644,11 @@ async def progressed_synastry_analysis(
     mode: str = 'advanced'
 ) -> Dict[str, Any]:
     """
-    AI-анализ прогрессивной синастрии — три слоя:
-      1) прогрессивная синастрия (прогр A ↔ прогр B)
-      2) наложение на натал (прогр A → натал B и наоборот)
-      3) динамика относительно натальной синастрии
-    Приоритетная книга — Brady "The Eagle and the Lark" (id=29, прогностика).
+    AI analysis of progressed synastry — three layers:
+      1) progressed synastry (progr A ↔ progr B)
+      2) overlay onto natal (progr A → natal B and vice versa)
+      3) dynamics relative to natal synastry
+    Priority book — Brady "The Eagle and the Lark" (id=29, forecasting).
     """
     import asyncio
     from app.services.llm_adapter import get_llm_adapter
@@ -1892,17 +1901,19 @@ async def analyze_progressed_synastry_aspect(
     mode: str = "advanced",
 ) -> Dict[str, Any]:
     """
-    Анализ ОДНОГО аспекта прогрессивной синастрии (клик на аспект во фронте).
-    Образец: analyze_synastry_aspect (synastry_service.py:534). См.
-    specs/progressed_synastry_aspect_click_plan.md.
+    Analysis of a SINGLE progressed-synastry aspect (click on an aspect in the
+    frontend). Modeled on: analyze_synastry_aspect (synastry_service.py:534).
+    See specs/progressed_synastry_aspect_click_plan.md.
 
-    layer — из какого из пяти блоков ответа /progressed-synastry взят аспект:
-    'progressed' (Слой 1, прогр↔прогр), 'prog1_to_natal2'/'prog2_to_natal1'
-    (Слой 2, кросс-наложение), 'new'/'faded' (Слой 3, динамика) — определяет
-    формулировку разбора через PROGRESSED_SYNASTRY_ASPECT_LAYER_CONTEXT.
+    layer — which of the five blocks in the /progressed-synastry response the
+    aspect was taken from: 'progressed' (Layer 1, progr↔progr),
+    'prog1_to_natal2'/'prog2_to_natal1' (Layer 2, cross-overlay),
+    'new'/'faded' (Layer 3, dynamics) — determines the wording of the
+    breakdown via PROGRESSED_SYNASTRY_ASPECT_LAYER_CONTEXT.
 
-    house1/house2 — дом, в который попадает planet1/planet2 в карте ДРУГОГО
-    партнёра (как planet1_house_in_2/planet2_house_in_1 в основном разборе).
+    house1/house2 — the house that planet1/planet2 falls into on the OTHER
+    partner's chart (like planet1_house_in_2/planet2_house_in_1 in the main
+    breakdown).
     """
     from app.services.llm_adapter import get_llm_adapter
     from app.services.prompt_templates import get_template
@@ -1979,7 +1990,7 @@ async def analyze_progressed_synastry_aspect(
 # ============================================================
 
 async def get_top_books(top_k: int = 5) -> List[Dict[str, Any]]:
-    """Получить топ-K книг из БД через Supabase (по дате создания)"""
+    """Get the top K books from the DB via Supabase (by creation date)"""
     from supabase import create_client
     from app.core.config import settings
     
@@ -2010,7 +2021,7 @@ async def full_chart_analysis(
     top_books: int = 1  # FIXED: reduced from 5 to 1 (5 full books won't fit in the LLM's context)
 ) -> Dict[str, Any]:
     """
-    Полный анализ натальной карты - ОДИН промпт, ОДИН вызов LLM
+    Full natal chart analysis - ONE prompt, ONE LLM call
     """
     from app.services.llm_adapter import get_llm_adapter
     
@@ -2122,7 +2133,7 @@ async def chat_with_astrologer(
     language: str = "ru"
 ) -> Dict[str, Any]:
     """
-    Чат с астрологом-агентом — ГИБРИДНЫЙ подход
+    Chat with the astrologer agent — HYBRID approach
     """
     import asyncio
 
@@ -2226,8 +2237,8 @@ async def chat_with_astrologer_optimized(
     top_k: int = 5
 ) -> Dict[str, Any]:
     """
-    Оптимизированный чат с астрологом — только вопрос и карта,
-    без full_analysis и chat_history. Быстрый RAG-ответ.
+    Optimized chat with the astrologer — just the question and the chart,
+    without full_analysis or chat_history. Fast RAG-based answer.
     """
     from app.services.llm_adapter import get_llm_adapter
     from app.services.prompt_labels import get_labels

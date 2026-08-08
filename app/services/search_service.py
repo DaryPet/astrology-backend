@@ -188,17 +188,20 @@ async def search_chunks_by_query(
 async def search_chunks_hybrid(
     query: str,
     top_k: int = 20,
-    book_id: Optional[int] = None
+    book_id: Optional[int] = None,
+    query_embedding: Optional[List[float]] = None
 ) -> List[Dict[str, Any]]:
     """Гибридный поиск: BM25 + Vector через Supabase RPC"""
     from app.services.supabase_async import run_sync_in_thread
-    
+
     supabase = get_supabase()
     if not supabase:
         return []
-    
-    # Generate the embedding for the query
-    query_embedding = generate_embedding(query)
+
+    # Generate the embedding for the query, unless the caller already has one
+    # (e.g. the same query string is being fanned out across several books)
+    if query_embedding is None:
+        query_embedding = generate_embedding(query)
 
     try:
         # Wrap the sync call in an async executor so it doesn't block the event loop
