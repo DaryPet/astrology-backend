@@ -1700,21 +1700,27 @@ async def progressed_synastry_analysis(
 
     # --- Step 2: Format aspects by layer ---
     def fmt(asp: Dict, cross_houses: bool = False) -> str:
-        p_a = asp.get("planet1", "?")
-        p_b = asp.get("planet2", "?")
+        p_a = _planet_display(asp.get("planet1", "?"), language)
+        p_b = _planet_display(asp.get("planet2", "?"), language)
         orb_val = asp.get("orb", "?")
         if language == 'ru':
+            sign1 = asp.get('sign1_ru', asp.get('sign1', '?'))
+            sign2 = asp.get('sign2_ru', asp.get('sign2', '?'))
             asp_name = asp.get("aspect_ru", asp.get("aspect", "?"))
             applying_str = "набирает силу" if asp.get("applying") else "завершается"
-            base = f"{p_a} ({asp.get('sign1', '?')}) {asp_name} {p_b} ({asp.get('sign2', '?')}) — орб {orb_val}°, {applying_str}"
+            base = f"{p_a} ({sign1}) {asp_name} {p_b} ({sign2}) — орб {orb_val}°, {applying_str}"
         elif language == 'uk':
+            sign1 = asp.get('sign1_uk', asp.get('sign1', '?'))
+            sign2 = asp.get('sign2_uk', asp.get('sign2', '?'))
             asp_name = asp.get("aspect_uk", asp.get("aspect", "?"))
             applying_str = "аплікуючий" if asp.get("applying") else "сепаруючий"
-            base = f"{p_a} ({asp.get('sign1', '?')}) {asp_name} {p_b} ({asp.get('sign2', '?')}) — орбіс {orb_val}°, {applying_str}"
+            base = f"{p_a} ({sign1}) {asp_name} {p_b} ({sign2}) — орбіс {orb_val}°, {applying_str}"
         else:
+            sign1 = asp.get('sign1', '?')
+            sign2 = asp.get('sign2', '?')
             asp_name = asp.get("aspect", "?")
             applying_str = "gaining strength" if asp.get("applying") else "wrapping up"
-            base = f"{p_a} ({asp.get('sign1', '?')}) {asp_name} {p_b} ({asp.get('sign2', '?')}) — orb {orb_val}°, {applying_str}"
+            base = f"{p_a} ({sign1}) {asp_name} {p_b} ({sign2}) — orb {orb_val}°, {applying_str}"
         h1 = asp.get("planet1_house_in_2")
         h2 = asp.get("planet2_house_in_1")
         houses = []
@@ -1808,7 +1814,7 @@ async def progressed_synastry_analysis(
                 sign_key = "sign_ru" if language == 'ru' else "sign_uk" if language == 'uk' else "sign"
                 sign = pd.get(sign_key, pd.get("sign", "?"))
                 rx = " R" if pd.get("is_retrograde") else ""
-                prompt += f"\n  {prog_label_prefix}{key}: {sign}{rx}"
+                prompt += f"\n  {prog_label_prefix}{_planet_display(key, language)}: {sign}{rx}"
 
     dyn = dynamics
     _dyn_labels = {

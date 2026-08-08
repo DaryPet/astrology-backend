@@ -1417,7 +1417,11 @@ def _cross_aspects(
                         'exactness': round(100 - deviation / orb * 100, 1),
                         'applying': applying,
                         'sign1': a_data.get('sign'),
+                        'sign1_ru': a_data.get('sign_ru'),
+                        'sign1_uk': a_data.get('sign_uk'),
                         'sign2': b_data.get('sign'),
+                        'sign2_ru': b_data.get('sign_ru'),
+                        'sign2_uk': b_data.get('sign_uk'),
                     }
                     # planet A's house in chart B (planet A is "visiting" house B)
                     if houses_b_for_a:
@@ -1510,6 +1514,17 @@ def calculate_progressed_synastry(
 
     # === Layer 3: dynamics relative to the natal synastry ===
     natal_synastry = calculate_synastry(natal1, natal2)
+    # calculate_synastry() doesn't carry signs — enrich here so faded_aspects
+    # (fed into progressed_synastry_analysis's fmt()) has them like _cross_aspects does.
+    for a in natal_synastry['aspects']:
+        p1_data = natal1['planets'].get(a['planet1'], {})
+        p2_data = natal2['planets'].get(a['planet2'], {})
+        a['sign1'] = p1_data.get('sign')
+        a['sign1_ru'] = p1_data.get('sign_ru')
+        a['sign1_uk'] = p1_data.get('sign_uk')
+        a['sign2'] = p2_data.get('sign')
+        a['sign2_ru'] = p2_data.get('sign_ru')
+        a['sign2_uk'] = p2_data.get('sign_uk')
     natal_pairs = {
         (a['planet1'], a['planet2'], a['aspect']) for a in natal_synastry['aspects']
     }
