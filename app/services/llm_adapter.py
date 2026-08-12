@@ -5,20 +5,20 @@ from app.core.config import settings
 
 
 class LLMAdapter(ABC):
-    """Базовый класс для LLM адаптеров"""
-    
+    """Base class for LLM adapters"""
+
     @abstractmethod
     async def generate(self, prompt: str, language: str = "en") -> str:
-        """Сгенерировать ответ на основе промпта"""
+        """Generate a response from a prompt"""
         pass
-    
+
     @abstractmethod
     async def generate_with_messages(self, messages: List[Dict[str, str]], language: str = "en") -> str:
-        """Сгенерировать ответ на основе сообщений (chat format)"""
+        """Generate a response from messages (chat format)"""
         pass
-    
+
     async def generate_stream(self, prompt: str, language: str = "en") -> AsyncGenerator[str, None]:
-        """Стриминговый генератор (по умолчанию - обычный generate)"""
+        """Streaming generator (default: falls back to plain generate)"""
         yield await self.generate(prompt, language)
 
 
@@ -83,7 +83,7 @@ class LLMAdapter(ABC):
 
 
 class ClaudeAdapter(LLMAdapter):
-    """Адаптер для Anthropic Claude"""
+    """Adapter for Anthropic Claude"""
     
     def __init__(self):
         self.client = None
@@ -140,7 +140,7 @@ class ClaudeAdapter(LLMAdapter):
 
 
 class OllamaAdapter(LLMAdapter):
-    """Адаптер для локального Ollama LLM"""
+    """Adapter for local Ollama LLM"""
     
     def __init__(self, base_url: str = None):
         self.base_url = base_url or settings.OLLAMA_BASE_URL
@@ -181,7 +181,7 @@ class OllamaAdapter(LLMAdapter):
 
 
 class GeminiAdapter(LLMAdapter):
-    """Адаптер для Google Gemini"""
+    """Adapter for Google Gemini"""
     
     def __init__(self):
         self.client = None
@@ -226,7 +226,7 @@ class GeminiAdapter(LLMAdapter):
 
 
 class FallbackAdapter(LLMAdapter):
-    """Заглушка когда LLM не настроен"""
+    """Stub for when no LLM is configured"""
     
     async def generate(self, prompt: str, language: str = "en") -> str:
         return "LLM not configured. Please set LLM_PROVIDER in .env file."
@@ -235,7 +235,7 @@ class FallbackAdapter(LLMAdapter):
         return "LLM not configured. Please set LLM_PROVIDER in .env file."
 
 class DeepSeekAdapter(LLMAdapter):
-    """Адаптер для DeepSeek"""
+    """Adapter for DeepSeek"""
     
     def __init__(self):
         self.client = None
@@ -262,7 +262,18 @@ class DeepSeekAdapter(LLMAdapter):
                 max_tokens=32768,
                 timeout=500,
             )
-            return response.choices[0].message.content
+            # finish_reason tells a complete answer from a silently truncated one:
+            # 'stop' — the model finished on its own; 'length' — it hit max_tokens
+            # above and the text is cut off mid-sentence. Without this the caller
+            # gets a truncated analysis and returns 200 OK with nothing in the log.
+            choice = response.choices[0]
+            usage = getattr(response, "usage", None)
+            print(
+                f"[DeepSeekAdapter] finish_reason={choice.finish_reason}"
+                f" completion_tokens={getattr(usage, 'completion_tokens', '?')}"
+                f" max_tokens=32768"
+            )
+            return choice.message.content
         except Exception as e:
             return f"Error: {str(e)}"
 
@@ -282,7 +293,7 @@ class DeepSeekAdapter(LLMAdapter):
             return f"Error: {str(e)}"
 
     async def generate_stream(self, prompt: str, language: str = "en") -> AsyncGenerator[str, None]:
-        """Стриминговый генератор для DeepSeek"""
+        """Streaming generator for DeepSeek"""
         client = self._get_client()
         try:
             stream = await client.chat.completions.create(
@@ -294,14 +305,31 @@ class DeepSeekAdapter(LLMAdapter):
                 timeout=500,
                 stream=True,
             )
+            # Same silent-truncation guard as generate() (finish_reason='length'
+            # means max_tokens cut the text mid-sentence) — in streaming mode
+            # finish_reason and usage only arrive attached to the final chunk(s),
+            # so both are tracked across the whole loop instead of read off one
+            # response.
+            finish_reason = None
+            completion_tokens = "?"
             async for chunk in stream:
                 if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
+                if chunk.choices and chunk.choices[0].finish_reason:
+                    finish_reason = chunk.choices[0].finish_reason
+                usage = getattr(chunk, "usage", None)
+                if usage is not None:
+                    completion_tokens = getattr(usage, "completion_tokens", "?")
+            print(
+                f"[DeepSeekAdapter] finish_reason={finish_reason}"
+                f" completion_tokens={completion_tokens}"
+                f" max_tokens=32768"
+            )
         except Exception as e:
             yield f"Error: {str(e)}"
 
 class OpenRouterAdapter(LLMAdapter):
-    """Адаптер OpenRouter: OpenAI-совместимый API, любая модель по слагу"""
+    """OpenRouter adapter: OpenAI-compatible API, any model by slug"""
 
     def __init__(self, model: Optional[str] = None):
         self.model = model or settings.OPENROUTER_MODEL
@@ -368,8 +396,8 @@ _adapters = {
 
 
 def get_llm_adapter(provider: str = None, model: str = None) -> LLMAdapter:
-    """Получить адаптер для указанного LLM провайдера.
-    model используется только для openrouter (слаг модели)."""
+    """Get the adapter for the given LLM provider.
+    model is only used for openrouter (model slug)."""
     if provider is None:
         provider = settings.LLM_PROVIDER
 
@@ -387,7 +415,7 @@ async def generate_analysis(
     language: str = "en",
     provider: str = None
 ) -> str:
-    """Удобная функция для генерации анализа"""
+    """Convenience function for generating an analysis"""
     adapter = get_llm_adapter(provider)
     return await adapter.generate(prompt, language)
 
@@ -397,6 +425,6 @@ async def generate_chat_analysis(
     language: str = "en",
     provider: str = None
 ) -> str:
-    """Удобная функция для генерации анализа сchat format"""
+    """Convenience function for generating a chat-format analysis"""
     adapter = get_llm_adapter(provider)
     return await adapter.generate_with_messages(messages, language)

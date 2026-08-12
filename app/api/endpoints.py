@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from datetime import datetime
+import asyncio
 import json
 import time
 from typing import List, Dict, Any, Optional
@@ -50,10 +51,10 @@ _ANALYSIS_CACHE_MAX_SIZE = 1000  # max 1000 entries
 
 async def get_coordinates(place: str) -> tuple:
     """
-    Получить точные координаты из названия места для астрологических расчетов
+    Get precise coordinates from a place name for astrological calculations
 
-    Для астрологии критически важна точность координат.
-    Возвращает точные координаты или вызывает исключение.
+    Coordinate precision is critical for astrology.
+    Returns precise coordinates or raises an exception.
     """
     cache_key = f"geocode:{place.lower().strip()}"
 
@@ -102,7 +103,7 @@ async def get_coordinates(place: str) -> tuple:
 
 
 def get_timezone(lat: float, lon: float) -> Optional[str]:
-    """Определить таймзону по координатам"""
+    """Determine the timezone from coordinates"""
     try:
         timezone_str = tf.timezone_at(lat=lat, lng=lon)
         if timezone_str:
@@ -116,7 +117,7 @@ def get_timezone(lat: float, lon: float) -> Optional[str]:
         return "UTC"
 
 async def autocomplete_place(query: str, lang: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Возвращает список мест для автодополнения с улучшенным форматированием и поиском"""
+    """Returns a list of places for autocomplete with improved formatting and search"""
     if len(query) < 2:
         return []
 
@@ -646,7 +647,7 @@ router = APIRouter()
 
 @router.post("/books/process")
 async def process_book_api(filename: str):
-    """Обработать книгу: скачать из Supabase -> парсить -> нарезать на чанки -> сохранить в БД"""
+    """Process a book: download from Supabase -> parse -> split into chunks -> save to the DB"""
     from app.services.book_processor import process_book_async
     result = await process_book_async(filename)
     return result
@@ -659,18 +660,18 @@ async def process_book_api(filename: str):
 @router.get("/geocode/coordinates")
 async def geocode_coordinates(lat: float, lon: float):
     """
-    Получить таймзону по координатам
+    Get the timezone from coordinates
     """
     return {"timezone": get_timezone(lat, lon)}
 
 @router.get("/geocode/autocomplete")
 async def geocode_autocomplete(q: str, lang: Optional[str] = None):
     """
-    Автодополнение для ввода города
-    
-    Возвращает список возможных городов по введённому тексту
-    Поддерживает параметр lang для принудительного указания языка ('ru', 'en')
-    Если язык не указан - определяется автоматически по входному тексту
+    Autocomplete for a city input
+
+    Returns a list of candidate cities for the entered text
+    Supports the lang parameter to force a language ('ru', 'en')
+    If no language is given, it's auto-detected from the input text
     """
     results = await autocomplete_place(q, lang)
     return results
@@ -683,13 +684,13 @@ async def geocode_autocomplete(q: str, lang: Optional[str] = None):
 @router.post("/chart/calculate")
 async def calculate_natal_chart(request: NatalChartRequest) -> NatalChartResponseFull:
     """
-    Расчёт натальной карты напрямую (без сохранения в БД)
-    
-    Требует:
-    - birth_date: Дата и время рождения
-    - birth_place: Название места (точное название города/места)
-    - timezone: Временная зона (IANA, например "Europe/Moscow")
-    - house_system: Система домов (Placidus, Equal, WholeSign, etc.)
+    Calculate a natal chart directly (without saving to the DB)
+
+    Requires:
+    - birth_date: Date and time of birth
+    - birth_place: Place name (exact city/place name)
+    - timezone: Timezone (IANA, e.g. "Europe/Moscow")
+    - house_system: House system (Placidus, Equal, WholeSign, etc.)
     """
     # Validate input before processing
     if not request.birth_place or request.birth_place.strip() == '':
@@ -791,7 +792,7 @@ async def calculate_natal_chart(request: NatalChartRequest) -> NatalChartRespons
 @router.post("/synastry/direct")
 async def calculate_synastry_direct(request: SynastryRequestDirect):
     """
-    Прямой расчёт синастрии между двумя картами
+    Direct synastry calculation between two charts
     """
     # Get PRECISE coordinates for the first chart
     # Use the coordinates that were passed, or determine them ourselves
@@ -931,25 +932,25 @@ async def analyze_synastry_aspect_endpoint(request: Request, payload: SynastryAs
 @limiter.limit("10/minute")
 async def analyze_query(request: Request, payload: AnalysisRequest, user = Depends(get_current_user)) -> AnalysisResponse:
     """
-    Поиск и анализ астрологического запроса
-    
-    Основной endpoint для:
-    1. Поиска релевантных кусков из книг по запросу
-    2. Построения натальной карты (если переданы данные)
-    3. Анализа через LLM с использованием контекста карты
-    
+    Search and analyze an astrological query
+
+    Main endpoint for:
+    1. Searching relevant book excerpts for the query
+    2. Building a natal chart (if data is provided)
+    3. Analysis via LLM using the chart's context
+
     Request:
-    - query: str (например "Сатурн 7 дом" или "Saturn 7th house")
-    - chart_data: Optional[NatalChartRequest] - данные для построения карты
-    - top_k: int = 5 - количество чанков для анализа
-    
+    - query: str (e.g. "Saturn 7th house")
+    - chart_data: Optional[NatalChartRequest] - data for building the chart
+    - top_k: int = 5 - number of chunks to analyze
+
     Response:
-    - query: исходный запрос
-    - query_language: определённый язык
-    - parsed_query: извлечённые астрологические сущности
-    - chart_data: рассчитанная натальная карта (если передана)
-    - relevant_chunks: найденные куски с similarity score
-    - analysis: результат анализа от LLM
+    - query: the original query
+    - query_language: the detected language
+    - parsed_query: extracted astrological entities
+    - chart_data: the calculated natal chart (if provided)
+    - relevant_chunks: found excerpts with a similarity score
+    - analysis: the LLM's analysis result
     """
     from app.services.search_service import parse_astrology_query
     from app.services.analysis_service import analyze_astrology_query
@@ -974,10 +975,10 @@ async def analyze_query(request: Request, payload: AnalysisRequest, user = Depen
 @limiter.limit("10/minute")
 async def analyze_query_with_chart(request: Request, payload: AnalysisRequest, user = Depends(get_current_user)) -> AnalysisResponse:
     """
-    Поиск и анализ астрологического запроса С натальной картой
-    
-    То же что /analysis/query, но с расчётом натальной карты
-    на основе переданных данных рождения
+    Search and analyze an astrological query WITH a natal chart
+
+    Same as /analysis/query, but calculates a natal chart
+    from the given birth data
     """
     from app.services.analysis_service import analyze_astrology_query
     
@@ -1070,7 +1071,7 @@ async def analyze_planet_endpoint(
     user = Depends(get_current_user)
 ) -> PlanetAnalysisResponse:
     """
-    Анализ одной планеты по клику/hover
+    Analysis of a single planet on click/hover
     """
     from app.services.analysis_service import analyze_planet
     
@@ -1101,14 +1102,56 @@ async def analyze_planet_endpoint(
     return result
 
 
+_SSE_HEARTBEAT_SECONDS = 15
+
+
+def _sse(gen):
+    """Wrap an event-dict async generator as SSE frames.
+
+    Each yielded {"event": <type>, "data": <dict>} becomes
+    "event: <type>\\ndata: <json>\\n\\n". Data is always JSON — analysis text
+    contains its own newlines, which would otherwise break SSE framing.
+    Contract: plans/streaming-analysis-backend.md (event table, step 4).
+
+    Heartbeat: the RAG phase + first-paragraph generation can stay silent for
+    tens of seconds, long enough for an intermediate proxy to kill an
+    apparently-idle connection. While waiting for the next real event, this
+    emits an SSE comment (`: ping\\n\\n`) every `_SSE_HEARTBEAT_SECONDS` —
+    comments are part of the SSE spec, carry no data, and a conformant
+    frontend parser ignores them. The wait uses `asyncio.wait` (not
+    `wait_for`) specifically so a timeout does NOT cancel the in-flight
+    `__anext__()` — it just re-polls the same pending fetch on the next lap.
+    """
+    async def _wrapped():
+        it = gen.__aiter__()
+        pending = asyncio.ensure_future(it.__anext__())
+        try:
+            while True:
+                done, _ = await asyncio.wait({pending}, timeout=_SSE_HEARTBEAT_SECONDS)
+                if not done:
+                    yield ": ping\n\n"
+                    continue
+                try:
+                    event = pending.result()
+                except StopAsyncIteration:
+                    break
+                pending = asyncio.ensure_future(it.__anext__())
+                event_type = event.get("event", "message")
+                data = json.dumps(event.get("data", {}), ensure_ascii=False)
+                yield f"event: {event_type}\ndata: {data}\n\n"
+        finally:
+            pending.cancel()
+    return _wrapped()
+
+
 @router.post("/analysis/full")
 async def full_chart_analysis_endpoint(request: FullAnalysisRequest):
     """
-    Полный анализ натальной карты на основе всех книг (10+ страниц)
-    
-    Защита от повторных LLM вызовов:
-    - Ключ = birth_date + birth_place
-    - Кэш действует 5 минут
+    Full natal chart analysis based on all books (10+ pages)
+
+    Protection against repeated LLM calls:
+    - Key = birth_date + birth_place
+    - Cache lasts 5 minutes
     """
     from app.services.analysis_service import full_chart_analysis_v2 as do_full_analysis
     from datetime import datetime
@@ -1205,6 +1248,16 @@ async def full_chart_analysis_endpoint(request: FullAnalysisRequest):
     # Geocoding + Swiss Ephemeris, i.e. everything before the analysis starts.
     _t_chart = time.perf_counter()
 
+    if request.stream:
+        from app.services.analysis_service import full_chart_analysis_v2_stream
+        from fastapi.responses import StreamingResponse
+
+        return StreamingResponse(
+            _sse(full_chart_analysis_v2_stream(chart_data=chart_data, language=request.language, mode=request.mode)),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
     result = await do_full_analysis(chart_data=chart_data, language=request.language,  mode=request.mode)
 
     _t_done = time.perf_counter()
@@ -1248,10 +1301,10 @@ async def generate_summary_endpoint(request: SummaryRequest):
 @limiter.limit("20/minute")
 async def chat_with_astrologer_endpoint(request: Request, payload: ChatRequest, user = Depends(get_current_user)) -> ChatResponse:
     """
-    Чат с персональным астрологом-агентом.
-    - Гибридный RAG: поиск по книгам по вопросу + по планетам
-    - Учитывает историю диалога
-    - Отвечает в контексте натальной карты и полного анализа
+    Chat with a personal astrologer agent.
+    - Hybrid RAG: search books by the question + by planets
+    - Takes the conversation history into account
+    - Answers in the context of the natal chart and the full analysis
     """
     # from app.services.analysis_service import chat_with_astrologer
  
@@ -1293,15 +1346,15 @@ async def chat_with_astrologer_endpoint(request: Request, payload: ChatRequest, 
 @limiter.limit("5/minute")
 async def full_synastry_analysis_endpoint(request: Request, payload: SynastryAnalysisRequest, user = Depends(get_current_user)):
     """
-    Полный глубокий анализ синастрии (гибридный метод v2)
-    
-    Требует:
-    - chart1: данные первой карты (birth_date, birth_place, и т.д.)
-    - chart2: данные второй карты
-    - language: язык анализа (ru/en)
-    
-    Возвращает полный анализ синастрии (10000+ слов),
-    используя гибридный поиск по всем книгам для каждого аспекта.
+    Full in-depth synastry analysis (hybrid method v2)
+
+    Requires:
+    - chart1: first chart's data (birth_date, birth_place, etc.)
+    - chart2: second chart's data
+    - language: analysis language (ru/en)
+
+    Returns a full synastry analysis (10000+ words),
+    using a hybrid search across all books for each aspect.
     """
     from app.services.synastry_service import full_synastry_analysis_v2
     from app.utils.astrology_v2 import calculate_planet_positions, calculate_aspects
@@ -1385,10 +1438,10 @@ async def full_synastry_analysis_endpoint(request: Request, payload: SynastryAna
 @limiter.limit("10/minute")
 async def analyze_relationship_types_endpoint(request: Request, payload: SynastryRelationshipRequest, user = Depends(get_current_user)):
     """
-    Определить типы отношений в синастрии (с поддержкой стриминга)
-    
-    Принимает готовый полный анализ синастрии
-    и возвращает проценты для каждого типа отношений.
+    Determine synastry relationship types (with streaming support)
+
+    Takes a finished full synastry analysis
+    and returns percentages for each relationship type.
     """
     from app.services.synastry_relationship_service import (
         analyze_relationship_types,
@@ -1420,7 +1473,7 @@ async def analyze_relationship_types_endpoint(request: Request, payload: Synastr
 # ============================================
 
 def _prepare_birth_datetime(birth_date, birth_time: Optional[str], tz_str: Optional[str]):
-    """Единая подготовка даты рождения (время + таймзона) — без дублирования кода"""
+    """Unified birth-date prep (time + timezone) — avoids duplicating this code"""
     birth_datetime = birth_date
     if birth_time:
         try:
@@ -1442,7 +1495,7 @@ def _prepare_birth_datetime(birth_date, birth_time: Optional[str], tz_str: Optio
 
 
 async def _resolve_coordinates(latitude: Optional[float], longitude: Optional[float], birth_place: Optional[str]):
-    """Координаты: переданные или геокодинг по названию места"""
+    """Coordinates: as given, or geocoded from the place name"""
     if latitude is not None and longitude is not None:
         return latitude, longitude
     if not birth_place or not birth_place.strip():
@@ -1466,7 +1519,7 @@ async def _resolve_transit_coordinates(
     natal_lat: Optional[float] = None,
     natal_lon: Optional[float] = None
 ) -> tuple:
-    """Координаты места транзита: переданные или геокодинг, иначе — натальные координаты"""
+    """Transit location coordinates: as given, geocoded, or else the natal coordinates"""
     if transit_lat is not None and transit_lon is not None:
         return transit_lat, transit_lon
     if transit_place and transit_place.strip():
@@ -1490,11 +1543,11 @@ async def _resolve_transit_coordinates(
 @limiter.limit("15/minute")
 async def calculate_progressions_endpoint(request: Request, payload: ProgressionsRequest, user = Depends(get_current_user)):
     """
-    Расчёт вторичных прогрессий («день за год») через Swiss Ephemeris.
+    Secondary progressions calculation ("day for a year") via Swiss Ephemeris.
 
-    Возвращает прогрессивные планеты (с натальными домами), прогрессивные
-    ASC/MC/дома и аспекты прогрессий к натальной карте (орб 1.5°).
-    Требует авторизацию — функция доступна только для сохранённых карт.
+    Returns progressed planets (with natal houses), progressed
+    ASC/MC/houses, and aspects of the progressions to the natal chart (1.5° orb).
+    Requires authorization — this feature is only available for saved charts.
     """
     lat, lon = await _resolve_coordinates(payload.latitude, payload.longitude, payload.birth_place)
     birth_datetime = _prepare_birth_datetime(payload.birth_date, payload.birth_time, payload.timezone)
@@ -1520,11 +1573,11 @@ async def calculate_progressions_endpoint(request: Request, payload: Progression
 @limiter.limit("5/minute")
 async def progressions_analysis_endpoint(request: Request, payload: ProgressionsAnalysisRequest, user = Depends(get_current_user)):
     """
-    AI-анализ вторичных прогрессий: RAG-поиск по тем же книгам + LLM
-    (шаблон 'progressions', режимы simple/advanced, языки ru/en).
+    AI analysis of secondary progressions: RAG search over the same books + LLM
+    ('progressions' template, simple/advanced modes, ru/en languages).
 
-    Защита от повторных LLM-вызовов: in-memory кэш по ключу
-    birth_date|birth_place|period|mode|language (TTL как у полного анализа).
+    Protection against repeated LLM calls: in-memory cache keyed by
+    birth_date|birth_place|period|mode|language (same TTL as the full analysis).
     """
     from app.services.analysis_service import progressions_analysis
     from datetime import datetime as dt
@@ -1606,14 +1659,14 @@ async def progressions_analysis_endpoint(request: Request, payload: Progressions
 @limiter.limit("20/minute")
 async def calculate_transits_endpoint(request: Request, payload: TransitsRequest, user = Depends(get_current_user)):
     """
-    Транзиты на конкретный день (по умолчанию — сегодня; можно любой день
-    прошлого или будущего). Реальные позиции планет через Swiss Ephemeris,
-    наложенные на натальную карту: натальные дома транзитных
-    планет считались по ВЕРНЫМ натальным куспидам, а не по пересчитанным.
+    Transits for a specific day (defaults to today; any day in the past
+    or future works). Real planet positions via Swiss Ephemeris, overlaid
+    on the natal chart: transit planets' natal houses are calculated from the
+    CORRECT natal cusps, not recalculated ones.
 
-    Место транзита (transit_place/latitude/longitude) определяет транзитные дома
-    и лунную фазу — важно для корректной интерпретации в текущем месте пребывания.
-    Требует авторизацию — доступно только для сохранённых карт.
+    The transit location (transit_place/latitude/longitude) determines the
+    transit houses and lunar phase — matters for correct interpretation at
+    the current location. Requires authorization — only available for saved charts.
     """
     lat, lon = await _resolve_coordinates(payload.latitude, payload.longitude, payload.birth_place)
     birth_datetime = _prepare_birth_datetime(payload.birth_date, payload.birth_time, payload.timezone)
@@ -1647,13 +1700,14 @@ async def calculate_transits_endpoint(request: Request, payload: TransitsRequest
 @limiter.limit("5/minute")
 async def transits_analysis_endpoint(request: Request, payload: TransitsAnalysisRequest, user = Depends(get_current_user)):
     """
-    AI-анализ транзитов дня: RAG-поиск по тем же книгам + LLM
-    (шаблон 'transits', режимы simple/advanced, языки ru/en).
+    AI analysis of the day's transits: RAG search over the same books + LLM
+    ('transits' template, simple/advanced modes, ru/en languages).
 
-    Кэш: in-memory по ключу birth_date|birth_place|date|mode|language.
+    Cache: in-memory, keyed by birth_date|birth_place|date|mode|language.
 
-    Место транзита (transit_place/latitude/longitude) определяет транзитные дома
-    и лунную фазу — важно для корректной интерпретации в текущем месте пребывания.
+    The transit location (transit_place/latitude/longitude) determines the
+    transit houses and lunar phase — matters for correct interpretation at
+    the current location.
     """
     from app.services.analysis_service import transits_analysis
     from datetime import datetime as dt
@@ -1862,7 +1916,7 @@ async def daily_forecast_endpoint(request: Request, payload: DailyForecastReques
 
 
 async def _chart_request_to_person(chart_req, name: Optional[str] = None) -> dict:
-    """ChartRequest → dict для calculate_progressed_synastry (единый формат партнёра)"""
+    """ChartRequest → dict for calculate_progressed_synastry (unified partner format)"""
     lat, lon = await _resolve_coordinates(chart_req.latitude, chart_req.longitude, chart_req.birth_place)
     birth_dt = _prepare_birth_datetime(chart_req.birth_date, chart_req.birth_time, chart_req.timezone)
     return {
@@ -1879,11 +1933,11 @@ async def _chart_request_to_person(chart_req, name: Optional[str] = None) -> dic
 @limiter.limit("15/minute")
 async def calculate_progressed_synastry_endpoint(request: Request, payload: ProgressedSynastryRequest, user = Depends(get_current_user)):
     """
-    Прогрессивная синастрия: каждый партнёр прогрессируется методом «день за год»
-    на свой возраст на одну целевую дату (по умолчанию сегодня; можно любой день).
-    Возвращает три слоя: прогрессивную синастрию (прогр↔прогр), наложение на
-    натал (перекрёстно) и динамику относительно натальной синастрии.
-    Доступно только для сохранённых синастрических карт (требует авторизацию).
+    Progressed synastry: each partner is progressed by the "day for a year"
+    method to their own age on a single target date (defaults to today; any
+    day works). Returns three layers: progressed synastry (prog↔prog),
+    overlay onto the natal chart (crosswise), and dynamics relative to the
+    natal synastry. Only available for saved synastry charts (requires authorization).
     """
     person1 = await _chart_request_to_person(payload.chart1, getattr(payload.chart1, 'name', None))
     person2 = await _chart_request_to_person(payload.chart2, getattr(payload.chart2, 'name', None))
@@ -1906,9 +1960,9 @@ async def calculate_progressed_synastry_endpoint(request: Request, payload: Prog
 @limiter.limit("5/minute")
 async def progressed_synastry_analysis_endpoint(request: Request, payload: ProgressedSynastryAnalysisRequest, user = Depends(get_current_user)):
     """
-    AI-анализ прогрессивной синастрии (RAG + LLM, шаблон 'progressed_synastry',
-    режимы simple/advanced, ru/en). Кэш по ключу
-    progsyn|p1|p2|date|mode|language (TTL как у остальных анализов).
+    AI analysis of progressed synastry (RAG + LLM, 'progressed_synastry'
+    template, simple/advanced modes, ru/en). Cache keyed by
+    progsyn|p1|p2|date|mode|language (same TTL as the other analyses).
     """
     from app.services.analysis_service import progressed_synastry_analysis
     from datetime import datetime as dt
@@ -1959,8 +2013,8 @@ async def progressed_synastry_analysis_endpoint(request: Request, payload: Progr
 @limiter.limit("15/minute")
 async def analyze_progressed_synastry_aspect_endpoint(request: Request, payload: ProgressedSynastryAspectRequest, user = Depends(get_current_user)):
     """
-    Анализ одного аспекта прогрессивной синастрии (клик на аспект во фронте).
-    По образцу /synastry/aspect, см. specs/progressed_synastry_aspect_click_plan.md.
+    Analysis of a single progressed-synastry aspect (clicking an aspect on the frontend).
+    Modeled on /synastry/aspect, see specs/progressed_synastry_aspect_click_plan.md.
     """
     from app.services.analysis_service import analyze_progressed_synastry_aspect
 

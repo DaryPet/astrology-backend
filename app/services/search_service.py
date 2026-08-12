@@ -47,7 +47,7 @@ def get_embedding_model():
 
 
 def detect_query_language(query: str) -> str:
-    """Определить язык запроса по символам"""
+    """Detect the query's language from its characters"""
     if any('\u0400' <= c <= '\u04FF' for c in query):
         return 'ru'
     elif any('\u00C0' <= c <= '\u024F' for c in query):
@@ -56,7 +56,7 @@ def detect_query_language(query: str) -> str:
 
 
 def parse_astrology_query(query: str) -> Dict[str, Any]:
-    """Извлечь астрологические сущности из запроса"""
+    """Extract astrological entities from the query"""
     query_lower = query.lower()
     language = detect_query_language(query)
     
@@ -101,14 +101,14 @@ def parse_astrology_query(query: str) -> Dict[str, Any]:
 
 
 def generate_embedding(text: str) -> List[float]:
-    """Сгенерировать эмбеддинг для текста"""
+    """Generate an embedding for the text"""
     model = get_embedding_model()
     embedding = model.encode(text)
     return embedding.tolist()
 
 
 def cosine_similarity(a: List[float], b: List[float]) -> float:
-    """Вычислить косинусное сходство"""
+    """Compute cosine similarity"""
     a = np.array(a)
     b = np.array(b)
     norm_a = np.linalg.norm(a)
@@ -180,7 +180,7 @@ async def search_chunks_by_query(
     book_id: Optional[int] = None
 ) -> List[Dict[str, Any]]:
     """
-    Поиск чанков - используем гибридный поиск (BM25 + Vector)
+    Chunk search - uses hybrid search (BM25 + Vector)
     """
     return await search_chunks_hybrid(query, top_k=top_k, book_id=book_id)
 
@@ -191,7 +191,7 @@ async def search_chunks_hybrid(
     book_id: Optional[int] = None,
     query_embedding: Optional[List[float]] = None
 ) -> List[Dict[str, Any]]:
-    """Гибридный поиск: BM25 + Vector через Supabase RPC"""
+    """Hybrid search: BM25 + Vector via Supabase RPC"""
     from app.services.supabase_async import run_sync_in_thread
 
     supabase = get_supabase()
@@ -541,7 +541,7 @@ async def search_chunks_simple(
     query: str,
     top_k: int = 5
 ) -> List[Dict[str, Any]]:
-    """Простой текстовый поиск без эмбеддингов"""
+    """Simple text search without embeddings"""
     from app.services.supabase_async import run_sync_in_thread
     
     supabase = get_supabase()
@@ -582,7 +582,7 @@ def build_search_context(
     chart_data: Optional[Dict[str, Any]],
     chunks: List[Dict[str, Any]]
 ) -> str:
-    """Построить контекст для LLM из данных карты и чанков"""
+    """Build LLM context from chart data and chunks"""
     context_parts = []
     
     if chart_data:

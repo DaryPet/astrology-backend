@@ -4,7 +4,7 @@ from app.services.llm_adapter import get_llm_adapter
 
 
 def build_relationship_types_prompt(full_analysis: str, language: str = "ru") -> str:
-    """Построить промпт для определения типов отношений на основе готового анализа"""
+    """Build the prompt for determining relationship types from a finished analysis"""
     
     if language == "ru":
         prompt = f"""Основываясь на полном анализе синастрии ниже, определите процентное соотношение и краткое описание (одно предложение) для каждого типа отношений:
@@ -49,7 +49,7 @@ Dominant type: [type]"""
 
 
 def parse_relationship_response(response: str) -> Dict[str, Any]:
-    """Парсить ответ LLM в структурированный формат"""
+    """Parse the LLM response into a structured format"""
     result = {
         "relationship_types": {},
         "dominant_type": "",
@@ -103,7 +103,7 @@ async def analyze_relationship_types(
     full_analysis: str,
     language: str = "ru"
 ) -> Dict[str, Any]:
-    """Определить типы отношений в синастрии на основе готового анализа"""
+    """Determine synastry relationship types from a finished analysis"""
     
     adapter = get_llm_adapter()
     prompt = build_relationship_types_prompt(full_analysis, language)
@@ -116,7 +116,7 @@ async def stream_relationship_types(
     full_analysis: str,
     language: str = "ru"
 ) -> AsyncGenerator[str, None]:
-    """Потоково отправлять обновления о типах отношений"""
+    """Stream updates about relationship types"""
     
     adapter = get_llm_adapter()
     prompt = build_relationship_types_prompt(full_analysis, language)

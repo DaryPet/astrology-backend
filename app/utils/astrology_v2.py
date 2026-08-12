@@ -1,6 +1,6 @@
 """
-Swiss Ephemeris - Золотой стандарт астрологии
-Точность до долей секунды дуги
+Swiss Ephemeris - the gold standard of astrology
+Accurate to fractions of an arcsecond
 """
 # Use pre-initialized swisseph from helper
 from app.swephelper import swe
@@ -152,9 +152,9 @@ def datetime_to_jd(dt: datetime) -> float:
 
 def calculate_planet_position(planet_id: float, jd: float, lat: float, lon: float) -> Dict[str, Any]:
     """
-    Расчёт позиции планеты с высокой точностью
-    Использует Swiss Ephemeris (Moshier algorithm) - встроенные таблицы
-    Точность: ~1 угловая секунда
+    High-precision planet position calculation
+    Uses Swiss Ephemeris (Moshier algorithm) - built-in tables
+    Accuracy: ~1 arcsecond
     """
     # Use Moshier ephemeris + FLG_SPEED to get the speed
     flags = swe.FLG_MOSEPH | swe.FLG_SPEED
@@ -204,7 +204,7 @@ def calculate_planet_position(planet_id: float, jd: float, lat: float, lon: floa
 
 def calculate_houses(jd: float, lat: float, lon: float, house_system: str = 'Placidus') -> Dict[str, Any]:
     """
-    Расчёт ВСЕХ 12 домов с использованием Swiss Ephemeris
+    Calculates ALL 12 houses using Swiss Ephemeris
     """
     flags = swe.FLG_MOSEPH
     hsys = HOUSE_SYSTEMS.get(house_system, b'P')
@@ -304,16 +304,16 @@ def calculate_planet_positions(
     house_system: str = 'Placidus'
 ) -> Dict[str, Any]:
     """
-    Главная функция расчёта натальной карты
-    Использует Swiss Ephemeris для максимальной точности
-    
+    Main natal chart calculation function
+    Uses Swiss Ephemeris for maximum accuracy
+
     Args:
-        birth_date: Дата и время рождения (с timezone или UTC)
-        birth_place: Название места рождения
-        lat: Широта (если известна)
-        lon: Долгота (если известна)
-        timezone_str: IANA timezone строка (например 'Europe/Moscow')
-        house_system: Система домов (Placidus, Koch, Equal, WholeSign, etc.)
+        birth_date: Date and time of birth (with timezone or UTC)
+        birth_place: Name of the birthplace
+        lat: Latitude (if known)
+        lon: Longitude (if known)
+        timezone_str: IANA timezone string (e.g. 'Europe/Moscow')
+        house_system: House system (Placidus, Koch, Equal, WholeSign, etc.)
     """
     # If coordinates aren't passed, use UTC
     if lat is None or lon is None:
@@ -591,7 +591,7 @@ def calculate_planet_positions(
 
 def calculate_aspects(planets: Dict[str, Any], orb_threshold: float = 8.0) -> List[Dict[str, Any]]:
     """
-    Расчёт аспектов между планетами
+    Calculates aspects between planets
     """
     aspects = []
     
@@ -633,8 +633,8 @@ def calculate_aspects(planets: Dict[str, Any], orb_threshold: float = 8.0) -> Li
 
 def calculate_solar_return(birth_date: datetime, year: int, lat: float = None, lon: float = None) -> Dict[str, Any]:
     """
-    Расчёт солярного возвращения (Solar Return)
-    Солнце возвращается на ту же позицию, что и при рождении
+    Solar Return calculation
+    The Sun returns to the same position it held at birth
     """
     if lat is None or lon is None:
         lat, lon = 55.7558, 37.6173
@@ -688,7 +688,7 @@ def calculate_solar_return(birth_date: datetime, year: int, lat: float = None, l
 
 def calculate_synastry(chart1: Dict[str, Any], chart2: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Расчёт синастрии (совместимости двух карт)
+    Synastry calculation (compatibility between two charts)
     """
     aspects = []
     
@@ -729,7 +729,7 @@ def calculate_synastry(chart1: Dict[str, Any], chart2: Dict[str, Any]) -> Dict[s
 
 def get_house_for_longitude(longitude: float, houses: Dict) -> Optional[int]:
     """
-    Определяет номер дома (1-12) по долготе планеты и куспидам домов.
+    Determines the house number (1-12) from a planet's longitude and the house cusps.
     """
     cusps = []
     for i in range(1, 13):
@@ -801,7 +801,7 @@ PROGRESSION_ORB = 1.5     # tight orb for progression aspects (standard 1-1.5°)
 
 
 def _datetime_to_utc_jd(dt: datetime) -> float:
-    """Конвертация datetime (aware или naive-как-UTC) в Julian Day (UT)"""
+    """Converts a datetime (aware or naive-as-UTC) to Julian Day (UT)"""
     if dt.tzinfo is not None:
         dt = dt.astimezone(timezone.utc)
     return swe.utc_to_jd(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, swe.GREG_CAL)[0]
@@ -822,7 +822,7 @@ LUNAR_PHASES = [
 
 
 def get_progressed_lunar_phase(sun_longitude: float, moon_longitude: float) -> Dict[str, Any]:
-    """Определить прогрессивную лунную фазу по углу Луна−Солнце (0-360°)"""
+    """Determines the progressed lunar phase from the Moon-Sun angle (0-360°)"""
     angle = (moon_longitude - sun_longitude) % 360
     phase_en, phase_ru, phase_uk = LUNAR_PHASES[0][1], LUNAR_PHASES[0][2], LUNAR_PHASES[0][3]
     for start_deg, en, ru, uk in LUNAR_PHASES:
@@ -847,18 +847,18 @@ def calculate_secondary_progressions(
     orb: float = PROGRESSION_ORB,
 ) -> Dict[str, Any]:
     """
-    Расчёт вторичных прогрессий (Secondary Progressions) через Swiss Ephemeris.
+    Secondary Progressions calculation via Swiss Ephemeris.
 
-    Метод «день за год»: каждый день после рождения символически равен
-    одному году жизни. Прогрессивный Julian Day:
+    "Day for a year" method: each day after birth symbolically equals one
+    year of life. Progressed Julian Day:
         progressed_jd = natal_jd + (target_jd - natal_jd) / TROPICAL_YEAR
 
-    Возвращает:
-    - прогрессивные позиции планет (+ натальный дом каждой прогрессивной планеты)
-    - прогрессивные ASC/MC и дома (вторичные угловые: дома на прогрессивный JD
-      по натальным координатам)
-    - аспекты прогрессивных планет к натальным (тугой орб)
-    - возраст и период
+    Returns:
+    - progressed planet positions (+ each progressed planet's natal house)
+    - progressed ASC/MC and houses (secondary angles: houses at the
+      progressed JD using the natal coordinates)
+    - aspects of progressed planets to natal ones (tight orb)
+    - age and period
     """
     # 1. Natal chart — reuse the main calculation
     natal = calculate_planet_positions(
@@ -1105,24 +1105,25 @@ def calculate_transits(
     exact_time: bool = False,
 ) -> Dict[str, Any]:
     """
-    Транзиты на конкретный день: реальные позиции планет на target_date,
-    наложенные на натальную карту.
+    Transits for a specific day: real planet positions on target_date,
+    overlaid on the natal chart.
 
-    natal_override — готовая натальная карта (planets+houses) из БД. Если
-    передана, её дома/планеты используются как есть (это гарантирует те же
-    дома, что в натальном анализе). Иначе натал считается заново.
+    natal_override — a ready-made natal chart (planets+houses) from the DB.
+    If passed, its houses/planets are used as-is (this guarantees the same
+    houses as in the natal analysis). Otherwise the natal chart is calculated
+    from scratch.
 
-    transit_lat/transit_lon — координаты места транзита. Если не указаны,
-    используются натальные координаты. Это важно: транзитные дома
-    определяются относительно места, где человек находится в момент транзита.
+    transit_lat/transit_lon — coordinates of the transit location. If not
+    given, the natal coordinates are used. This matters: transit houses are
+    determined relative to where the person is at the moment of the transit.
 
-    Возвращает:
-    - транзитные позиции планет (+ НАТАЛЬНЫЙ дом каждой транзитной планеты —
-      какая сфера натальной жизни активирована)
-    - транзитные дома (дома, построенные на место транзита)
-    - аспекты транзитных планет к натальным (тугие орбы, сходящийся/расходящийся)
-    - лунную фазу дня (реальная фаза Луны)
-    - период = YYYY-MM-DD (ключ кэширования анализа)
+    Returns:
+    - transit planet positions (+ each transit planet's NATAL house — which
+      area of natal life is activated)
+    - transit houses (houses built on the transit location)
+    - aspects of transit planets to natal ones (tight orbs, applying/separating)
+    - the day's lunar phase (the real Moon phase)
+    - period = YYYY-MM-DD (the analysis cache key)
     """
     # 1. Natal chart: ready-made from the DB (priority) or recalculated
     if natal_override and natal_override.get('planets') and natal_override.get('houses'):
@@ -1374,9 +1375,9 @@ def _cross_aspects(
     label_b: str = 'b',
 ) -> List[Dict[str, Any]]:
     """
-    Межкарточные аспекты: планеты A к планетам B.
-    Опционально определяет дом планеты A в системе домов B и наоборот.
-    Считает сходящийся/расходящийся через скорости планет.
+    Cross-chart aspects: planets A to planets B.
+    Optionally determines planet A's house in chart B's house system and vice versa.
+    Determines applying/separating from the planets' speeds.
     """
     aspects: List[Dict[str, Any]] = []
     for a_name, a_data in planets_a.items():
@@ -1442,23 +1443,25 @@ def calculate_progressed_synastry(
     house_system: str = 'Placidus',
 ) -> Dict[str, Any]:
     """
-    Прогрессивная синастрия — три слоя чтения отношений во времени.
+    Progressed synastry — three layers of reading the relationship over time.
 
-    Каждый партнёр прогрессируется методом «день за год» НА СВОЙ возраст
-    на одну целевую дату. Затем строятся слои:
+    Each partner is progressed by the "day for a year" method TO THEIR OWN
+    age on a single target date. Layers are then built:
 
-      Слой 1 — ПРОГРЕССИВНАЯ СИНАСТРИЯ:
-        аспекты прогр.планеты A ↔ прогр.планеты B (+ дома: прогр.планета A
-        в прогрессивных домах B и наоборот). Текущий «сезон» отношений.
+      Layer 1 — PROGRESSED SYNASTRY:
+        aspects of progressed planet A ↔ progressed planet B (+ houses:
+        progressed planet A in B's progressed houses and vice versa). The
+        relationship's current "season".
 
-      Слой 2 — ПЕРЕКРЁСТНОЕ НАЛОЖЕНИЕ НА НАТАЛ:
-        прогр.планеты A → натальные планеты B, и прогр.планеты B → натал A.
-        Как развитие каждого активирует изначальную карту партнёра.
+      Layer 2 — CROSS OVERLAY ONTO THE NATAL CHART:
+        progressed planets A → natal planets B, and progressed planets B →
+        natal A. How each partner's development activates the other's
+        original chart.
 
-      Слой 3 — ДИНАМИКА vs НАТАЛЬНАЯ СИНАСТРИЯ:
-        что изменилось относительно натальной синастрии (появилось/ушло).
+      Layer 3 — DYNAMICS vs NATAL SYNASTRY:
+        what has changed relative to the natal synastry (appeared/gone).
 
-    person1/person2 — словари с ключами:
+    person1/person2 — dicts with keys:
       birth_date (datetime), birth_place, lat, lon, timezone, [name]
     """
     if target_date is None:

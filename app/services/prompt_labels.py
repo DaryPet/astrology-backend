@@ -1,4 +1,4 @@
-"""Языковые метки для построения промптов"""
+"""Language labels used to build prompts"""
 
 PROMPT_LABELS = {
     'ru': {
@@ -217,5 +217,5 @@ PROMPT_LABELS = {
 
 
 def get_labels(language: str):
-    """Получить метки для нужного языка с fallback на английский"""
+    """Get the labels for the given language, falling back to English"""
     return PROMPT_LABELS.get(language, PROMPT_LABELS['en'])

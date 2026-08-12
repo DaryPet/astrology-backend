@@ -1,21 +1,21 @@
-"""Общие словари/регулярки для сверки текста LLM (RU и EN) с реальными
-астрологическими данными — знаки, планеты, аспекты, поиск жирных
-markdown-заголовков.
+"""Shared dictionaries/regexes for checking LLM text (RU and EN) against real
+astrological data — signs, planets, aspects, finding bold
+markdown headings.
 
-Вынесено из synastry_service.py (план: plans/synastry-aspect-type-verification.md),
-чтобы не дублировать при появлении такой же сверки для натальных карт,
-транзитов, прогрессий — сами словари не специфичны для синастрии.
+Split out of synastry_service.py (plan: plans/synastry-aspect-type-verification.md)
+so the same check isn't duplicated when it's added for natal charts,
+transits, progressions — the dictionaries themselves aren't synastry-specific.
 
-Синастрия-специфичная часть (привязка планеты к "Партнёру 1/2" / "Partner N")
-здесь не живёт — это осталось в synastry_service.py, натал/транзиты этого
-понятия не имеют вообще.
+The synastry-specific part (attributing a planet to "Партнёр 1/2" / "Partner N")
+doesn't live here — that stays in synastry_service.py; natal/transits don't
+have that concept at all.
 
-Русский и английский асимметричны нарочно: русский склоняет существительные
-по падежу ("Хирона", "в оппозиции", "секстиле") — отсюда стемы с \\w* и
-отдельная таблица предложный->именительный для знаков. Английский падежей не
-знает — "Moon", "Chiron", "Square" пишутся одинаково в любой позиции
-предложения, поэтому там просто точное слово в границах \\b, без стемов и без
-таблицы форм знака.
+Russian and English are deliberately asymmetric: Russian declines nouns
+by case ("Хирона", "в оппозиции", "секстиле") — hence stems with \\w* and a
+separate prepositional->nominative table for signs. English has no cases —
+"Moon", "Chiron", "Square" are spelled the same in any position in a
+sentence, so there it's just the exact word within \\b boundaries, no stems
+and no sign-forms table.
 """
 import re
 from typing import Any, Dict, List, Optional
@@ -226,14 +226,15 @@ _MSG_LABELS_BY_LANG = {
 
 def _find_aspect_coverage(text: str, planet1_en: str, planet2_en: str, language: str) -> Optional[str]:
     """
-    Лучший найденный абзац для пары планет — поиск по реальному тексту, а не
-    по markdown-разметке: модель не обязана оформлять аспект жирным
-    заголовком, и в проверке это не должно быть требованием (см. обсуждение
-    2026-07-23 — прежняя версия зависела от find_paragraph_for_pair и жирных
-    заголовков и пропускала реально разобранные аспекты, написанные обычной
-    прозой). Ищем по стемам с учётом склонения (PLANET_STEM_RU/EN — те же,
-    что для сверки типа аспекта), а не по точному имени — проза склоняет
-    имя планеты по падежу ("Плутона", "Сатурном").
+    Best paragraph found for a pair of planets — searches the real text, not
+    the markdown formatting: the model isn't required to format an aspect as
+    a bold heading, and the check shouldn't demand that either (see the
+    2026-07-23 discussion — the previous version relied on
+    find_paragraph_for_pair and bold headings and missed aspects that were
+    genuinely covered but written as plain prose). Searches by declension-aware
+    stems (PLANET_STEM_RU/EN — the same ones used for the aspect-type check),
+    not the exact name — prose declines the planet's name by case ("Pluto's",
+    "with Saturn").
     """
     lang = normalize_language(language)
     stems = PLANET_STEM_BY_LANG[lang]
@@ -289,17 +290,17 @@ def attribute_header_planets_to_layers(
     marker_side: str = 'before',
 ) -> Optional[Dict[str, str]]:
     """
-    Обобщение attribute_header_planets_to_partners (synastry_service.py) на
-    произвольные текстовые слои одной карты вместо Партнёра 1/2. Возвращает
-    {layer_key: planet_en}, если в заголовке ровно по одному маркеру каждого
-    запрошенного слоя и ровно две планеты, однозначно приписанные каждая к
-    своему ближайшему маркеру — иначе None.
+    Generalizes attribute_header_planets_to_partners (synastry_service.py) to
+    arbitrary text layers of a single chart instead of Partner 1/2. Returns
+    {layer_key: planet_en} if the heading has exactly one marker for each
+    requested layer and exactly two planets, each unambiguously attributed
+    to its nearest marker — otherwise None.
 
-    marker_side='before' (по умолчанию, для прогрессий/транзитов) — берём
-    ближайший ПРЕДШЕСТВУЮЩИЙ маркер относительно планеты. marker_side='after'
-    воспроизвёл бы синастрийную логику ("Партнёра N" после планеты) — здесь не
-    используется, оставлено на случай переиспользования этой функции синастрией
-    в будущем рефакторинге.
+    marker_side='before' (default, for progressions/transits) — takes the
+    nearest PRECEDING marker relative to the planet. marker_side='after'
+    would reproduce the synastry logic ("Партнёра N" after the planet) — not
+    used here, left in place in case synastry reuses this function in a
+    future refactor.
     """
     lang = normalize_language(language)
     markers = LAYER_MARKER_PATTERNS[lang]
@@ -343,10 +344,10 @@ def attribute_header_planets_to_layers(
 
 def _extract_layer_planet_signs(chart_like: Dict[str, Any], language: str) -> Dict[str, str]:
     """
-    {отображаемое имя планеты: знак} из carte-like словаря вида
+    {planet display name: sign} from a chart-like dict of the form
     {'planets': {planet_en: {'sign':, 'sign_ru':}}, 'ascendant':, 'ascendant_ru':}
-    — форма, общая для натальной карты и для progressed_planets/prog_asc в
-    progressions_analysis (analysis_service.py). Общий строительный блок для
+    — the shape shared by a natal chart and by progressed_planets/prog_asc in
+    progressions_analysis (analysis_service.py). Shared building block for
     find_fabricated_positions_layered/fix_fabricated_positions_layered.
     """
     lang = normalize_language(language)
@@ -366,27 +367,30 @@ def _extract_layer_planet_signs(chart_like: Dict[str, Any], language: str) -> Di
 
 def _nearest_preceding_layer(preceding_text: str, language: str, layer_keys) -> Optional[str]:
     """
-    Ближайший маркер одного из layer_keys, предшествующий найденной фразе —
-    но только в ПРЕДЕЛАХ ТЕКУЩЕГО ПРЕДЛОЖЕНИЯ (после последней точки/!/? в
-    preceding_text), не по всему marker_window.
+    Nearest marker among layer_keys preceding the found phrase — but only
+    WITHIN THE CURRENT SENTENCE (after the last ./!/? in preceding_text), not
+    across the whole marker_window.
 
-    Без этого ограничения на живых прогонах (прогрессии и транзиты, см.
-    app/services/specs/*_synastry_pattern_plan.md) находились ложные
-    layer_confused: в предложении вида "Прогрессивная Луна секстиль натальный
-    Меркурий (...). Твои чувства (Луна в Овне/12 дом)..." маркер "натальный"
-    (относящийся к Меркурию) текстово ближе к повторному упоминанию "Луна в
-    Овне" во ВТОРОМ предложении, чем "Прогрессивная" из ПЕРВОГО — по всему
-    окну "ближайший" оказывался чужим. Ограничение текущим предложением не
-    даёт заглянуть в предыдущее предложение и подхватить чужой маркер; если в
-    текущем предложении маркера нет вообще — возвращаем None (как и раньше
-    для случая "не смогли атрибутировать"), а не гадаем.
+    Without this restriction, live runs (progressions and transits, see
+    app/services/specs/*_synastry_pattern_plan.md) produced false
+    layer_confused results: in a sentence like "Progressed Moon sextile natal
+    Mercury (...). Your feelings (Moon in Aries/12th house)..." the marker
+    "natal" (belonging to Mercury) was textually closer to the repeated
+    mention of "Moon in Aries" in the SECOND sentence than "Progressed" from
+    the FIRST — searched over the whole window, the "nearest" one turned out
+    to belong to someone else. Restricting to the current sentence keeps it
+    from looking into the previous sentence and picking up someone else's
+    marker; if there's no marker at all in the current sentence — returns
+    None (same as before for the "couldn't attribute" case), rather than
+    guessing.
 
-    Если layer_keys содержит РОВНО один слой (натальная карта без второй
-    стороны — см. app/services/specs/natal_synastry_pattern_plan.md),
-    атрибуция и так однозначна: возвращаем этот единственный слой без поиска
-    маркера вообще — с одним слоем маркер в промпте не пишется намеренно (см.
-    план), и поиск его отсутствия иначе всегда возвращал бы None, оставляя
-    даже заведомо выдуманные позиции неисправленными (unresolved).
+    If layer_keys contains EXACTLY one layer (a natal chart with no second
+    side — see app/services/specs/natal_synastry_pattern_plan.md), attribution
+    is already unambiguous: returns that single layer without searching for a
+    marker at all — with a single layer the prompt deliberately never writes
+    a marker (see the plan), and searching for one that's absent would
+    otherwise always return None, leaving even clearly fabricated positions
+    unfixed (unresolved).
     """
     if len(layer_keys) == 1:
         return layer_keys[0]
@@ -418,22 +422,23 @@ def find_fabricated_positions_layered(
     marker_window: int = 400,
 ) -> Dict[str, List[str]]:
     """
-    Обобщение find_fabricated_planet_positions (synastry_service.py) на N
-    именованных слоёв ОДНОЙ карты (например {'progressed': prog_chart_like,
-    'natal': natal_chart}) вместо двух партнёров. Только детекция, текст не
-    трогает — правку делает fix_fabricated_positions_layered, и не по тем же
-    критериям (см. её докстринг).
+    Generalizes find_fabricated_planet_positions (synastry_service.py) to N
+    named layers of a SINGLE chart (e.g. {'progressed': prog_chart_like,
+    'natal': natal_chart}) instead of two partners. Detection only, doesn't
+    touch the text — fixing is done by fix_fabricated_positions_layered, and
+    not by the same criteria (see its docstring).
 
-    Возвращает два списка (строки для лога):
-    - "fabricated" — знака нет НИ В ОДНОМ слое вообще (union всех слоёв, как в
-      синастрии) — это по-настоящему выдуманная позиция.
-    - "layer_confused" — знак существует у этой планеты, но в ДРУГОМ слое, чем
-      назвал ближайший предшествующий маркер ("прогрессивная Луна в Раке", хотя
-      Рак — натальный знак Луны). Это не выдумка данных, а перепутанная
-      подпись слоя — сообщается отдельно и НИКОГДА не используется для
-      авто-фикса: промпт сам провоцирует соседство обеих позиций одной и той
-      же планеты (маркер смены знака "в натале была в X"), и правка по этому
-      критерию рисковала бы переписать корректную фразу.
+    Returns two lists (strings for the log):
+    - "fabricated" — the sign doesn't exist in ANY layer at all (union of all
+      layers, same as in synastry) — a genuinely made-up position.
+    - "layer_confused" — the sign exists for this planet, but in a DIFFERENT
+      layer than the nearest preceding marker claimed ("progressed Moon in
+      Cancer", even though Cancer is the Moon's natal sign). This isn't
+      fabricated data, it's a mixed-up layer label — reported separately and
+      NEVER used for auto-fixing: the prompt itself provokes the two
+      positions of the same planet sitting next to each other (a sign-change
+      marker like "was in X natally"), and fixing by this criterion would
+      risk rewriting a correct phrase.
     """
     lang = normalize_language(language)
     connector = {'ru': r"\s+в\s+", 'uk': r"\s+[ув]\s+", 'en': r"\s+in\s+"}[lang]
@@ -491,18 +496,20 @@ def fix_fabricated_positions_layered(
     marker_window: int = 400,
 ) -> "tuple[str, List[str]]":
     """
-    Аналог fix_fabricated_planet_positions (synastry_service.py), обобщённый на
-    N слоёв. Правит СТРОГО те фразы, чей знак не существует НИ В ОДНОМ слое
-    вообще (union-проверка "совпадает хоть с одним слоем — не трогаем", как в
-    синастрии) — этого достаточно, чтобы не искалечить верную фразу с неверно
-    приписанным слоем (тот случай — layer_confused у
-    find_fabricated_positions_layered — сюда сознательно не входит, только лог).
+    Counterpart to fix_fabricated_planet_positions (synastry_service.py),
+    generalized to N layers. Fixes STRICTLY those phrases whose sign doesn't
+    exist in ANY layer at all (union check "matches at least one layer —
+    leave it alone", same as in synastry) — that's enough to avoid mangling a
+    correct phrase with a wrongly-attributed layer (that case —
+    layer_confused in find_fabricated_positions_layered — is deliberately
+    excluded here, log only).
 
-    Слой (кто "прав") определяется по ближайшему ПРЕДШЕСТВУЮЩЕМУ вхождению
-    маркера в окне marker_window. Если слой не определить или в нём нет данных
-    по этой планете — фраза остаётся нетронутой и попадает в unresolved.
+    The layer (who's "right") is determined by the nearest PRECEDING
+    occurrence of a marker within the marker_window. If the layer can't be
+    determined, or it has no data for this planet — the phrase is left
+    untouched and goes into unresolved.
 
-    Возвращает (исправленный текст, список нерешённых расхождений).
+    Returns (corrected text, list of unresolved mismatches).
     """
     lang = normalize_language(language)
     connector = {'ru': r"\s+в\s+", 'uk': r"\s+[ув]\s+", 'en': r"\s+in\s+"}[lang]
@@ -561,12 +568,13 @@ def find_fabricated_aspect_types_layered(
     key2: str = 'planet2',
 ) -> List[str]:
     """
-    Обобщение find_fabricated_aspect_types (synastry_service.py) на слои вместо
-    партнёров. aspects — список aspects_to_natal, что строит
+    Generalizes find_fabricated_aspect_types (synastry_service.py) to layers
+    instead of partners. aspects — the aspects_to_natal list built by
     calculate_progressions/calculate_transits (astrology_v2.py): key1/key2 —
-    имена полей истинной пары (по умолчанию planet1/planet2 — калькулятор их
-    не варьирует: первый слой — всегда planet1 (прогрессивная/транзитная),
-    второй — всегда planet2 (натальная)). Только детекция, ничего не правит.
+    the field names of the true pair (planet1/planet2 by default — the
+    calculator never varies them: the first layer is always planet1
+    (progressed/transiting), the second is always planet2 (natal)). Detection
+    only, doesn't fix anything.
     """
     lang = normalize_language(language)
     aspect_stems = ASPECT_STEM_BY_LANG[lang]
@@ -628,17 +636,17 @@ def find_undercovered_aspects_generic(
     key2: str = 'planet2',
 ) -> List[str]:
     """
-    Обобщение find_undercovered_aspects (synastry_service.py) без привязки к
-    "Партнёру 1/2" в метке — для методов с двумя сторонами
-    прогрессивная/натальная (или транзитная/натальная), а не двумя партнёрами.
-    Та же логика: стемы, склонения, порог SHALLOW_ASPECT_CHAR_THRESHOLD,
-    отсечение фраз-отсылок ("разобрано выше"). Только детекция, ничего не
-    дописывает.
+    Generalizes find_undercovered_aspects (synastry_service.py) without tying
+    the label to "Партнёру 1/2" — for methods with two sides of
+    progressed/natal (or transiting/natal), not two partners. Same logic:
+    stems, declensions, the SHALLOW_ASPECT_CHAR_THRESHOLD threshold, cutting
+    off reference phrases ("covered above"). Detection only, doesn't append
+    anything.
 
-    Известное ограничение (то же, что у синастрийной версии): для аспекта
-    планеты к самой себе (прогрессивная Луна — натальная Луна) поиск по двум
-    одинаковым стемам тавтологичен и всегда даёт "покрыто" — недооценка, не
-    переоценка числа проблем.
+    Known limitation (same as the synastry version): for an aspect of a
+    planet to itself (progressed Moon — natal Moon), searching by two
+    identical stems is tautological and always returns "covered" —
+    undercounts problems, never overcounts them.
     """
     lang = normalize_language(language)
     cop_out_phrases = COP_OUT_PHRASES_BY_LANG[lang]
@@ -678,17 +686,18 @@ def find_fabricated_aspect_types_single(
     key2: str = 'planet2',
 ) -> List[str]:
     """
-    Сверяет жирные markdown-заголовки вида "<Планета1> <Аспект> <Планета2>"
-    с реально посчитанным типом аспекта для этой пары — для карт с одной
-    стороной (натал), без атрибуции по партнёру/слою. Пара планет в
-    calculate_aspects (astrology_v2.py) неупорядочена — в отличие от
-    синастрии, одна и та же пара не может быть двумя разными реальными
-    аспектами одновременно, поэтому ключ truth — frozenset({p1, p2}).
+    Checks bold markdown headings of the form "<Planet1> <Aspect> <Planet2>"
+    against the actually calculated aspect type for that pair — for charts
+    with one side (natal), no partner/layer attribution. The planet pair in
+    calculate_aspects (astrology_v2.py) is unordered — unlike synastry, the
+    same pair can't be two different real aspects at once, so the truth key
+    is frozenset({p1, p2}).
 
-    Пропускает (не флагует) заголовок, если в нём найдено не ровно 2 планеты
-    или не ровно 1 тип аспекта — неоднозначность не разрешаем угадыванием
-    (тот же принцип, что у find_fabricated_aspect_types /
-    find_fabricated_aspect_types_layered). Только детекция, ничего не правит.
+    Skips (doesn't flag) a heading if it doesn't have exactly 2 planets or
+    exactly 1 aspect type — ambiguity isn't resolved by guessing (same
+    principle as find_fabricated_aspect_types /
+    find_fabricated_aspect_types_layered). Detection only, doesn't fix
+    anything.
     """
     lang = normalize_language(language)
     planet_stems = PLANET_STEM_BY_LANG[lang]
@@ -803,12 +812,13 @@ CLAUSE_BREAK_BY_LANG = {'ru': _CLAUSE_BREAK_RU, 'uk': _CLAUSE_BREAK_UK, 'en': _C
 
 def _sentence_span(text: str, pos: int) -> "tuple[int, int]":
     """
-    Границы предложения, содержащего pos — по точке/!/? И по границе жирного
-    markdown-заголовка (**...**), в обе стороны. Заголовок — это отдельный
-    смысловой блок, а не часть следующего предложения: без этой границы
-    "**11. Уран и Нептун ...**\nУран в Скорпионе в 8-м доме" считалось бы
-    одним предложением, и дом Урана ложно приписался бы Нептуну из заголовка.
-    Если pos внутри самого заголовка — предложение это и есть весь заголовок.
+    Bounds of the sentence containing pos — by ./!/? and by the boundary of a
+    bold markdown heading (**...**), in both directions. A heading is a
+    separate semantic block, not part of the next sentence: without this
+    boundary, "**11. Uranus and Neptune ...**\nUranus in Scorpio in the 8th
+    house" would be counted as one sentence, and Uranus's house would be
+    falsely attributed to Neptune from the heading. If pos is inside the
+    heading itself — the sentence is the whole heading.
     """
     for m in _BOLD_HEADER_RE.finditer(text):
         if m.start() <= pos < m.end():
@@ -824,10 +834,11 @@ def _sentence_span(text: str, pos: int) -> "tuple[int, int]":
 
 def _clause_span(text: str, pos: int, language: str) -> "tuple[int, int]":
     """
-    Сужает _sentence_span до пункта (clause) внутри предложения, разделённого
-    запятой+союзом ("и"/"а"/"но" — RU, "and"/"but" — EN). См. докстринг
-    _CLAUSE_BREAK_RU — без этого сужения дом ложно приписывался бы другой
-    планете, упомянутой в том же предложении после присоединительного союза.
+    Narrows _sentence_span down to a clause within the sentence, split by
+    comma+conjunction ("и"/"а"/"но" — RU, "and"/"but" — EN). See the
+    _CLAUSE_BREAK_RU docstring — without this narrowing, a house would be
+    falsely attributed to another planet mentioned in the same sentence after
+    the connecting conjunction.
     """
     sent_start, sent_end = _sentence_span(text, pos)
     segment = text[sent_start:sent_end]
@@ -847,19 +858,21 @@ def find_fabricated_houses_single(
     language: str = 'ru',
 ) -> List[str]:
     """
-    Сверяет упоминания дома рядом с планетой ("<Планета> ... в N-м доме") с
-    реальным домом планеты в натальной карте. Только детекция, ничего не
-    правит (см. модуль-докстринг раздела выше — почему).
+    Checks house mentions next to a planet ("<Planet> ... in the Nth house")
+    against the planet's real house in the natal chart. Detection only,
+    doesn't fix anything (see the module docstring of the section above for
+    why).
 
-    Ищет номер дома только в ПРЕДЕЛАХ ТЕКУЩЕГО ПУНКТА (clause) — предложение,
-    ограниченное ещё и границей жирного заголовка и запятой+союзом (см.
-    _clause_span) — где встретилось имя планеты. Если в пункте 0 или больше 1
-    РАЗНЫХ номеров дома, пропускает (неоднозначно, не гадаем, тот же принцип,
-    что и у остальных проверок в этом модуле). Несколько планет в одном
-    пункте с одним номером дома — не ошибка (например, "Плутон и Луна в том
-    же 7-м доме" — обеим планетам законно приписывается один дом). Асцендент/
-    MC не проверяются — у них нет числового поля 'house' в чарте (дом 1/10
-    определяется по куспиду, а не хранится как отдельное значение).
+    Searches for the house number only WITHIN THE CURRENT CLAUSE — a sentence
+    further bounded by a bold-heading boundary and comma+conjunction (see
+    _clause_span) — where the planet's name was found. If the clause has 0 or
+    more than 1 DIFFERENT house numbers, skips it (ambiguous, no guessing,
+    same principle as the other checks in this module). Several planets in
+    one clause with one house number isn't an error (e.g. "Pluto and the Moon
+    in that same 7th house" — legitimately attributes one house to both
+    planets). Ascendant/MC aren't checked — they have no numeric 'house'
+    field in the chart (house 1/10 is determined by the cusp, not stored as a
+    separate value).
     """
     lang = normalize_language(language)
     planet_stems = PLANET_STEM_BY_LANG[lang]

@@ -21,7 +21,7 @@ from app.services.prompt_templates.progressed_synastry import (
 
 
 def get_simple_template(name: str, language: str) -> str:
-    """Получить простой промпт по имени"""
+    """Get the simple prompt by name"""
     templates = {
         'analysis': ANALYSIS_PROMPTS_SIMPLE,
         'planet': PLANET_PROMPTS_SIMPLE,
