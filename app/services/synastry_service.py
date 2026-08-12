@@ -8,7 +8,7 @@ from app.services.search_service import (
 from app.services.llm_adapter import get_llm_adapter
 from app.services.prompt_labels import get_labels
 from app.services.prompt_templates import get_template, get_relationship_context_prompt
-from app.services.analysis_service import search_chunks_all_books
+from app.services.analysis_service import search_chunks_all_books, _fetch_book_titles
 from app.services.text_verification import (
     SIGN_PREPOSITIONAL_TO_NOMINATIVE,
     SIGN_NOMINATIVE_TO_PREPOSITIONAL,
@@ -80,17 +80,17 @@ def find_fabricated_planet_positions(
     language: str = 'ru',
 ) -> List[str]:
     """
-    Ищет в готовом тексте утверждения вида "<Планета> в <Знаке>"
-    ("<Planet> in <Sign>" для английского) и сверяет их с реальными позициями
-    планет в обеих картах. Возвращает список фраз, для которых такого
-    сочетания планета+знак нет ни в одной карте — то есть модель выдумала
-    позицию (план: plans/synastry-before-batching.md, п.5).
+    Looks for statements of the form "<Planet> in <Sign>" in the finished text
+    and checks them against the real planet positions in both charts. Returns
+    the list of phrases for which that planet+sign combination doesn't exist
+    in either chart — i.e. the model made up a position
+    (plan: plans/synastry-before-batching.md, item 5).
 
-    Ловит только явное расхождение планета/знак; не проверяет дом.
+    Only catches an explicit planet/sign mismatch; doesn't check the house.
 
-    Английский проще русского здесь: знак не склоняется ("in Cancer" что в
-    начале, что в середине фразы), поэтому дополнительная таблица форм
-    (как SIGN_PREPOSITIONAL_TO_NOMINATIVE для русского) не нужна.
+    English is simpler than Russian here: the sign isn't declined ("in
+    Cancer" whether at the start or middle of the phrase), so no extra forms
+    table (like SIGN_PREPOSITIONAL_TO_NOMINATIVE for Russian) is needed.
     """
     lang = normalize_language(language)
     connector = CONNECTOR_BY_LANG[lang]
@@ -146,23 +146,25 @@ def fix_fabricated_planet_positions(
     language: str = 'ru',
 ) -> "tuple[str, List[str]]":
     """
-    Заменяет в готовом тексте выдуманные позиции планет ("<Планета> в <Знаке>"
-    / "<Planet> in <Sign>", которого нет ни в одной карте) на верный знак —
-    строковой заменой, без повторного вызова LLM (план:
-    plans/synastry-before-batching.md, п.5). Полная перегенерация всего
-    документа при каждой ошибке съедала ~15 минут и не гарантированно чинила
-    суть — регулярка со словарём карты дешевле и надёжнее для этого
-    конкретного класса ошибок.
+    Replaces made-up planet positions in the finished text ("<Planet> in
+    <Sign>" that doesn't exist in either chart) with the correct sign — via a
+    string replacement, without calling the LLM again
+    (plan: plans/synastry-before-batching.md, item 5). Fully regenerating the
+    whole document on every error took ~15 minutes and didn't reliably fix
+    the substance — a regex plus the chart's own data is cheaper and more
+    reliable for this specific class of error.
 
-    Партнёр (чья карта верна) определяется по ближайшему предшествующему
-    упоминанию "Партнёр 1/2" / "Partner 1/2" в тексте. Если такого упоминания
-    нет рядом, или планета отсутствует в определённой карте — фраза не
-    трогается и попадает в список unresolved (её стоит показать в логах).
+    The partner (whose chart is correct) is determined by the nearest
+    preceding mention of "Партнёр 1/2" / "Partner 1/2" in the text. If there's
+    no such mention nearby, or the planet is missing from the chart that was
+    determined — the phrase is left untouched and goes into the unresolved
+    list (worth surfacing in the logs).
 
-    Для английского замена проще: знак не склоняется, "правильная форма"
-    знака — он сам же, без таблицы конверсии как для русского.
+    For English the replacement is simpler: the sign isn't declined, so the
+    "correct form" of the sign is just itself, no conversion table like for
+    Russian.
 
-    Возвращает (исправленный текст, список нерешённых расхождений).
+    Returns (corrected text, list of unresolved mismatches).
     """
     lang = normalize_language(language)
     connector = CONNECTOR_BY_LANG[lang]
@@ -247,19 +249,19 @@ _ASPECT_PARTNER_MARKER_RE_BY_LANG = {
 
 def attribute_header_planets_to_partners(header: str, language: str = 'ru') -> Optional[Dict[str, str]]:
     """
-    Для одного жирного markdown-заголовка вида "<Планета> Партнёра N ... к
-    <Планета> Партнёра M" ("<Planet> Partner N ... <Planet> Partner M" для
-    английского) возвращает {'1': planet_en, '2': planet_en}, если ровно две
-    планеты однозначно привязаны к обоим партнёрам, иначе None.
+    For a single bold markdown heading of the form "<Planet> Partner N ... to
+    <Planet> Partner M" returns {'1': planet_en, '2': planet_en} if exactly
+    two planets are unambiguously attributed to both partners, else None.
 
-    Общий кусок логики для find_fabricated_aspect_types и для
-    tests/check_aspect_coverage.py + tests/judge_synastry.py — важно, что
-    один и тот же неупорядоченный набор планет (Сатурн-Хирон) может встречать
-    в тексте ДВАЖДЫ как два РАЗНЫХ реальных аспекта: Сатурн(П1)-Хирон(П2) и
-    Хирон(П1)-Сатурн(П2) — у каждого своя орбита и свой тип. Проверка "оба
-    имени встречаются в абзаце" (без разбора, кому что принадлежит) путает
-    эти два разных аспекта друг с другом — так нашлись ложные "противоречия"
-    на живом прогоне (см. plans/synastry-aspect-type-verification.md).
+    Shared piece of logic for find_fabricated_aspect_types and for
+    tests/check_aspect_coverage.py + tests/judge_synastry.py — it matters that
+    the same unordered pair of planets (Saturn-Chiron) can appear in the text
+    TWICE as two DIFFERENT real aspects: Saturn(P1)-Chiron(P2) and
+    Chiron(P1)-Saturn(P2) — each with its own orb and its own type. A check
+    that just tests "both names appear in the paragraph" (without figuring
+    out who owns what) confuses these two different aspects with each other —
+    that's how false "contradictions" showed up on a live run (see
+    plans/synastry-aspect-type-verification.md).
     """
     lang = normalize_language(language)
     partner_re = _ASPECT_PARTNER_MARKER_RE_BY_LANG[lang]
@@ -296,12 +298,13 @@ def find_paragraph_for_pair(
     text: str, planet1_en: str, planet2_en: str, language: str = 'ru'
 ) -> Optional[str]:
     """
-    Находит абзац (заголовок + текст до следующего заголовка), где planet1_en
-    привязан ИМЕННО к Партнёру 1, а planet2_en — ИМЕННО к Партнёру 2 (порядок
-    важен — так же, как в aspects из calculate_synastry). Не путает два разных
-    реальных аспекта одной неупорядоченной пары планет (см.
-    attribute_header_planets_to_partners). Возвращает самый длинный такой
-    абзац, если их несколько; None, если ни одного не найдено.
+    Finds the paragraph (heading + text up to the next heading) where
+    planet1_en is attributed SPECIFICALLY to Partner 1 and planet2_en
+    SPECIFICALLY to Partner 2 (order matters — same as in aspects from
+    calculate_synastry). Doesn't confuse two different real aspects of the
+    same unordered pair of planets (see attribute_header_planets_to_partners).
+    Returns the longest such paragraph if there are several; None if none is
+    found.
     """
     headers = list(_ASPECT_HEADER_RE.finditer(text))
     best: Optional[str] = None
@@ -321,23 +324,23 @@ def find_fabricated_aspect_types(
     text: str, aspects: List[Dict[str, Any]], language: str = 'ru'
 ) -> List[str]:
     """
-    Ищет в жирных markdown-заголовках готового текста утверждения вида
-    "<Планета> Партнёра N ... <аспект> ... <Планета> Партнёра M" ("<Planet>
-    Partner N ... <aspect> ... <Planet> Partner M" для английского) и сверяет
-    заявленный тип аспекта с реально посчитанным (calculate_synastry) для
-    этой пары планета+партнёр. Возвращает список описаний расхождений —
-    план: plans/synastry-aspect-type-verification.md.
+    Looks for statements of the form "<Planet> Partner N ... <aspect> ...
+    <Planet> Partner M" in the finished text's bold markdown headings and
+    checks the claimed aspect type against the actually calculated one
+    (calculate_synastry) for that planet+partner pair. Returns a list of
+    mismatch descriptions —
+    plan: plans/synastry-aspect-type-verification.md.
 
-    Только детекция, ничего не правит и не удаляет — при 51 аспекте и
-    2 партнёрах строковая замена рискует сломать согласование (у "оппозиция"
-    и "квадрат" разный род на русском), чинить предлагается точечной
-    регенерацией абзаца, не входит в этот прогон.
+    Detection only, doesn't fix or remove anything — with 51 aspects and
+    2 partners a string replacement risks breaking agreement ("opposition"
+    and "square" have different grammatical gender in Russian); fixing via
+    targeted paragraph regeneration is proposed but out of scope for this run.
 
-    Находит только то, что оформлено жирным заголовком с явной пометкой
-    "Партнёра 1/2" / "Partner 1/2" у каждой планеты — как реально пишет
-    модель на этом промпте (см. правило 13, prompt_templates.py). Аспекты,
-    разобранные внутри обычного абзаца без такого заголовка, не проверяются —
-    это известное ограничение (недооценка, не переоценка числа ошибок).
+    Only finds what's formatted as a bold heading with an explicit
+    "Партнёра 1/2" / "Partner 1/2" mark on each planet — matching what the
+    model actually writes with this prompt (see rule 13, prompt_templates.py).
+    Aspects covered inside a plain paragraph without such a heading aren't
+    checked — a known limitation (undercounts errors, never overcounts them).
     """
     lang = normalize_language(language)
     aspect_stems = ASPECT_STEM_BY_LANG[lang]
@@ -422,14 +425,15 @@ SHALLOW_ASPECT_CHAR_THRESHOLD = 220
 
 def _find_aspect_coverage(text: str, planet1_en: str, planet2_en: str, language: str) -> Optional[str]:
     """
-    Лучший найденный абзац для пары планет — поиск по реальному тексту, а не
-    по markdown-разметке: модель не обязана оформлять аспект жирным
-    заголовком, и в проверке это не должно быть требованием (см. обсуждение
-    2026-07-23 — прежняя версия зависела от find_paragraph_for_pair и жирных
-    заголовков и пропускала реально разобранные аспекты, написанные обычной
-    прозой). Ищем по стемам с учётом склонения (PLANET_STEM_RU/EN — те же,
-    что для сверки типа аспекта), а не по точному имени — проза склоняет
-    имя планеты по падежу ("Плутона", "Сатурном").
+    Best paragraph found for a pair of planets — searches the real text, not
+    the markdown formatting: the model isn't required to format an aspect as
+    a bold heading, and the check shouldn't demand that either (see the
+    2026-07-23 discussion — the previous version relied on
+    find_paragraph_for_pair and bold headings and missed aspects that were
+    genuinely covered but written as plain prose). Searches by declension-aware
+    stems (PLANET_STEM_RU/EN — the same ones used for the aspect-type check),
+    not the exact name — prose declines the planet's name by case ("Pluto's",
+    "with Saturn").
     """
     lang = normalize_language(language)
     stems = PLANET_STEM_BY_LANG[lang]
@@ -451,15 +455,15 @@ def find_undercovered_aspects(
     language: str,
 ) -> List[str]:
     """
-    Только детекция (тот же принцип, что find_fabricated_aspect_types): для
-    каждого аспекта из списка проверяет, получил ли он реальный разбор (не
-    пропущен и не свёрнут в отсылку "разобрано выше"). Текст анализа не
-    трогает и ничего не дописывает — пользователь дозаписанный текст больше
-    не видит (раньше видел, как хвост в конце ответа — снято по просьбе
-    пользователя 2026-07-23, реальный разбор дублировался, а неточная
-    детекция по жирным заголовкам иногда дублировала и то, что уже было
-    разобрано). Возвращает список недоразобранных аспектов в виде читаемых
-    меток — для серверного лога.
+    Detection only (same principle as find_fabricated_aspect_types): for
+    each aspect in the list, checks whether it got a real breakdown (not
+    skipped and not collapsed into a "covered above" reference). Doesn't
+    touch the analysis text and doesn't append anything — the user no longer
+    sees an appended text (used to see it as a tail at the end of the
+    response — removed at the user's request on 2026-07-23, the real
+    breakdown was being duplicated, and imprecise detection via bold headings
+    sometimes duplicated what had already been covered too). Returns a list
+    of undercovered aspects as human-readable labels — for the server log.
     """
     lang = normalize_language(language)
     cop_out_phrases = COP_OUT_PHRASES_BY_LANG[lang]
@@ -493,7 +497,7 @@ def build_synastry_aspect_prompt(
     language: str = "en",
     mode: Optional[str] = 'advanced'
 ) -> str:
-    """Построить промпт для анализа аспекта синастрии"""
+    """Build the prompt for analyzing a synastry aspect"""
     
     lang = normalize_language(language)
     if lang in ('ru', 'uk'):
@@ -542,7 +546,7 @@ async def analyze_synastry_aspect(
     mode: str = 'advanced'
 ) -> Dict[str, Any]:
     """
-    Анализ конкретного аспекта в синастрии
+    Analysis of a specific synastry aspect
     """
     
     if language == "ru" and aspect_name_ru:
@@ -595,16 +599,16 @@ async def full_synastry_analysis_v2(
 
 ) -> Dict[str, Any]:
     """
-    [v2] Полный анализ синастрии — ГИБРИДНЫЙ подход:
-    - Для каждого аспекта синастрии делаем точечный RAG-поиск по ВСЕМ книгам
-    - Для ключевых планет обеих карт делаем RAG-поиск
-    - Собираем структурированный промпт
-    - Один финальный вызов LLM
+    [v2] Full synastry analysis — HYBRID approach:
+    - For each synastry aspect, do a targeted RAG search across ALL books
+    - For key planets of both charts, do a RAG search
+    - Assemble a structured prompt
+    - One final LLM call
 
-    Преимущества:
-    - Все книги участвуют в анализе
-    - Нет проблемы с превышением контекста
-    - Каждый аспект получает релевантные фрагменты
+    Advantages:
+    - All books participate in the analysis
+    - No context-overflow problem
+    - Each aspect gets relevant fragments
     """
     import asyncio
     from app.utils.astrology_v2 import calculate_synastry, ASPECTS_RU, get_house_for_longitude
@@ -654,6 +658,15 @@ async def full_synastry_analysis_v2(
     # still all searched, just not in a single burst.
     search_semaphore = asyncio.Semaphore(12)
 
+    # search_chunks_by_query -> search_chunks_hybrid returns raw Supabase RPC
+    # rows (book_id only, no book_title) — every search below is pinned to
+    # the single JEFF_GREEN_BOOK_ID, so its title is fetched once and stamped
+    # onto every chunk here, same pattern as _fetch_book_titles is used for
+    # in analysis_service.py's search_chunks_by_book_ids. Without this,
+    # chunk.get("book_title") is always missing: empty in the prompt's source
+    # citations and "?" in the aspect_sources_debug log below (2026-08-11).
+    jeff_green_title = (await _fetch_book_titles([JEFF_GREEN_BOOK_ID])).get(JEFF_GREEN_BOOK_ID, "")
+
     async def search_aspect(asp: Dict) -> tuple:
         p1 = asp.get('planet1', '')
         p2 = asp.get('planet2', '')
@@ -665,6 +678,8 @@ async def full_synastry_analysis_v2(
         query = f"{p1} {asp_type} {p2} synastry"
         async with search_semaphore:
             chunks = await search_chunks_by_query(query, top_k=top_k_per_book, book_id=JEFF_GREEN_BOOK_ID)
+        for chunk in chunks:
+            chunk["book_title"] = jeff_green_title
         return f"{p1} {asp_ru} {p2} (орб: {orb}°)", chunks
 
     # 4. Parallel RAG search over key planets
@@ -679,6 +694,8 @@ async def full_synastry_analysis_v2(
         query = f"{planet_name} synastry partner"
         async with search_semaphore:
             chunks = await search_chunks_by_query(query, top_k=top_k_per_book, book_id=JEFF_GREEN_BOOK_ID)
+        for chunk in chunks:
+            chunk["book_title"] = jeff_green_title
         return f"Planet {planet_name} (Chart {chart_num})", chunks
 
     # Launch the parallel search
@@ -867,6 +884,8 @@ async def full_synastry_analysis_v2(
             )
             if unresolved:
                 print(f"[full_synastry_analysis_v2] Unresolved position mismatches (left as-is): {unresolved}")
+            else:
+                print("[full_synastry_analysis_v2] Position check: OK, no unresolved mismatches")
 
             # Detection only (plan: plans/synastry-aspect-type-verification.md)
             # — the text is left alone, so as not to mask the real error rate
@@ -874,12 +893,16 @@ async def full_synastry_analysis_v2(
             fabricated_aspects = find_fabricated_aspect_types(full_analysis, aspects, language=language)
             if fabricated_aspects:
                 print(f"[full_synastry_analysis_v2] Fabricated aspect types detected (not fixed): {fabricated_aspects}")
+            else:
+                print("[full_synastry_analysis_v2] Aspect-type check: OK, no fabricated aspect types")
 
             # Detection only, from the text (not markdown headings) — the
             # response text is left alone, nothing is appended for the user.
             undercovered = find_undercovered_aspects(full_analysis, aspects, language=language)
             if undercovered:
                 print(f"[full_synastry_analysis_v2] Undercovered aspects detected (not filled): {undercovered}")
+            else:
+                print(f"[full_synastry_analysis_v2] Coverage check: OK, all {len(aspects)} aspects covered")
     except Exception as e:
         full_analysis = f"Ошибка анализа: {str(e)}"
         print(f"[full_synastry_analysis_v2] LLM error: {e}")
@@ -935,7 +958,7 @@ async def chat_with_synastry_astrologer(
     relationship_context: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Чат с астрологом по синастрии
+    Chat with the astrologer about a synastry
     """
     from app.services.search_service import search_chunks_by_query
 
@@ -960,6 +983,17 @@ async def chat_with_synastry_astrologer(
     chunks = await search_chunks_by_query(question, top_k=10, book_id=JEFF_GREEN_BOOK_ID)
     if not chunks:
         chunks = await search_chunks_by_query(question, top_k=10)
+
+    # Same gap as full_synastry_analysis_v2 (see app/services/INSIGHTS.md
+    # 2026-08-11): search_chunks_by_query never attaches book_title. Unlike
+    # that function this one's fallback path drops the book_id filter
+    # entirely, so chunks can come from any book — titles are looked up per
+    # chunk's own book_id, not a single fixed one.
+    if chunks:
+        chunk_book_ids = sorted({c.get("book_id") for c in chunks if c.get("book_id")})
+        chunk_book_titles = await _fetch_book_titles(chunk_book_ids)
+        for chunk in chunks:
+            chunk["book_title"] = chunk_book_titles.get(chunk.get("book_id"), "")
 
     books_context = ""
     if chunks:

@@ -5,8 +5,8 @@ T = TypeVar('T')
 
 async def run_sync_in_thread(func: Any, *args, **kwargs) -> T:
     """
-    Выполняет синхронную функцию в отдельном потоке.
-    Использует asyncio.to_thread (Python 3.10+).
-    Позволяет не блокировать event loop на время I/O операций.
+    Runs a synchronous function in a separate thread.
+    Uses asyncio.to_thread (Python 3.10+).
+    Keeps the event loop from blocking during I/O operations.
     """
     return await asyncio.to_thread(func, *args, **kwargs)

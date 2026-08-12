@@ -49,6 +49,7 @@ class FullAnalysisRequest(BaseModel):
     
     language: str = "ru"
     top_books: int = 5
+    stream: bool = False
 
 
 class BookAnalysisResult(BaseModel):
