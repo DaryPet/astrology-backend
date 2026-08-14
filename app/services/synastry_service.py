@@ -1,5 +1,5 @@
 import re
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, AsyncGenerator
 from datetime import datetime
 from app.services.search_service import (
     search_chunks_by_query,
@@ -8,7 +8,7 @@ from app.services.search_service import (
 from app.services.llm_adapter import get_llm_adapter
 from app.services.prompt_labels import get_labels
 from app.services.prompt_templates import get_template, get_relationship_context_prompt
-from app.services.analysis_service import search_chunks_all_books, _fetch_book_titles
+from app.services.analysis_service import search_chunks_all_books, _fetch_book_titles, stream_verified_analysis
 from app.services.text_verification import (
     SIGN_PREPOSITIONAL_TO_NOMINATIVE,
     SIGN_NOMINATIVE_TO_PREPOSITIONAL,
@@ -587,7 +587,7 @@ async def analyze_synastry_aspect(
     }
 
 
-async def full_synastry_analysis_v2(
+async def _prepare_synastry_analysis(
     chart1_data: Dict[str, Any],
     chart2_data: Dict[str, Any],
     aspects: Optional[List[Dict[str, Any]]] = None,
@@ -596,14 +596,20 @@ async def full_synastry_analysis_v2(
     top_k_per_book: int = 1,
     mode: str = 'advanced',
     relationship_context: Optional[str] = None
-
 ) -> Dict[str, Any]:
     """
+    Shared prep for full_synastry_analysis_v2 and its streaming twin
+    (full_synastry_analysis_v2_stream): everything from "no prompt yet" to
+    "prompt/aspects/overlays ready for one LLM call". Split out by
+    plans/streaming-rollout-synastry-progressions-transits.md (step 1а) — same
+    principle as analysis_service.py's _prepare_natal_analysis — behavior is
+    unchanged, this is the same code full_synastry_analysis_v2 used to run
+    inline.
+
     [v2] Full synastry analysis — HYBRID approach:
     - For each synastry aspect, do a targeted RAG search across ALL books
     - For key planets of both charts, do a RAG search
     - Assemble a structured prompt
-    - One final LLM call
 
     Advantages:
     - All books participate in the analysis
@@ -865,6 +871,42 @@ async def full_synastry_analysis_v2(
     prompt = prompt.replace("{houses_2}", houses_2_str)
     prompt = prompt.replace("{house_overlays}", overlays_str)
 
+    return {
+        'adapter': adapter,
+        'prompt': prompt,
+        'aspects': aspects,
+        'overlays': overlays,
+        'aspect_sources_debug': aspect_sources_debug,
+    }
+
+
+async def full_synastry_analysis_v2(
+    chart1_data: Dict[str, Any],
+    chart2_data: Dict[str, Any],
+    aspects: Optional[List[Dict[str, Any]]] = None,
+    overlays: Optional[Dict[str, Any]] = None,
+    language: str = "ru",
+    top_k_per_book: int = 1,
+    mode: str = 'advanced',
+    relationship_context: Optional[str] = None
+
+) -> Dict[str, Any]:
+    """
+    [v2] Full synastry analysis — HYBRID approach: RAG search per aspect/
+    planet + prompt assembly via _prepare_synastry_analysis, one final LLM
+    call, then the fix/detect anti-fabrication pass. Behavior unchanged by the
+    step-1а refactor (plans/streaming-rollout-synastry-progressions-transits.md)
+    — this is the same code that used to run inline in this function.
+    """
+    prep = await _prepare_synastry_analysis(
+        chart1_data, chart2_data, aspects, overlays, language, top_k_per_book, mode, relationship_context
+    )
+    adapter = prep['adapter']
+    prompt = prep['prompt']
+    aspects = prep['aspects']
+    overlays = prep['overlays']
+    aspect_sources_debug = prep['aspect_sources_debug']
+
     # 6. Call the LLM
     print(f"[full_synastry_analysis_v2] Sending prompt to LLM (~{len(prompt)//4} tokens estimated)")
 
@@ -879,13 +921,23 @@ async def full_synastry_analysis_v2(
         full_analysis = await adapter.generate(prompt, language)
 
         if language in ('ru', 'en', 'uk'):
+            # Detection runs first so the log can distinguish "nothing was
+            # wrong" from "something was wrong and got repaired silently" —
+            # fix_* only reports what it could NOT repair.
+            _fabricated = find_fabricated_planet_positions(
+                full_analysis, chart1_data, chart2_data, language=language
+            )
             full_analysis, unresolved = fix_fabricated_planet_positions(
                 full_analysis, chart1_data, chart2_data, language=language
             )
-            if unresolved:
-                print(f"[full_synastry_analysis_v2] Unresolved position mismatches (left as-is): {unresolved}")
+            if _fabricated or unresolved:
+                print(
+                    f"[full_synastry_analysis_v2] Position check: found {len(_fabricated)}, "
+                    f"fixed {len(_fabricated) - len(unresolved)}, unresolved {len(unresolved)}"
+                    + (f": {unresolved}" if unresolved else "")
+                )
             else:
-                print("[full_synastry_analysis_v2] Position check: OK, no unresolved mismatches")
+                print("[full_synastry_analysis_v2] Position check: OK, no fabricated positions found")
 
             # Detection only (plan: plans/synastry-aspect-type-verification.md)
             # — the text is left alone, so as not to mask the real error rate
@@ -948,6 +1000,128 @@ async def full_synastry_analysis_v2(
         "relationship_context": relationship_context,
         "created_at": datetime.utcnow()
     }
+
+
+async def full_synastry_analysis_v2_stream(
+    chart1_data: Dict[str, Any],
+    chart2_data: Dict[str, Any],
+    aspects: Optional[List[Dict[str, Any]]] = None,
+    overlays: Optional[Dict[str, Any]] = None,
+    language: str = "ru",
+    top_k_per_book: int = 1,
+    mode: str = 'advanced',
+    relationship_context: Optional[str] = None
+) -> AsyncGenerator[Dict[str, Any], None]:
+    """
+    Streaming twin of full_synastry_analysis_v2
+    (plans/streaming-rollout-synastry-progressions-transits.md, step 1б). Same
+    prep (_prepare_synastry_analysis), same finalize pipeline (fix + the two
+    detect-only checks + the per-aspect source debug log) — only the delivery
+    differs: verified paragraphs stream out via stream_verified_analysis
+    instead of waiting for the whole text. The `final` event always carries
+    the same canonical JSON full_synastry_analysis_v2 would have returned.
+    """
+    yield {"event": "stage", "data": {"stage": "searching"}}
+
+    prep = await _prepare_synastry_analysis(
+        chart1_data, chart2_data, aspects, overlays, language, top_k_per_book, mode, relationship_context
+    )
+    adapter = prep['adapter']
+    prompt = prep['prompt']
+    aspects = prep['aspects']
+    overlays = prep['overlays']
+    aspect_sources_debug = prep['aspect_sources_debug']
+
+    async def finalize(buffer: str, released: str) -> Dict[str, Any]:
+        full_analysis = buffer
+        if language in ('ru', 'en', 'uk'):
+            # Detection runs before the fix so the log can distinguish "nothing
+            # was wrong" from "something was wrong and got repaired silently" —
+            # fix_* only reports what it could NOT repair.
+            _fabricated = find_fabricated_planet_positions(
+                full_analysis, chart1_data, chart2_data, language=language
+            )
+            full_analysis, unresolved = fix_fabricated_planet_positions(
+                full_analysis, chart1_data, chart2_data, language=language
+            )
+            if _fabricated or unresolved:
+                print(
+                    f"[full_synastry_analysis_v2_stream] Position check: found {len(_fabricated)}, "
+                    f"fixed {len(_fabricated) - len(unresolved)}, unresolved {len(unresolved)}"
+                    + (f": {unresolved}" if unresolved else "")
+                )
+            else:
+                print("[full_synastry_analysis_v2_stream] Position check: OK, no fabricated positions found")
+
+            fabricated_aspects = find_fabricated_aspect_types(full_analysis, aspects, language=language)
+            if fabricated_aspects:
+                print(f"[full_synastry_analysis_v2_stream] Fabricated aspect types detected (not fixed): {fabricated_aspects}")
+            else:
+                print("[full_synastry_analysis_v2_stream] Aspect-type check: OK, no fabricated aspect types")
+
+            undercovered = find_undercovered_aspects(full_analysis, aspects, language=language)
+            if undercovered:
+                print(f"[full_synastry_analysis_v2_stream] Undercovered aspects detected (not filled): {undercovered}")
+            else:
+                print(f"[full_synastry_analysis_v2_stream] Coverage check: OK, all {len(aspects)} aspects covered")
+
+        if not full_analysis.startswith(released):
+            # See analysis_service.py's stream_verified_analysis and the
+            # 2026-08-10 INSIGHTS entry: `released` legitimately stops short
+            # of `full_analysis` by the last, unterminated paragraph on EVERY
+            # normal run — only a true divergence (the fix pass rewriting
+            # already-released content) should ever print this.
+            print(
+                "[stream_mismatch] full_synastry_analysis_v2_stream"
+                f" released={released!r} canonical={full_analysis!r}"
+            )
+
+        # Same source-accounting log as the non-stream path (step 6.5 there).
+        print("[full_synastry_analysis_v2_stream] Источники по аспектам:")
+        for label, count, book_titles, error in aspect_sources_debug:
+            if error:
+                print(f"  {label}: поиск не выполнен ({error})")
+                continue
+            titles_str = ", ".join(book_titles) if book_titles else "—"
+            print(f"  {label}: {count} чанков, книги: {titles_str}")
+
+        summary = full_analysis[:500].rsplit('. ', 1)[0] if len(full_analysis) > 500 else full_analysis
+
+        return {
+            "chart1_summary": {
+                "sun_sign": chart1_data.get('sun_sign', '?'),
+                "sun_sign_ru": chart1_data.get('sun_sign_ru', '?'),
+                "moon_sign": chart1_data.get('moon_sign', '?'),
+                "moon_sign_ru": chart1_data.get('moon_sign_ru', '?'),
+                "ascendant": chart1_data.get('ascendant', '?'),
+                "ascendant_ru": chart1_data.get('ascendant_ru', '?'),
+            },
+            "chart2_summary": {
+                "sun_sign": chart2_data.get('sun_sign', '?'),
+                "sun_sign_ru": chart2_data.get('sun_sign_ru', '?'),
+                "moon_sign": chart2_data.get('moon_sign', '?'),
+                "moon_sign_ru": chart2_data.get('moon_sign_ru', '?'),
+                "ascendant": chart2_data.get('ascendant', '?'),
+                "ascendant_ru": chart2_data.get('ascendant_ru', '?'),
+            },
+            "aspects": aspects,
+            "overlays": overlays,
+            "analysis": full_analysis,
+            "summary": summary,
+            "relevant_chunks": [],
+            "language": language,
+            "relationship_context": relationship_context,
+            "created_at": datetime.utcnow().isoformat()
+        }
+
+    fix_fn = lambda text: fix_fabricated_planet_positions(text, chart1_data, chart2_data, language=language)
+
+    print(f"[full_synastry_analysis_v2_stream] Sending prompt to LLM (~{len(prompt)//4} tokens estimated)")
+    yield {"event": "stage", "data": {"stage": "generating"}}
+
+    async for event in stream_verified_analysis(adapter, prompt, language, fix_fn, finalize):
+        yield event
+
 
 async def chat_with_synastry_astrologer(
     question: str,

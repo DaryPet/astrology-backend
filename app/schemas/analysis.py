@@ -117,6 +117,7 @@ class SynastryAnalysisRequest(BaseModel):
     top_k_per_book: int = 3
     mode: str = 'advanced'
     relationship_context: Optional[str] = None  # "default", "relatives", "partner", "colleagues", "friends"
+    stream: bool = False
 
 
 class SynastryAnalysisResponse(BaseModel):
@@ -237,6 +238,7 @@ class ProgressionsAnalysisRequest(BaseModel):
     language: str = "ru"
     mode: Optional[str] = "advanced"
     top_k_per_book: int = 2
+    stream: bool = False
 
 
 class ProgressionsAnalysisResponse(BaseModel):
@@ -286,6 +288,7 @@ class TransitsAnalysisRequest(BaseModel):
     language: str = "ru"
     mode: str = "advanced"  # simple | advanced
     top_k_per_book: int = 2
+    stream: bool = False
 
     # Place to calculate transits for
     transit_place: Optional[str] = None
@@ -337,6 +340,7 @@ class ProgressedSynastryAnalysisRequest(BaseModel):
     mode: str = "advanced"  # simple | advanced
     top_k_per_book: int = 2
     relationship_context: Optional[str] = None
+    stream: bool = False
 
 
 class ProgressedSynastryAnalysisResponse(BaseModel):

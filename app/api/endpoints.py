@@ -1419,18 +1419,39 @@ async def full_synastry_analysis_endpoint(request: Request, payload: SynastryAna
     # Determine the language
     language = payload.language or "ru"
 
+    synastry_aspects = calculate_synastry(chart1_data, chart2_data).get('aspects', [])
+
+    if payload.stream:
+        from app.services.synastry_service import full_synastry_analysis_v2_stream
+        from fastapi.responses import StreamingResponse
+
+        return StreamingResponse(
+            _sse(full_synastry_analysis_v2_stream(
+                chart1_data=chart1_data,
+                chart2_data=chart2_data,
+                aspects=synastry_aspects,
+                overlays=payload.overlays,
+                language=language,
+                top_k_per_book=payload.top_k_per_book,
+                mode=payload.mode,
+                relationship_context=payload.relationship_context
+            )),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
     # Run the full synastry analysis
     result = await full_synastry_analysis_v2(
         chart1_data=chart1_data,
         chart2_data=chart2_data,
-        aspects=calculate_synastry(chart1_data, chart2_data).get('aspects', []),
+        aspects=synastry_aspects,
         overlays=payload.overlays,
         language=language,
         top_k_per_book=payload.top_k_per_book,
         mode=payload.mode,
         relationship_context=payload.relationship_context
     )
-    
+
     return result
 
 
@@ -1621,6 +1642,27 @@ async def progressions_analysis_endpoint(request: Request, payload: Progressions
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Cannot rebuild natal chart: {str(e)}")
 
+    if payload.stream:
+        from app.services.analysis_service import progressions_analysis_stream
+        from fastapi.responses import StreamingResponse
+
+        # Stream branch stands BEFORE the cache read/write below (unlike
+        # /analysis/full's cache-before-stream — see app/api/INSIGHTS.md,
+        # 2026-08-10 open question) — a stream:true request must always get
+        # an SSE response, never a cached plain-JSON one; the streamed result
+        # also isn't written back into _analysis_cache.
+        return StreamingResponse(
+            _sse(progressions_analysis_stream(
+                natal_chart=natal_chart,
+                progressions=progressions,
+                language=payload.language,
+                top_k_per_book=payload.top_k_per_book,
+                mode=payload.mode or 'advanced',
+            )),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
     # --- Cache (same mechanism as /analysis/full) ---
     meta = progressions.get('meta', {})
     period = progressions.get('period', '')
@@ -1752,6 +1794,27 @@ async def transits_analysis_endpoint(request: Request, payload: TransitsAnalysis
     natal_chart = payload.natal_chart
     if not natal_chart:
         raise HTTPException(status_code=400, detail="natal_chart is required")
+
+    if payload.stream:
+        from app.services.analysis_service import transits_analysis_stream
+        from fastapi.responses import StreamingResponse
+
+        # Stream branch stands BEFORE the cache read/write below — same
+        # reasoning as /analysis/progressions (see the comment there).
+        return StreamingResponse(
+            _sse(transits_analysis_stream(
+                natal_chart=natal_chart,
+                transits=transits,
+                language=payload.language,
+                top_k_per_book=payload.top_k_per_book,
+                mode=payload.mode or 'advanced',
+                transit_place=payload.transit_place,
+                transit_lat=transit_lat,
+                transit_lon=transit_lon,
+            )),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
 
     # --- Cache (same mechanism as /analysis/progressions) ---
     meta = transits.get('meta', {})
@@ -1982,6 +2045,26 @@ async def progressed_synastry_analysis_endpoint(request: Request, payload: Progr
             )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Progressed synastry calculation error: {str(e)}")
+
+    if payload.stream:
+        from app.services.analysis_service import progressed_synastry_analysis_stream
+        from fastapi.responses import StreamingResponse
+
+        # Stream branch stands BEFORE the cache read/write below — same
+        # reasoning as /analysis/progressions and /analysis/transits (see the
+        # comments there / the plan's step 4г): a stream:true request must
+        # always get an SSE response, and the streamed result isn't written
+        # back into _analysis_cache.
+        return StreamingResponse(
+            _sse(progressed_synastry_analysis_stream(
+                progressed_synastry=progressed_synastry,
+                language=payload.language,
+                top_k_per_book=payload.top_k_per_book,
+                mode=payload.mode or 'advanced',
+            )),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
 
     # --- Cache ---
     period = progressed_synastry.get('period', '')
