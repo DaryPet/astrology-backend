@@ -234,7 +234,7 @@ def build_planet_analysis_prompt(
     return "\n".join(prompt_parts)
 
 
-async def analyze_planet(
+async def _prepare_planet_analysis(
     planet: str,
     sign: str,
     degree: float,
@@ -247,9 +247,12 @@ async def analyze_planet(
     mode: str = 'advanced'
 ) -> Dict[str, Any]:
     """
-    Analysis of a single planet
+    Shared prep for analyze_planet and its streaming twin
+    (analyze_planet_stream): RAG search + prompt build, same split as
+    _prepare_natal_analysis/_prepare_synastry_analysis — behavior unchanged,
+    this is the same code analyze_planet used to run inline.
     """
-    
+
     PLANET_TO_RU = {
         'pluto': 'плутон', 'saturn': 'сатурн', 'venus': 'венера',
         'mars': 'марс', 'mercury': 'меркурий', 'jupiter': 'юпитер',
@@ -259,14 +262,14 @@ async def analyze_planet(
         'ft': 'pars fortuna', 'fortuna': 'pars fortuna', 'pars fortuna': 'pars fortuna',
         'part of fortune': 'pars fortuna', 'парс фортуны': 'pars fortuna'
     }
-    
+
     SIGN_TO_RU = {
         'aries': 'овен', 'taurus': 'телец', 'gemini': 'близнецы',
         'cancer': 'рак', 'leo': 'лев', 'virgo': 'дева',
         'libra': 'весы', 'scorpio': 'скорпион', 'sagittarius': 'стрелец',
         'capricorn': 'козерог', 'aquarius': 'водолей', 'pisces': 'рыбы'
     }
-    
+
     planet_ru = PLANET_TO_RU.get(planet.lower(), planet)
     sign_ru = SIGN_TO_RU.get(sign.lower(), '') if sign else ''
 
@@ -278,23 +281,23 @@ async def analyze_planet(
     else:
         display_planet = planet
         search_planet = planet.lower()
-    
+
     book_id = PLANET_TO_BOOK_ID.get(planet.capitalize())
     if not book_id:
         book_id = None
-    
+
     house_words = {
-        1: 'first', 2: 'second', 3: 'third', 4: 'fourth', 
-        5: 'fifth', 6: 'sixth', 7: 'seventh', 8: 'eighth', 
+        1: 'first', 2: 'second', 3: 'third', 4: 'fourth',
+        5: 'fifth', 6: 'sixth', 7: 'seventh', 8: 'eighth',
         9: 'ninth', 10: 'tenth', 11: 'eleventh', 12: 'twelfth'
     }
     house_word = house_words.get(house, str(house))
-    
+
     if sign:
         query = f"{search_planet} {house_word} house {sign.lower()}"
     else:
         query = f"{search_planet} {house_word} house"
-    
+
     chunks = await search_chunks_by_query(query, top_k=top_k, book_id=book_id)
 
     if not chunks:
@@ -312,18 +315,89 @@ async def analyze_planet(
         is_retrograde=is_retrograde,
         mode=mode
     )
-    
-    adapter = get_llm_adapter()
-    analysis = await adapter.generate(prompt, language)
-    
+
+    return {
+        "prompt": prompt,
+        "chunks": chunks,
+        "adapter": get_llm_adapter(),
+    }
+
+
+async def analyze_planet(
+    planet: str,
+    sign: str,
+    degree: float,
+    house: int,
+    house_sign: Optional[str] = None,
+    is_retrograde: bool = False,
+    aspects: Optional[List[Dict[str, Any]]] = None,
+    language: str = "en",
+    top_k: int = 20,
+    mode: str = 'advanced'
+) -> Dict[str, Any]:
+    """
+    Analysis of a single planet
+    """
+    prep = await _prepare_planet_analysis(
+        planet, sign, degree, house, house_sign, is_retrograde,
+        aspects, language, top_k, mode
+    )
+    analysis = await prep["adapter"].generate(prep["prompt"], language)
+
     return {
         "planet": planet,
         "sign": sign,
         "house": house,
         "is_retrograde": is_retrograde,
         "analysis": analysis,
-        "relevant_chunks": chunks
+        "relevant_chunks": prep["chunks"]
     }
+
+
+async def analyze_planet_stream(
+    planet: str,
+    sign: str,
+    degree: float,
+    house: int,
+    house_sign: Optional[str] = None,
+    is_retrograde: bool = False,
+    aspects: Optional[List[Dict[str, Any]]] = None,
+    language: str = "en",
+    top_k: int = 20,
+    mode: str = 'advanced'
+) -> AsyncGenerator[Dict[str, Any], None]:
+    """
+    Streaming twin of analyze_planet. analyze_planet never runs an
+    anti-fabrication fix pass on its output (single generate() call, text
+    returned as-is) — fix_fn is therefore the identity function, same as
+    progressed_synastry_analysis_stream's `lambda text: (text, [])`
+    (analysis_service.py, see INSIGHTS.md 2026-08-12). Still routed through
+    stream_verified_analysis rather than a bespoke raw-relay path, so the SSE
+    event contract (stage/delta/final/error) matches every other streaming
+    endpoint.
+    """
+    yield {"event": "stage", "data": {"stage": "searching"}}
+
+    prep = await _prepare_planet_analysis(
+        planet, sign, degree, house, house_sign, is_retrograde,
+        aspects, language, top_k, mode
+    )
+
+    async def finalize(buffer: str, released: str) -> Dict[str, Any]:
+        return {
+            "planet": planet,
+            "sign": sign,
+            "house": house,
+            "is_retrograde": is_retrograde,
+            "analysis": buffer,
+            "relevant_chunks": prep["chunks"]
+        }
+
+    fix_fn = lambda text: (text, [])
+
+    yield {"event": "stage", "data": {"stage": "generating"}}
+    async for event in stream_verified_analysis(prep["adapter"], prep["prompt"], language, fix_fn, finalize):
+        yield event
 
 
 # async def search_chunks_all_books(
@@ -999,6 +1073,36 @@ async def stream_verified_analysis(
             yield {"event": "delta", "data": {"text": delta}}
 
     result = await finalize(buffer, released)
+    yield {"event": "final", "data": result}
+
+
+async def stream_chat_reply(
+    adapter,
+    messages: List[Dict[str, str]],
+    language: str,
+    finalize: Callable[[str], Awaitable[Dict[str, Any]]],
+) -> AsyncGenerator[Dict[str, Any], None]:
+    """
+    Simpler chat-format cousin of stream_verified_analysis (above): chat
+    replies (chat_with_astrologer/chat_with_synastry_astrologer) never run
+    an anti-fabrication fix pass on their output today — unlike the
+    full-analysis endpoints, there's no fix_fn here and therefore no need to
+    buffer up to a paragraph boundary before releasing; tokens are relayed
+    to the client as soon as they arrive. Yields {"event": "delta", "data":
+    {"text": ...}} chunks as raw adapter output, then exactly one
+    {"event": "final", "data": <finalize(buffer)>}. An "Error: "-prefixed
+    first chunk (same adapter convention stream_verified_analysis relies on)
+    is surfaced as {"event": "error"} instead of being streamed as text.
+    """
+    buffer = ""
+    async for chunk in adapter.generate_stream_with_messages(messages, language):
+        if buffer == "" and chunk.startswith("Error: "):
+            yield {"event": "error", "data": {"detail": chunk[len("Error: "):]}}
+            return
+        buffer += chunk
+        yield {"event": "delta", "data": {"text": chunk}}
+
+    result = await finalize(buffer)
     yield {"event": "final", "data": result}
 
 
@@ -2644,14 +2748,13 @@ async def progressed_synastry_analysis_stream(
         yield event
 
 
-async def analyze_progressed_synastry_aspect(
+async def _prepare_progressed_synastry_aspect_analysis(
     planet1: str,
     planet2: str,
     aspect_name: str,
     layer: str,
     aspect_name_ru: Optional[str] = None,
     aspect_name_uk: Optional[str] = None,
-    orb: float = 0.0,
     applying: Optional[bool] = None,
     house1: Optional[int] = None,
     house2: Optional[int] = None,
@@ -2661,19 +2764,11 @@ async def analyze_progressed_synastry_aspect(
     mode: str = "advanced",
 ) -> Dict[str, Any]:
     """
-    Analysis of a SINGLE progressed-synastry aspect (click on an aspect in the
-    frontend). Modeled on: analyze_synastry_aspect (synastry_service.py:534).
-    See specs/progressed_synastry_aspect_click_plan.md.
-
-    layer — which of the five blocks in the /progressed-synastry response the
-    aspect was taken from: 'progressed' (Layer 1, progr↔progr),
-    'prog1_to_natal2'/'prog2_to_natal1' (Layer 2, cross-overlay),
-    'new'/'faded' (Layer 3, dynamics) — determines the wording of the
-    breakdown via PROGRESSED_SYNASTRY_ASPECT_LAYER_CONTEXT.
-
-    house1/house2 — the house that planet1/planet2 falls into on the OTHER
-    partner's chart (like planet1_house_in_2/planet2_house_in_1 in the main
-    breakdown).
+    Shared prep for analyze_progressed_synastry_aspect and its streaming twin
+    (analyze_progressed_synastry_aspect_stream): RAG search + prompt build,
+    same split as _prepare_natal_analysis/_prepare_synastry_analysis —
+    behavior unchanged, this is the same code
+    analyze_progressed_synastry_aspect used to run inline.
     """
     from app.services.llm_adapter import get_llm_adapter
     from app.services.prompt_templates import get_template
@@ -2729,8 +2824,49 @@ async def analyze_progressed_synastry_aspect(
               .replace("{aspect_data}", aspect_data)
               .replace("{books_content}", books_content))
 
-    adapter = get_llm_adapter()
-    analysis = await adapter.generate(prompt, language)
+    return {
+        "prompt": prompt,
+        "chunks": chunks,
+        "adapter": get_llm_adapter(),
+    }
+
+
+async def analyze_progressed_synastry_aspect(
+    planet1: str,
+    planet2: str,
+    aspect_name: str,
+    layer: str,
+    aspect_name_ru: Optional[str] = None,
+    aspect_name_uk: Optional[str] = None,
+    orb: float = 0.0,
+    applying: Optional[bool] = None,
+    house1: Optional[int] = None,
+    house2: Optional[int] = None,
+    partner1_name: Optional[str] = None,
+    partner2_name: Optional[str] = None,
+    language: str = "ru",
+    mode: str = "advanced",
+) -> Dict[str, Any]:
+    """
+    Analysis of a SINGLE progressed-synastry aspect (click on an aspect in the
+    frontend). Modeled on: analyze_synastry_aspect (synastry_service.py:534).
+    See specs/progressed_synastry_aspect_click_plan.md.
+
+    layer — which of the five blocks in the /progressed-synastry response the
+    aspect was taken from: 'progressed' (Layer 1, progr↔progr),
+    'prog1_to_natal2'/'prog2_to_natal1' (Layer 2, cross-overlay),
+    'new'/'faded' (Layer 3, dynamics) — determines the wording of the
+    breakdown via PROGRESSED_SYNASTRY_ASPECT_LAYER_CONTEXT.
+
+    house1/house2 — the house that planet1/planet2 falls into on the OTHER
+    partner's chart (like planet1_house_in_2/planet2_house_in_1 in the main
+    breakdown).
+    """
+    prep = await _prepare_progressed_synastry_aspect_analysis(
+        planet1, planet2, aspect_name, layer, aspect_name_ru, aspect_name_uk,
+        applying, house1, house2, partner1_name, partner2_name, language, mode
+    )
+    analysis = await prep["adapter"].generate(prep["prompt"], language)
 
     return {
         "planet1": planet1,
@@ -2741,8 +2877,61 @@ async def analyze_progressed_synastry_aspect(
         "orb": orb,
         "layer": layer,
         "analysis": analysis,
-        "relevant_chunks": chunks,
+        "relevant_chunks": prep["chunks"],
     }
+
+
+async def analyze_progressed_synastry_aspect_stream(
+    planet1: str,
+    planet2: str,
+    aspect_name: str,
+    layer: str,
+    aspect_name_ru: Optional[str] = None,
+    aspect_name_uk: Optional[str] = None,
+    orb: float = 0.0,
+    applying: Optional[bool] = None,
+    house1: Optional[int] = None,
+    house2: Optional[int] = None,
+    partner1_name: Optional[str] = None,
+    partner2_name: Optional[str] = None,
+    language: str = "ru",
+    mode: str = "advanced",
+) -> AsyncGenerator[Dict[str, Any], None]:
+    """
+    Streaming twin of analyze_progressed_synastry_aspect.
+    analyze_progressed_synastry_aspect never runs an anti-fabrication fix
+    pass on its output (single generate() call, text returned as-is) —
+    fix_fn is therefore the identity function, same as
+    progressed_synastry_analysis_stream's `lambda text: (text, [])`. Still
+    routed through stream_verified_analysis rather than a bespoke raw-relay
+    path, so the SSE event contract (stage/delta/final/error) matches every
+    other streaming endpoint.
+    """
+    yield {"event": "stage", "data": {"stage": "searching"}}
+
+    prep = await _prepare_progressed_synastry_aspect_analysis(
+        planet1, planet2, aspect_name, layer, aspect_name_ru, aspect_name_uk,
+        applying, house1, house2, partner1_name, partner2_name, language, mode
+    )
+
+    async def finalize(buffer: str, released: str) -> Dict[str, Any]:
+        return {
+            "planet1": planet1,
+            "planet2": planet2,
+            "aspect": aspect_name,
+            "aspect_ru": aspect_name_ru,
+            "aspect_uk": aspect_name_uk,
+            "orb": orb,
+            "layer": layer,
+            "analysis": buffer,
+            "relevant_chunks": prep["chunks"],
+        }
+
+    fix_fn = lambda text: (text, [])
+
+    yield {"event": "stage", "data": {"stage": "generating"}}
+    async for event in stream_verified_analysis(prep["adapter"], prep["prompt"], language, fix_fn, finalize):
+        yield event
 
 
 # ============================================================
@@ -2885,7 +3074,7 @@ async def full_chart_analysis(
 
 # END OF full_chart_analysis ↑
 
-async def chat_with_astrologer(
+async def _prepare_chat_with_astrologer(
     question: str,
     chart_data: Dict[str, Any],
     full_analysis: str,
@@ -2893,7 +3082,10 @@ async def chat_with_astrologer(
     language: str = "ru"
 ) -> Dict[str, Any]:
     """
-    Chat with the astrologer agent — HYBRID approach
+    Shared prep for chat_with_astrologer and its streaming twin
+    (chat_with_astrologer_stream): hybrid RAG search + messages build, same
+    split as _prepare_natal_analysis — behavior unchanged, this is the same
+    code chat_with_astrologer used to run inline.
     """
     import asyncio
 
@@ -2982,12 +3174,58 @@ RULES:
         messages.append({"role": msg["role"], "content": msg["content"]})
     messages.append({"role": "user", "content": question})
 
-    answer = await adapter.generate_with_messages(messages, language)
+    return {
+        "adapter": adapter,
+        "messages": messages,
+        "question_chunks": question_chunks if not isinstance(question_chunks, Exception) else []
+    }
+
+
+async def chat_with_astrologer(
+    question: str,
+    chart_data: Dict[str, Any],
+    full_analysis: str,
+    chat_history: List[Dict[str, str]],
+    language: str = "ru"
+) -> Dict[str, Any]:
+    """
+    Chat with the astrologer agent — HYBRID approach
+    """
+    prep = await _prepare_chat_with_astrologer(question, chart_data, full_analysis, chat_history, language)
+    answer = await prep["adapter"].generate_with_messages(prep["messages"], language)
 
     return {
         "answer": answer,
-        "relevant_chunks": question_chunks if not isinstance(question_chunks, Exception) else []
+        "relevant_chunks": prep["question_chunks"]
     }
+
+
+async def chat_with_astrologer_stream(
+    question: str,
+    chart_data: Dict[str, Any],
+    full_analysis: str,
+    chat_history: List[Dict[str, str]],
+    language: str = "ru"
+) -> AsyncGenerator[Dict[str, Any], None]:
+    """
+    Streaming twin of chat_with_astrologer — typewriter delivery for the
+    chat modal. No anti-fabrication fix runs on chat replies today (see
+    chat_with_astrologer), so this goes through stream_chat_reply (raw token
+    relay), not stream_verified_analysis (paragraph-buffered + fix_fn).
+    """
+    yield {"event": "stage", "data": {"stage": "searching"}}
+
+    prep = await _prepare_chat_with_astrologer(question, chart_data, full_analysis, chat_history, language)
+
+    async def finalize(buffer: str) -> Dict[str, Any]:
+        return {
+            "answer": buffer,
+            "relevant_chunks": prep["question_chunks"]
+        }
+
+    yield {"event": "stage", "data": {"stage": "generating"}}
+    async for event in stream_chat_reply(prep["adapter"], prep["messages"], language, finalize):
+        yield event
 
 
 async def chat_with_astrologer_optimized(

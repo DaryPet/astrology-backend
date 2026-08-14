@@ -21,6 +21,10 @@ class LLMAdapter(ABC):
         """Streaming generator (default: falls back to plain generate)"""
         yield await self.generate(prompt, language)
 
+    async def generate_stream_with_messages(self, messages: List[Dict[str, str]], language: str = "en") -> AsyncGenerator[str, None]:
+        """Streaming generator for chat-format messages (default: falls back to plain generate_with_messages)"""
+        yield await self.generate_with_messages(messages, language)
+
 
 # class OpenAIAdapter(LLMAdapter):
     """Адаптер для OpenAI GPT"""
@@ -294,12 +298,24 @@ class DeepSeekAdapter(LLMAdapter):
 
     async def generate_stream(self, prompt: str, language: str = "en") -> AsyncGenerator[str, None]:
         """Streaming generator for DeepSeek"""
+        async for chunk in self._stream_completion([{"role": "user", "content": prompt}]):
+            yield chunk
+
+    async def generate_stream_with_messages(self, messages: List[Dict[str, str]], language: str = "en") -> AsyncGenerator[str, None]:
+        """Streaming generator for DeepSeek, chat-format messages (used by chat streaming) —
+        same underlying call as generate_stream, just messages passed straight through
+        instead of wrapped as a single user prompt."""
+        async for chunk in self._stream_completion(messages):
+            yield chunk
+
+    async def _stream_completion(self, messages: List[Dict[str, str]]) -> AsyncGenerator[str, None]:
+        """Shared streaming call behind generate_stream/generate_stream_with_messages."""
         client = self._get_client()
         try:
             stream = await client.chat.completions.create(
                 model="deepseek-v4-flash",
                 # model="deepseek-v4-pro",  # experiment: plans/synastry-before-batching.md
-                messages=[{"role": "user", "content": prompt}],
+                messages=messages,
                 temperature=0.3,
                 max_tokens=32768,
                 timeout=500,

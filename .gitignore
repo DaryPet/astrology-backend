@@ -92,3 +92,5 @@ tests/data/matches_tzfix_only.json
 tests/eval_house8_v3.py
 tests/eval_house8_v3_full.py
 tests/reports/tennis-vs/
+# graphify knowledge-graph output (local tool, not project artifacts)
+graphify-out/

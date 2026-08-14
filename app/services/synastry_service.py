@@ -8,7 +8,7 @@ from app.services.search_service import (
 from app.services.llm_adapter import get_llm_adapter
 from app.services.prompt_labels import get_labels
 from app.services.prompt_templates import get_template, get_relationship_context_prompt
-from app.services.analysis_service import search_chunks_all_books, _fetch_book_titles, stream_verified_analysis
+from app.services.analysis_service import search_chunks_all_books, _fetch_book_titles, stream_verified_analysis, stream_chat_reply
 from app.services.text_verification import (
     SIGN_PREPOSITIONAL_TO_NOMINATIVE,
     SIGN_NOMINATIVE_TO_PREPOSITIONAL,
@@ -535,6 +535,54 @@ def build_synastry_aspect_prompt(
     return "\n".join(prompt_parts)
 
 
+async def _prepare_synastry_aspect_analysis(
+    planet1: str,
+    planet2: str,
+    aspect_name: str,
+    aspect_name_ru: Optional[str] = None,
+    orb: float = 0.0,
+    language: str = "en",
+    top_k: int = 5,
+    mode: str = 'advanced'
+) -> Dict[str, Any]:
+    """
+    Shared prep for analyze_synastry_aspect and its streaming twin
+    (analyze_synastry_aspect_stream): RAG search + prompt build, same split
+    as _prepare_synastry_analysis — behavior unchanged, this is the same
+    code analyze_synastry_aspect used to run inline.
+    """
+
+    if language == "ru" and aspect_name_ru:
+        query = f"{planet1.lower()} {aspect_name_ru.lower()} {planet2.lower()} синастрия"
+    else:
+        query = f"{planet1} {aspect_name} {planet2} synastry"
+
+    chunks = await search_chunks_by_query(query, top_k=top_k, book_id=JEFF_GREEN_BOOK_ID)
+
+    if not chunks:
+        chunks = await search_chunks_by_query(query, top_k=top_k)
+
+    if not chunks:
+        chunks = await search_chunks_simple(query, top_k=top_k)
+
+    prompt = build_synastry_aspect_prompt(
+        planet1=planet1,
+        planet2=planet2,
+        aspect_name=aspect_name,
+        aspect_name_ru=aspect_name_ru,
+        orb=orb,
+        chunks=chunks,
+        language=language,
+        mode=mode
+    )
+
+    return {
+        "prompt": prompt,
+        "chunks": chunks,
+        "adapter": get_llm_adapter(),
+    }
+
+
 async def analyze_synastry_aspect(
     planet1: str,
     planet2: str,
@@ -548,34 +596,11 @@ async def analyze_synastry_aspect(
     """
     Analysis of a specific synastry aspect
     """
-    
-    if language == "ru" and aspect_name_ru:
-        query = f"{planet1.lower()} {aspect_name_ru.lower()} {planet2.lower()} синастрия"
-    else:
-        query = f"{planet1} {aspect_name} {planet2} synastry"
-    
-    chunks = await search_chunks_by_query(query, top_k=top_k, book_id=JEFF_GREEN_BOOK_ID)
-    
-    if not chunks:
-        chunks = await search_chunks_by_query(query, top_k=top_k)
-    
-    if not chunks:
-        chunks = await search_chunks_simple(query, top_k=top_k)
-    
-    prompt = build_synastry_aspect_prompt(
-        planet1=planet1,
-        planet2=planet2,
-        aspect_name=aspect_name,
-        aspect_name_ru=aspect_name_ru,
-        orb=orb,
-        chunks=chunks,
-        language=language,
-        mode=mode
+    prep = await _prepare_synastry_aspect_analysis(
+        planet1, planet2, aspect_name, aspect_name_ru, orb, language, top_k, mode
     )
-    
-    adapter = get_llm_adapter()
-    analysis = await adapter.generate(prompt, language)
-    
+    analysis = await prep["adapter"].generate(prep["prompt"], language)
+
     return {
         "planet1": planet1,
         "planet2": planet2,
@@ -583,8 +608,51 @@ async def analyze_synastry_aspect(
         "aspect_ru": aspect_name_ru,
         "orb": orb,
         "analysis": analysis,
-        "relevant_chunks": chunks
+        "relevant_chunks": prep["chunks"]
     }
+
+
+async def analyze_synastry_aspect_stream(
+    planet1: str,
+    planet2: str,
+    aspect_name: str,
+    aspect_name_ru: Optional[str] = None,
+    orb: float = 0.0,
+    language: str = "en",
+    top_k: int = 5,
+    mode: str = 'advanced'
+) -> AsyncGenerator[Dict[str, Any], None]:
+    """
+    Streaming twin of analyze_synastry_aspect. analyze_synastry_aspect never
+    runs an anti-fabrication fix pass on its output (single generate() call,
+    text returned as-is) — fix_fn is therefore the identity function, same
+    as progressed_synastry_analysis_stream's `lambda text: (text, [])`
+    (analysis_service.py). Still routed through stream_verified_analysis
+    rather than a bespoke raw-relay path, so the SSE event contract
+    (stage/delta/final/error) matches every other streaming endpoint.
+    """
+    yield {"event": "stage", "data": {"stage": "searching"}}
+
+    prep = await _prepare_synastry_aspect_analysis(
+        planet1, planet2, aspect_name, aspect_name_ru, orb, language, top_k, mode
+    )
+
+    async def finalize(buffer: str, released: str) -> Dict[str, Any]:
+        return {
+            "planet1": planet1,
+            "planet2": planet2,
+            "aspect": aspect_name,
+            "aspect_ru": aspect_name_ru,
+            "orb": orb,
+            "analysis": buffer,
+            "relevant_chunks": prep["chunks"]
+        }
+
+    fix_fn = lambda text: (text, [])
+
+    yield {"event": "stage", "data": {"stage": "generating"}}
+    async for event in stream_verified_analysis(prep["adapter"], prep["prompt"], language, fix_fn, finalize):
+        yield event
 
 
 async def _prepare_synastry_analysis(
@@ -1123,7 +1191,7 @@ async def full_synastry_analysis_v2_stream(
         yield event
 
 
-async def chat_with_synastry_astrologer(
+async def _prepare_chat_with_synastry_astrologer(
     question: str,
     chart_data: Dict[str, Any],
     full_analysis: str,
@@ -1132,7 +1200,10 @@ async def chat_with_synastry_astrologer(
     relationship_context: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Chat with the astrologer about a synastry
+    Shared prep for chat_with_synastry_astrologer and its streaming twin
+    (chat_with_synastry_astrologer_stream): RAG search + messages build,
+    same split as _prepare_synastry_analysis — behavior unchanged, this is
+    the same code chat_with_synastry_astrologer used to run inline.
     """
     from app.services.search_service import search_chunks_by_query
 
@@ -1329,9 +1400,62 @@ RULES:
         messages.append({"role": msg["role"], "content": msg["content"]})
     messages.append({"role": "user", "content": question})
 
-    answer = await adapter.generate_with_messages(messages, language)
+    return {
+        "adapter": adapter,
+        "messages": messages,
+        "chunks": chunks
+    }
+
+
+async def chat_with_synastry_astrologer(
+    question: str,
+    chart_data: Dict[str, Any],
+    full_analysis: str,
+    chat_history: List[Dict[str, str]],
+    language: str = "ru",
+    relationship_context: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Chat with the astrologer about a synastry
+    """
+    prep = await _prepare_chat_with_synastry_astrologer(
+        question, chart_data, full_analysis, chat_history, language, relationship_context
+    )
+    answer = await prep["adapter"].generate_with_messages(prep["messages"], language)
 
     return {
         "answer": answer,
-        "relevant_chunks": chunks
+        "relevant_chunks": prep["chunks"]
     }
+
+
+async def chat_with_synastry_astrologer_stream(
+    question: str,
+    chart_data: Dict[str, Any],
+    full_analysis: str,
+    chat_history: List[Dict[str, str]],
+    language: str = "ru",
+    relationship_context: Optional[str] = None
+) -> AsyncGenerator[Dict[str, Any], None]:
+    """
+    Streaming twin of chat_with_synastry_astrologer — typewriter delivery
+    for the chat modal. No anti-fabrication fix runs on chat replies today
+    (see chat_with_synastry_astrologer), so this goes through
+    stream_chat_reply (raw token relay), not stream_verified_analysis
+    (paragraph-buffered + fix_fn).
+    """
+    yield {"event": "stage", "data": {"stage": "searching"}}
+
+    prep = await _prepare_chat_with_synastry_astrologer(
+        question, chart_data, full_analysis, chat_history, language, relationship_context
+    )
+
+    async def finalize(buffer: str) -> Dict[str, Any]:
+        return {
+            "answer": buffer,
+            "relevant_chunks": prep["chunks"]
+        }
+
+    yield {"event": "stage", "data": {"stage": "generating"}}
+    async for event in stream_chat_reply(prep["adapter"], prep["messages"], language, finalize):
+        yield event
