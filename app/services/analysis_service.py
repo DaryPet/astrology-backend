@@ -855,13 +855,21 @@ async def full_chart_analysis_v2(
 
         if language in ('ru', 'en', 'uk'):
             # Positions: only fixes what doesn't exist in the chart at all.
+            # Detection runs first so the log can distinguish "nothing was
+            # wrong" from "something was wrong and got repaired silently".
+            found = find_fabricated_positions_layered(full_analysis, layers, language=language)
+            fabricated = found.get('fabricated', [])
             full_analysis, unresolved = fix_fabricated_positions_layered(
                 full_analysis, layers, language=language
             )
-            if unresolved:
-                print(f"[full_chart_analysis_v2] Unresolved position mismatches (left as-is): {unresolved}")
+            if fabricated or unresolved:
+                print(
+                    f"[full_chart_analysis_v2] Position check: found {len(fabricated)}, "
+                    f"fixed {len(fabricated) - len(unresolved)}, unresolved {len(unresolved)}"
+                    + (f": {unresolved}" if unresolved else "")
+                )
             else:
-                print("[full_chart_analysis_v2] Position check: OK, no unresolved mismatches")
+                print("[full_chart_analysis_v2] Position check: OK, no fabricated positions found")
 
             # Detection only — the claimed aspect type is checked against the
             # actually calculated one (chart_data['aspects']). No layer/partner
@@ -918,16 +926,18 @@ async def stream_verified_analysis(
     adapter,
     prompt: str,
     language: str,
-    layers: Dict[str, Any],
+    fix_fn: Callable[[str], "tuple[str, List[str]]"],
     finalize: Callable[[str, str], Awaitable[Dict[str, Any]]],
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """
     Generic "verified buffer" streaming wrapper
     (plans/streaming-analysis-backend.md, step 2б) — reusable for any analysis
-    built on "one generate() call -> fix_fabricated_positions_layered -> detect
-    checks" (natal today via full_chart_analysis_v2_stream; synastry/
-    progressions/transits are the planned follow-up — see the plan's "Тираж"
-    section — each would pass its own fix function and layers/finalize).
+    built on "one generate() call -> fix -> detect checks" (natal, synastry,
+    progressions, transits, progressed synastry — see
+    plans/streaming-rollout-synastry-progressions-transits.md, step 0). Each
+    caller passes its own `fix_fn` (bound to whatever the real fix function
+    needs beyond text — layers/chart1_data/chart2_data/language, via a
+    closure) and its own `finalize`.
 
     Reads raw tokens from adapter.generate_stream, buffers them, and only
     releases text once a paragraph boundary ("\\n\\n") closes: the anti-
@@ -939,11 +949,11 @@ async def stream_verified_analysis(
     Invariants (do not change without re-reading the plan's "Риски" table):
     - Release only on "\\n\\n" — a sentence-level cut can land inside a
       correction or a layer-marker word.
-    - The fix reruns over the WHOLE accumulated buffer up to the cut, never
+    - fix_fn reruns over the WHOLE accumulated buffer up to the cut, never
       just the new paragraph — needed so a layer marker from an earlier
       paragraph still attributes a later fabricated position correctly
-      (matters once this is reused for progressions/transits; harmless no-op
-      for natal's single layer).
+      (matters for progressions/transits' two-layer fix; harmless no-op for
+      natal's single layer).
     - safe_mode: if a corrected prefix ever stops matching what was already
       released (should not happen by construction), stop releasing — nothing
       already shown to the user is ever rewritten. The remainder ships once,
@@ -968,11 +978,9 @@ async def stream_verified_analysis(
             continue
 
         if language in ('ru', 'en', 'uk'):
-            corrected, _unresolved = fix_fabricated_positions_layered(
-                buffer[:cut], layers, language=language
-            )
+            corrected, _unresolved = fix_fn(buffer[:cut])
         else:
-            # Same gate as the non-stream pipeline: unsupported languages get
+            # Same gate as every non-stream pipeline: unsupported languages get
             # no fabrication checking there either, so raw deltas are correct
             # here too, not a shortcut.
             corrected = buffer[:cut]
@@ -1030,13 +1038,22 @@ async def full_chart_analysis_v2_stream(
 
         full_analysis = buffer
         if language in ('ru', 'en', 'uk'):
+            # Detection runs before the fix so the log can distinguish "nothing
+            # was wrong" from "something was wrong and got repaired silently" —
+            # fix_* only reports what it could NOT repair.
+            found = find_fabricated_positions_layered(full_analysis, layers, language=language)
+            fabricated = found.get('fabricated', [])
             full_analysis, unresolved = fix_fabricated_positions_layered(
                 full_analysis, layers, language=language
             )
-            if unresolved:
-                print(f"[full_chart_analysis_v2_stream] Unresolved position mismatches (left as-is): {unresolved}")
+            if fabricated or unresolved:
+                print(
+                    f"[full_chart_analysis_v2_stream] Position check: found {len(fabricated)}, "
+                    f"fixed {len(fabricated) - len(unresolved)}, unresolved {len(unresolved)}"
+                    + (f": {unresolved}" if unresolved else "")
+                )
             else:
-                print("[full_chart_analysis_v2_stream] Position check: OK, no unresolved mismatches")
+                print("[full_chart_analysis_v2_stream] Position check: OK, no fabricated positions found")
 
             fabricated_aspects = find_fabricated_aspect_types_single(full_analysis, aspects, language=language)
             if fabricated_aspects:
@@ -1079,12 +1096,14 @@ async def full_chart_analysis_v2_stream(
             "version": "v2_hybrid_rag"
         }
 
+    fix_fn = lambda text: fix_fabricated_positions_layered(text, layers, language=language)
+
     print(f"[full_chart_analysis_v2_stream] Sending final prompt to LLM (~{len(prompt)//4} tokens estimated)")
     yield {"event": "stage", "data": {"stage": "generating"}}
 
     _first_delta_at = None
     error_occurred = False
-    async for event in stream_verified_analysis(adapter, prompt, language, layers, finalize):
+    async for event in stream_verified_analysis(adapter, prompt, language, fix_fn, finalize):
         if event["event"] == "delta" and _first_delta_at is None:
             _first_delta_at = _time.perf_counter()
         elif event["event"] == "error":
@@ -1123,7 +1142,7 @@ async def full_chart_analysis_v2_stream(
 # SECONDARY PROGRESSIONS ANALYSIS
 # ============================================================
 
-async def progressions_analysis(
+async def _prepare_progressions_analysis(
     natal_chart: Dict[str, Any],
     progressions: Dict[str, Any],
     language: str = "ru",
@@ -1131,10 +1150,16 @@ async def progressions_analysis(
     mode: str = 'advanced'
 ) -> Dict[str, Any]:
     """
+    Shared prep for progressions_analysis and its streaming twin
+    (progressions_analysis_stream): everything from "no prompt yet" to
+    "prompt/aspects/layers ready for one LLM call". Split out by
+    plans/streaming-rollout-synastry-progressions-transits.md (step 2а) — same
+    principle as _prepare_natal_analysis — behavior unchanged, this is the
+    same code progressions_analysis used to run inline.
+
     AI analysis of secondary progressions — the same hybrid approach as full_chart_analysis_v2:
     - targeted RAG search across the same books (progressed personal planets + aspects to natal)
     - assembling a structured prompt (the 'progressions' template, advanced/simple)
-    - one final LLM call + short summary
     """
     import asyncio
     from app.services.llm_adapter import get_llm_adapter
@@ -1398,9 +1423,6 @@ async def progressions_analysis(
             n_rx = labels['retrograde_short'] if n_data.get("is_retrograde") else ""
             prompt += f"\n  {labels['layer_natal']}: {n_display}: {n_sign}, {labels['house_word']} {n_house}{n_rx}"
 
-    # --- Step 3: One final LLM call ---
-    print(f"[progressions_analysis] Sending final prompt to LLM (~{len(prompt)//4} tokens estimated)")
-
     # "Layers" for post-generation text checking — progressed position vs
     # natal position of the SAME planet (a generalization of the "Partner 1/2"
     # pattern from synastry_service.py into text_verification.py). Shape —
@@ -1415,6 +1437,43 @@ async def progressions_analysis(
     }
     layers = {'progressed': progressed_chart_like, 'natal': natal_chart or {}}
 
+    return {
+        'adapter': adapter,
+        'prompt': prompt,
+        'aspects': aspects,
+        'layers': layers,
+        'prog_planets': prog_planets,
+        'period': period,
+        'age': age,
+    }
+
+
+async def progressions_analysis(
+    natal_chart: Dict[str, Any],
+    progressions: Dict[str, Any],
+    language: str = "ru",
+    top_k_per_book: int = 5,
+    mode: str = 'advanced'
+) -> Dict[str, Any]:
+    """
+    AI analysis of secondary progressions — RAG search + prompt assembly via
+    _prepare_progressions_analysis, one final LLM call, then the fix/detect
+    anti-fabrication pass. Behavior unchanged by the step-2а refactor
+    (plans/streaming-rollout-synastry-progressions-transits.md) — this is the
+    same code that used to run inline in this function.
+    """
+    prep = await _prepare_progressions_analysis(natal_chart, progressions, language, top_k_per_book, mode)
+    adapter = prep['adapter']
+    prompt = prep['prompt']
+    aspects = prep['aspects']
+    layers = prep['layers']
+    prog_planets = prep['prog_planets']
+    period = prep['period']
+    age = prep['age']
+
+    # --- Step 3: One final LLM call ---
+    print(f"[progressions_analysis] Sending final prompt to LLM (~{len(prompt)//4} tokens estimated)")
+
     try:
         full_analysis = await adapter.generate(prompt, language)
 
@@ -1423,13 +1482,21 @@ async def progressions_analysis(
             # the same as fix_fabricated_planet_positions in synastry
             # (union check), generalized to layers. Plan:
             # app/services/specs/progressions_synastry_pattern_plan.md.
+            # Detection runs first so the log can distinguish "nothing was
+            # wrong" from "something was wrong and got repaired silently".
+            _found = find_fabricated_positions_layered(full_analysis, layers, language=language)
+            _fabricated = _found.get('fabricated', [])
             full_analysis, unresolved = fix_fabricated_positions_layered(
                 full_analysis, layers, language=language
             )
-            if unresolved:
-                print(f"[progressions_analysis] Unresolved position mismatches (left as-is): {unresolved}")
+            if _fabricated or unresolved:
+                print(
+                    f"[progressions_analysis] Position check: found {len(_fabricated)}, "
+                    f"fixed {len(_fabricated) - len(unresolved)}, unresolved {len(unresolved)}"
+                    + (f": {unresolved}" if unresolved else "")
+                )
             else:
-                print("[progressions_analysis] Position check: OK, no unresolved mismatches")
+                print("[progressions_analysis] Position check: OK, no fabricated positions found")
 
             # Layer confused (sign is correct, but not for the layer the
             # marker claimed) — log only, never fixed (see
@@ -1483,8 +1550,112 @@ async def progressions_analysis(
     }
 
 
+async def progressions_analysis_stream(
+    natal_chart: Dict[str, Any],
+    progressions: Dict[str, Any],
+    language: str = "ru",
+    top_k_per_book: int = 5,
+    mode: str = 'advanced'
+) -> AsyncGenerator[Dict[str, Any], None]:
+    """
+    Streaming twin of progressions_analysis
+    (plans/streaming-rollout-synastry-progressions-transits.md, step 2б). Same
+    prep (_prepare_progressions_analysis), same finalize pipeline (fix +
+    layer-confused detect + aspect-type detect + coverage detect) — only the
+    delivery differs. The `final` event carries the same canonical JSON
+    progressions_analysis would have returned.
+    """
+    yield {"event": "stage", "data": {"stage": "searching"}}
 
-async def transits_analysis(
+    prep = await _prepare_progressions_analysis(natal_chart, progressions, language, top_k_per_book, mode)
+    adapter = prep['adapter']
+    prompt = prep['prompt']
+    aspects = prep['aspects']
+    layers = prep['layers']
+    prog_planets = prep['prog_planets']
+    period = prep['period']
+    age = prep['age']
+
+    async def finalize(buffer: str, released: str) -> Dict[str, Any]:
+        full_analysis = buffer
+        if language in ('ru', 'en', 'uk'):
+            # Detection runs before the fix so the log can distinguish "nothing
+            # was wrong" from "something was wrong and got repaired silently" —
+            # fix_* only reports what it could NOT repair.
+            _found = find_fabricated_positions_layered(full_analysis, layers, language=language)
+            _fabricated = _found.get('fabricated', [])
+            full_analysis, unresolved = fix_fabricated_positions_layered(
+                full_analysis, layers, language=language
+            )
+            if _fabricated or unresolved:
+                print(
+                    f"[progressions_analysis_stream] Position check: found {len(_fabricated)}, "
+                    f"fixed {len(_fabricated) - len(unresolved)}, unresolved {len(unresolved)}"
+                    + (f": {unresolved}" if unresolved else "")
+                )
+            else:
+                print("[progressions_analysis_stream] Position check: OK, no fabricated positions found")
+
+            # Layer confused — log only, never fixed. Stays on the FIXED text
+            # (a second, separate call), same as the non-stream pipeline.
+            position_issues = find_fabricated_positions_layered(full_analysis, layers, language=language)
+            if position_issues.get('layer_confused'):
+                print(f"[progressions_analysis_stream] Layer-confused positions detected (not fixed): {position_issues['layer_confused']}")
+            else:
+                print("[progressions_analysis_stream] Layer-confusion check: OK, no layer-confused positions")
+
+            fabricated_aspects = find_fabricated_aspect_types_layered(
+                full_analysis, aspects, language=language, layer_keys=('progressed', 'natal')
+            )
+            if fabricated_aspects:
+                print(f"[progressions_analysis_stream] Fabricated aspect types detected (not fixed): {fabricated_aspects}")
+            else:
+                print("[progressions_analysis_stream] Aspect-type check: OK, no fabricated aspect types")
+
+            undercovered = find_undercovered_aspects_generic(full_analysis, aspects, language=language)
+            if undercovered:
+                print(f"[progressions_analysis_stream] Undercovered aspects detected (not filled): {undercovered}")
+            else:
+                print(f"[progressions_analysis_stream] Coverage check: OK, all {len(aspects)} aspects covered")
+
+        if not full_analysis.startswith(released):
+            print(
+                "[stream_mismatch] progressions_analysis_stream"
+                f" released={released!r} canonical={full_analysis!r}"
+            )
+
+        prog_moon = prog_planets.get("Moon", {})
+        prog_sun = prog_planets.get("Sun", {})
+
+        return {
+            "analysis": full_analysis,
+            "progressions_summary": {
+                "period": period,
+                "age_years": age,
+                "lunar_phase": (progressions.get("lunar_phase") or {}).get("phase"),
+                "lunar_phase_ru": (progressions.get("lunar_phase") or {}).get("phase_ru"),
+                "progressed_moon_sign": prog_moon.get("sign", "?"),
+                "progressed_moon_sign_ru": prog_moon.get("sign_ru", "?"),
+                "progressed_moon_house": prog_moon.get("natal_house"),
+                "progressed_sun_sign": prog_sun.get("sign", "?"),
+                "progressed_sun_sign_ru": prog_sun.get("sign_ru", "?"),
+                "sun_changed_sign": prog_sun.get("changed_sign", False),
+                "aspects_count": len(aspects),
+            },
+            "language": language,
+            "version": "progressions_v1_hybrid_rag"
+        }
+
+    fix_fn = lambda text: fix_fabricated_positions_layered(text, layers, language=language)
+
+    print(f"[progressions_analysis_stream] Sending final prompt to LLM (~{len(prompt)//4} tokens estimated)")
+    yield {"event": "stage", "data": {"stage": "generating"}}
+
+    async for event in stream_verified_analysis(adapter, prompt, language, fix_fn, finalize):
+        yield event
+
+
+async def _prepare_transits_analysis(
     natal_chart: Dict[str, Any],
     transits: Dict[str, Any],
     language: str = "ru",
@@ -1495,10 +1666,16 @@ async def transits_analysis(
     transit_lon: Optional[float] = None,
 ) -> Dict[str, Any]:
     """
+    Shared prep for transits_analysis and its streaming twin
+    (transits_analysis_stream): everything from "no prompt yet" to
+    "prompt/aspects/layers ready for one LLM call". Split out by
+    plans/streaming-rollout-synastry-progressions-transits.md (step 3а) —
+    mirrors _prepare_progressions_analysis — behavior unchanged, this is the
+    same code transits_analysis used to run inline.
+
     AI analysis of the day's transits — the same hybrid approach as progressions:
     - targeted RAG search (transiting planets in natal houses + aspects to natal)
     - assembling a structured prompt (the 'transits' template, advanced/simple)
-    - one final LLM call + short summary
 
     transit_place/lat/lon — the place where the person is at the moment of the
     transit. This matters for interpreting the transit houses and moon phase.
@@ -1776,9 +1953,6 @@ async def transits_analysis(
             n_rx = labels['retrograde_short'] if n_data.get("is_retrograde") else ""
             prompt += f"\n  {labels['layer_natal']}: {n_display}: {n_sign}, {labels['house_word']} {n_house}{n_rx}"
 
-    # --- Step 3: One final LLM call ---
-    print(f"[transits_analysis] Sending final prompt to LLM (~{len(prompt)//4} tokens estimated)")
-
     # "Layers" for post-generation text checking — transit position vs natal
     # position of the SAME planet (the same pattern as progressions, see
     # progressions_synastry_pattern_plan.md). Shape —
@@ -1792,18 +1966,72 @@ async def transits_analysis(
     }
     layers = {'transit': transit_chart_like, 'natal': natal_chart or {}}
 
+    return {
+        'adapter': adapter,
+        'prompt': prompt,
+        'aspects': aspects,
+        'layers': layers,
+        'period': period,
+        'lunar_phase': lunar_phase,
+        'slow_aspects': slow_aspects,
+        'fast_aspects': fast_aspects,
+    }
+
+
+async def transits_analysis(
+    natal_chart: Dict[str, Any],
+    transits: Dict[str, Any],
+    language: str = "ru",
+    top_k_per_book: int = 5,
+    mode: str = 'advanced',
+    transit_place: Optional[str] = None,
+    transit_lat: Optional[float] = None,
+    transit_lon: Optional[float] = None,
+) -> Dict[str, Any]:
+    """
+    AI analysis of the day's transits — RAG search + prompt assembly via
+    _prepare_transits_analysis, one final LLM call, then the fix/detect
+    anti-fabrication pass. Behavior unchanged by the step-3а refactor
+    (plans/streaming-rollout-synastry-progressions-transits.md) — this is the
+    same code that used to run inline in this function.
+    """
+    prep = await _prepare_transits_analysis(
+        natal_chart, transits, language, top_k_per_book, mode, transit_place, transit_lat, transit_lon
+    )
+    adapter = prep['adapter']
+    prompt = prep['prompt']
+    aspects = prep['aspects']
+    layers = prep['layers']
+    period = prep['period']
+    lunar_phase = prep['lunar_phase']
+    slow_aspects = prep['slow_aspects']
+    fast_aspects = prep['fast_aspects']
+
+    # --- Step 3: One final LLM call ---
+    print(f"[transits_analysis] Sending final prompt to LLM (~{len(prompt)//4} tokens estimated)")
+
     try:
         full_analysis = await adapter.generate(prompt, language)
 
         if language in ('ru', 'en', 'uk'):
             # Positions: only fixes what doesn't exist in ANY layer.
+            # Detection runs first so the log can distinguish "nothing was
+            # wrong" from "something was wrong and got repaired silently".
+            # Deliberately a separate pass from the layer_confused detection
+            # below, which stays on the FIXED text as before.
+            _found = find_fabricated_positions_layered(full_analysis, layers, language=language)
+            _fabricated = _found.get('fabricated', [])
             full_analysis, unresolved = fix_fabricated_positions_layered(
                 full_analysis, layers, language=language
             )
-            if unresolved:
-                print(f"[transits_analysis] Unresolved position mismatches (left as-is): {unresolved}")
+            if _fabricated or unresolved:
+                print(
+                    f"[transits_analysis] Position check: found {len(_fabricated)}, "
+                    f"fixed {len(_fabricated) - len(unresolved)}, unresolved {len(unresolved)}"
+                    + (f": {unresolved}" if unresolved else "")
+                )
             else:
-                print("[transits_analysis] Position check: OK, no unresolved mismatches")
+                print("[transits_analysis] Position check: OK, no fabricated positions found")
 
             # Layer confused — log only, never fixed.
             position_issues = find_fabricated_positions_layered(full_analysis, layers, language=language)
@@ -1846,6 +2074,108 @@ async def transits_analysis(
         "version": "transits_v1_hybrid_rag"
     }
 
+
+async def transits_analysis_stream(
+    natal_chart: Dict[str, Any],
+    transits: Dict[str, Any],
+    language: str = "ru",
+    top_k_per_book: int = 5,
+    mode: str = 'advanced',
+    transit_place: Optional[str] = None,
+    transit_lat: Optional[float] = None,
+    transit_lon: Optional[float] = None,
+) -> AsyncGenerator[Dict[str, Any], None]:
+    """
+    Streaming twin of transits_analysis
+    (plans/streaming-rollout-synastry-progressions-transits.md, step 3б). Same
+    prep (_prepare_transits_analysis), same finalize pipeline (fix +
+    layer-confused detect + aspect-type detect + coverage detect) — only the
+    delivery differs. The `final` event carries the same canonical JSON
+    transits_analysis would have returned.
+    """
+    yield {"event": "stage", "data": {"stage": "searching"}}
+
+    prep = await _prepare_transits_analysis(
+        natal_chart, transits, language, top_k_per_book, mode, transit_place, transit_lat, transit_lon
+    )
+    adapter = prep['adapter']
+    prompt = prep['prompt']
+    aspects = prep['aspects']
+    layers = prep['layers']
+    period = prep['period']
+    lunar_phase = prep['lunar_phase']
+    slow_aspects = prep['slow_aspects']
+    fast_aspects = prep['fast_aspects']
+
+    async def finalize(buffer: str, released: str) -> Dict[str, Any]:
+        full_analysis = buffer
+        if language in ('ru', 'en', 'uk'):
+            # Detection runs before the fix so the log can distinguish "nothing
+            # was wrong" from "something was wrong and got repaired silently" —
+            # fix_* only reports what it could NOT repair. Deliberately a
+            # separate pass from the layer_confused detection below, which
+            # stays on the FIXED text, same as the non-stream pipeline.
+            _found = find_fabricated_positions_layered(full_analysis, layers, language=language)
+            _fabricated = _found.get('fabricated', [])
+            full_analysis, unresolved = fix_fabricated_positions_layered(
+                full_analysis, layers, language=language
+            )
+            if _fabricated or unresolved:
+                print(
+                    f"[transits_analysis_stream] Position check: found {len(_fabricated)}, "
+                    f"fixed {len(_fabricated) - len(unresolved)}, unresolved {len(unresolved)}"
+                    + (f": {unresolved}" if unresolved else "")
+                )
+            else:
+                print("[transits_analysis_stream] Position check: OK, no fabricated positions found")
+
+            position_issues = find_fabricated_positions_layered(full_analysis, layers, language=language)
+            if position_issues.get('layer_confused'):
+                print(f"[transits_analysis_stream] Layer-confused positions detected (not fixed): {position_issues['layer_confused']}")
+            else:
+                print("[transits_analysis_stream] Layer-confusion check: OK, no layer-confused positions")
+
+            fabricated_aspects = find_fabricated_aspect_types_layered(
+                full_analysis, aspects, language=language, layer_keys=('transit', 'natal')
+            )
+            if fabricated_aspects:
+                print(f"[transits_analysis_stream] Fabricated aspect types detected (not fixed): {fabricated_aspects}")
+            else:
+                print("[transits_analysis_stream] Aspect-type check: OK, no fabricated aspect types")
+
+            undercovered = find_undercovered_aspects_generic(full_analysis, aspects, language=language)
+            if undercovered:
+                print(f"[transits_analysis_stream] Undercovered aspects detected (not filled): {undercovered}")
+            else:
+                print(f"[transits_analysis_stream] Coverage check: OK, all {len(aspects)} aspects covered")
+
+        if not full_analysis.startswith(released):
+            print(
+                "[stream_mismatch] transits_analysis_stream"
+                f" released={released!r} canonical={full_analysis!r}"
+            )
+
+        return {
+            "analysis": full_analysis,
+            "transits_summary": {
+                "period": period,
+                "lunar_phase": lunar_phase.get("phase"),
+                "lunar_phase_ru": lunar_phase.get("phase_ru"),
+                "slow_aspects_count": len(slow_aspects),
+                "fast_aspects_count": len(fast_aspects),
+                "returns": [a.get("transit") for a in aspects if a.get("is_return")],
+            },
+            "language": language,
+            "version": "transits_v1_hybrid_rag"
+        }
+
+    fix_fn = lambda text: fix_fabricated_positions_layered(text, layers, language=language)
+
+    print(f"[transits_analysis_stream] Sending final prompt to LLM (~{len(prompt)//4} tokens estimated)")
+    yield {"event": "stage", "data": {"stage": "generating"}}
+
+    async for event in stream_verified_analysis(adapter, prompt, language, fix_fn, finalize):
+        yield event
 
 
 def _collect_progressed_synastry_layers(
@@ -1913,13 +2243,22 @@ def _collect_progressed_synastry_layers(
     return layers
 
 
-async def progressed_synastry_analysis(
+async def _prepare_progressed_synastry_analysis(
     progressed_synastry: Dict[str, Any],
     language: str = "ru",
     top_k_per_book: int = 2,
     mode: str = 'advanced'
 ) -> Dict[str, Any]:
     """
+    Shared prep for progressed_synastry_analysis and its streaming twin
+    (progressed_synastry_analysis_stream): everything from "no prompt yet" to
+    "prompt ready for one LLM call". Split out by
+    plans/streaming-rollout-synastry-progressions-transits.md (step 4б) —
+    same principle as the other three _prepare_X helpers — behavior
+    unchanged, this is the same code progressed_synastry_analysis used to run
+    inline. Also returns p1/p2/layer1/prog1_to_natal2/prog2_to_natal1/dynamics
+    — everything finalize's detect-only checks need beyond prompt.
+
     AI analysis of progressed synastry — three layers:
       1) progressed synastry (progr A ↔ progr B)
       2) overlay onto natal (progr A → natal B and vice versa)
@@ -2110,6 +2449,43 @@ async def progressed_synastry_analysis(
     _dyn_tmpl = _dyn_labels.get(language, _dyn_labels['en'])
     prompt += "\n\n" + _dyn_tmpl.format(n=dyn.get('natal_total', '?'), p=dyn.get('progressed_total', '?'))
 
+    return {
+        'adapter': adapter,
+        'prompt': prompt,
+        'p1': p1,
+        'p2': p2,
+        'layer1': layer1,
+        'prog1_to_natal2': prog1_to_natal2,
+        'prog2_to_natal1': prog2_to_natal1,
+        'dynamics': dynamics,
+    }
+
+
+async def progressed_synastry_analysis(
+    progressed_synastry: Dict[str, Any],
+    language: str = "ru",
+    top_k_per_book: int = 2,
+    mode: str = 'advanced'
+) -> Dict[str, Any]:
+    """
+    AI analysis of progressed synastry — RAG search + prompt assembly via
+    _prepare_progressed_synastry_analysis, one final LLM call, then the
+    detect-only anti-fabrication pass (this endpoint never fixes text — see
+    _collect_progressed_synastry_layers / the 2026-08-01 INSIGHTS entry).
+    Behavior unchanged by the step-4б refactor
+    (plans/streaming-rollout-synastry-progressions-transits.md) — this is the
+    same code that used to run inline in this function.
+    """
+    prep = await _prepare_progressed_synastry_analysis(progressed_synastry, language, top_k_per_book, mode)
+    adapter = prep['adapter']
+    prompt = prep['prompt']
+    p1 = prep['p1']
+    p2 = prep['p2']
+    layer1 = prep['layer1']
+    prog1_to_natal2 = prep['prog1_to_natal2']
+    prog2_to_natal1 = prep['prog2_to_natal1']
+    dynamics = prep['dynamics']
+
     # --- Step 5: LLM ---
     print(f"[progressed_synastry_analysis] Final prompt ~{len(prompt)//4} tokens")
     try:
@@ -2164,6 +2540,108 @@ async def progressed_synastry_analysis(
         "language": language,
         "version": "progressed_synastry_v1"
     }
+
+
+async def progressed_synastry_analysis_stream(
+    progressed_synastry: Dict[str, Any],
+    language: str = "ru",
+    top_k_per_book: int = 2,
+    mode: str = 'advanced'
+) -> AsyncGenerator[Dict[str, Any], None]:
+    """
+    Streaming twin of progressed_synastry_analysis
+    (plans/streaming-rollout-synastry-progressions-transits.md, step 4в). Same
+    prep (_prepare_progressed_synastry_analysis), same detect-only finalize
+    pipeline — only the delivery differs.
+
+    IMPORTANT: `fix_fn` here is an identity stub (`lambda text: (text, [])`),
+    NOT a hack for simplicity — it precisely preserves today's behavior.
+    The non-stream path never fixes text either (only
+    find_fabricated_positions_layered is called, never fix_fabricated_positions_layered
+    — see _collect_progressed_synastry_layers' docstring / the 2026-08-01
+    INSIGHTS entry: planet positions in the finished text are never corrected
+    here, only logged as a finding). If the stream path fixed text, it would
+    silently become MORE corrective than the original it's supposed to mirror.
+    Do not replace this with a real fix function by copy-pasting another
+    step's fix_fn — see the plan's "Риски" table.
+    """
+    yield {"event": "stage", "data": {"stage": "searching"}}
+
+    prep = await _prepare_progressed_synastry_analysis(progressed_synastry, language, top_k_per_book, mode)
+    adapter = prep['adapter']
+    prompt = prep['prompt']
+    p1 = prep['p1']
+    p2 = prep['p2']
+    layer1 = prep['layer1']
+    prog1_to_natal2 = prep['prog1_to_natal2']
+    prog2_to_natal1 = prep['prog2_to_natal1']
+    dynamics = prep['dynamics']
+
+    async def finalize(buffer: str, released: str) -> Dict[str, Any]:
+        full_analysis = buffer
+        if language in ('ru', 'en', 'uk'):
+            _fabrication_layers = _collect_progressed_synastry_layers(
+                p1, p2, layer1, prog1_to_natal2, prog2_to_natal1
+            )
+            position_issues = find_fabricated_positions_layered(
+                full_analysis, _fabrication_layers, language=language
+            )
+            if position_issues.get('fabricated'):
+                print(f"[progressed_synastry_analysis_stream] Fabricated positions detected (not fixed): {position_issues['fabricated']}")
+            else:
+                print("[progressed_synastry_analysis_stream] Position check: OK, no fabricated positions")
+
+            cross_aspects = (prog1_to_natal2 or []) + (prog2_to_natal1 or [])
+            fabricated_aspects = find_fabricated_aspect_types_layered(
+                full_analysis, cross_aspects, language=language, layer_keys=('progressed', 'natal')
+            )
+            if fabricated_aspects:
+                print(f"[progressed_synastry_analysis_stream] Fabricated aspect types detected (layer 2 only): {fabricated_aspects}")
+            else:
+                print("[progressed_synastry_analysis_stream] Aspect-type check: OK, no fabricated aspect types (layer 2 only)")
+
+            all_aspects = (layer1 or []) + cross_aspects
+            undercovered = find_undercovered_aspects_generic(full_analysis, all_aspects, language=language)
+            if undercovered:
+                print(f"[progressed_synastry_analysis_stream] Undercovered aspects detected: {undercovered}")
+            else:
+                print(f"[progressed_synastry_analysis_stream] Coverage check: OK, all {len(all_aspects)} aspects covered")
+
+        if not full_analysis.startswith(released):
+            # Since fix_fn is identity, `released` can only fall short of
+            # `full_analysis` by the last unterminated paragraph (see
+            # stream_verified_analysis) — a mismatch here would mean a bug in
+            # the wrapper itself, not a false alarm from an active fix pass
+            # (contrast with the 2026-08-10 natal precedent).
+            print(
+                "[stream_mismatch] progressed_synastry_analysis_stream"
+                f" released={released!r} canonical={full_analysis!r}"
+            )
+
+        return {
+            "analysis": full_analysis,
+            "progressed_synastry_summary": {
+                "period": progressed_synastry.get("period"),
+                "person1_name": p1.get("name"),
+                "person2_name": p2.get("name"),
+                "person1_lunar_phase": (p1.get("lunar_phase") or {}).get("phase"),
+                "person2_lunar_phase": (p2.get("lunar_phase") or {}).get("phase"),
+                "layer1_aspects": len(layer1),
+                "new_aspects": len(dynamics.get("new_aspects", [])),
+                "faded_aspects": len(dynamics.get("faded_aspects", [])),
+            },
+            "language": language,
+            "version": "progressed_synastry_v1"
+        }
+
+    # Identity — see the docstring above for why this is correct, not a shortcut.
+    fix_fn = lambda text: (text, [])
+
+    print(f"[progressed_synastry_analysis_stream] Final prompt ~{len(prompt)//4} tokens")
+    yield {"event": "stage", "data": {"stage": "generating"}}
+
+    async for event in stream_verified_analysis(adapter, prompt, language, fix_fn, finalize):
+        yield event
 
 
 async def analyze_progressed_synastry_aspect(
