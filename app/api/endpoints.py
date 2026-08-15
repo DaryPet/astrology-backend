@@ -916,6 +916,23 @@ async def analyze_synastry_aspect_endpoint(request: Request, payload: SynastryAs
     """
     Analyze a specific synastry aspect between two planets
     """
+    if payload.stream:
+        from fastapi.responses import StreamingResponse
+        from app.services.synastry_service import analyze_synastry_aspect_stream
+        return StreamingResponse(
+            _sse(analyze_synastry_aspect_stream(
+                planet1=payload.planet1,
+                planet2=payload.planet2,
+                aspect_name=payload.aspect_name,
+                aspect_name_ru=payload.aspect_name_ru,
+                orb=payload.orb,
+                language=payload.language,
+                top_k=20,
+                mode=payload.mode
+            )),
+            media_type="text/event-stream",
+        )
+
     return await analyze_synastry_aspect(
         planet1=payload.planet1,
         planet2=payload.planet2,
@@ -1085,7 +1102,26 @@ async def analyze_planet_endpoint(
             planet_key = payload.planet.replace(' ', '')
             planet_data = planets_data.get(planet_key) or planets_data.get(payload.planet, {})
             is_retrograde = planet_data.get('is_retrograde', False)
-    
+
+    if payload.stream:
+        from fastapi.responses import StreamingResponse
+        from app.services.analysis_service import analyze_planet_stream
+        return StreamingResponse(
+            _sse(analyze_planet_stream(
+                planet=payload.planet,
+                sign=payload.sign,
+                degree=payload.degree,
+                house=payload.house or 1,
+                house_sign=payload.house_sign,
+                is_retrograde=is_retrograde or False,
+                aspects=payload.aspects,
+                language=payload.language,
+                top_k=20,
+                mode=payload.mode
+            )),
+            media_type="text/event-stream",
+        )
+
     result = await analyze_planet(
         planet=payload.planet,
         sign=payload.sign,
@@ -1098,7 +1134,7 @@ async def analyze_planet_endpoint(
         top_k=20,
         mode=payload.mode
     )
-    
+
     return result
 
 
@@ -1307,7 +1343,7 @@ async def chat_with_astrologer_endpoint(request: Request, payload: ChatRequest, 
     - Answers in the context of the natal chart and the full analysis
     """
     # from app.services.analysis_service import chat_with_astrologer
- 
+
     # result = await chat_with_astrologer(
     #     question=payload.question,
     #     chart_data=payload.chart_data,
@@ -1315,6 +1351,29 @@ async def chat_with_astrologer_endpoint(request: Request, payload: ChatRequest, 
     #     chat_history=[msg.dict() for msg in payload.chat_history],
     #     language=payload.language
     # )
+
+    if payload.stream:
+        from fastapi.responses import StreamingResponse
+        if payload.chart_data.get('type') == 'synastry':
+            from app.services.synastry_service import chat_with_synastry_astrologer_stream
+            gen = chat_with_synastry_astrologer_stream(
+                question=payload.question,
+                chart_data=payload.chart_data,
+                full_analysis=payload.summary,
+                chat_history=[msg.dict() for msg in payload.chat_history],
+                language=payload.language,
+                relationship_context=payload.relationship_context
+            )
+        else:
+            from app.services.analysis_service import chat_with_astrologer_stream
+            gen = chat_with_astrologer_stream(
+                question=payload.question,
+                chart_data=payload.chart_data,
+                full_analysis=payload.summary,
+                chat_history=[msg.dict() for msg in payload.chat_history],
+                language=payload.language
+            )
+        return StreamingResponse(_sse(gen), media_type="text/event-stream")
 
     if payload.chart_data.get('type') == 'synastry':
         from app.services.synastry_service import chat_with_synastry_astrologer
@@ -2100,6 +2159,29 @@ async def analyze_progressed_synastry_aspect_endpoint(request: Request, payload:
     Modeled on /synastry/aspect, see specs/progressed_synastry_aspect_click_plan.md.
     """
     from app.services.analysis_service import analyze_progressed_synastry_aspect
+
+    if payload.stream:
+        from fastapi.responses import StreamingResponse
+        from app.services.analysis_service import analyze_progressed_synastry_aspect_stream
+        return StreamingResponse(
+            _sse(analyze_progressed_synastry_aspect_stream(
+                planet1=payload.planet1,
+                planet2=payload.planet2,
+                aspect_name=payload.aspect_name,
+                layer=payload.layer,
+                aspect_name_ru=payload.aspect_name_ru,
+                aspect_name_uk=payload.aspect_name_uk,
+                orb=payload.orb,
+                applying=payload.applying,
+                house1=payload.planet1_house,
+                house2=payload.planet2_house,
+                partner1_name=payload.person1_name,
+                partner2_name=payload.person2_name,
+                language=payload.language,
+                mode=payload.mode or 'advanced',
+            )),
+            media_type="text/event-stream",
+        )
 
     return await analyze_progressed_synastry_aspect(
         planet1=payload.planet1,

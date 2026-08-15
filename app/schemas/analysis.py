@@ -15,6 +15,7 @@ class PlanetAnalysisRequest(BaseModel):
     language: str
     chart_data: Optional[Dict[str, Any]] = None
     mode: Optional[str] = 'advanced'
+    stream: bool = False
 
 
 class PlanetAspectInfo(BaseModel):
@@ -90,6 +91,7 @@ class ChatRequest(BaseModel):
     chat_history: List[ChatMessage] = []
     language: str = "ru"
     relationship_context: Optional[str] = None  # "default", "relatives", "partner", "colleagues", "friends"
+    stream: bool = False
 
 
 class ChatResponse(BaseModel):
@@ -160,6 +162,7 @@ class SynastryAspectRequest(BaseModel):
     orb: float = 0.0
     language: str = "en"
     mode: Optional[str] = 'advanced'
+    stream: bool = False
 
 
 class SynastryAspectResponse(BaseModel):
@@ -367,6 +370,7 @@ class ProgressedSynastryAspectRequest(BaseModel):
     person2_name: Optional[str] = None
     language: str = "ru"
     mode: Optional[str] = 'advanced'
+    stream: bool = False
 
 
 class ProgressedSynastryAspectResponse(BaseModel):
