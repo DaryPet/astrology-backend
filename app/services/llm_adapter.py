@@ -240,7 +240,14 @@ class FallbackAdapter(LLMAdapter):
 
 class DeepSeekAdapter(LLMAdapter):
     """Adapter for DeepSeek"""
-    
+
+    # deepseek-v4-flash's real output ceiling is 384000 tokens (1,048,576 total
+    # context, shared with the prompt) — 32768 was an arbitrary, much lower
+    # number that silently truncated large analyses (full synastry prompts can
+    # run ~250K tokens on their own). Set to 45000 (user's choice) — well
+    # under the model's ceiling, still ~1.4x the old 32768.
+    MAX_TOKENS = 45000
+
     def __init__(self):
         self.client = None
     
@@ -263,7 +270,7 @@ class DeepSeekAdapter(LLMAdapter):
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
                 # max_tokens=8000,
-                max_tokens=32768,
+                max_tokens=self.MAX_TOKENS,
                 timeout=500,
             )
             # finish_reason tells a complete answer from a silently truncated one:
@@ -275,7 +282,7 @@ class DeepSeekAdapter(LLMAdapter):
             print(
                 f"[DeepSeekAdapter] finish_reason={choice.finish_reason}"
                 f" completion_tokens={getattr(usage, 'completion_tokens', '?')}"
-                f" max_tokens=32768"
+                f" max_tokens={self.MAX_TOKENS}"
             )
             return choice.message.content
         except Exception as e:
@@ -317,7 +324,7 @@ class DeepSeekAdapter(LLMAdapter):
                 # model="deepseek-v4-pro",  # experiment: plans/synastry-before-batching.md
                 messages=messages,
                 temperature=0.3,
-                max_tokens=32768,
+                max_tokens=self.MAX_TOKENS,
                 timeout=500,
                 stream=True,
             )
@@ -339,7 +346,7 @@ class DeepSeekAdapter(LLMAdapter):
             print(
                 f"[DeepSeekAdapter] finish_reason={finish_reason}"
                 f" completion_tokens={completion_tokens}"
-                f" max_tokens=32768"
+                f" max_tokens={self.MAX_TOKENS}"
             )
         except Exception as e:
             yield f"Error: {str(e)}"
