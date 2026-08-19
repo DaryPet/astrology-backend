@@ -2347,6 +2347,37 @@ def _collect_progressed_synastry_layers(
     return layers
 
 
+def dedup_chunk_sections(
+    sections: List[tuple]
+) -> List[tuple]:
+    """Removes chunks whose id already appeared in an earlier section,
+    preserving section order and each chunk's position within its section.
+    First appearance of a chunk id wins; later sections lose the repeat.
+
+    Dedup is by chunk id only (not text) — two different chunks with
+    coincidentally similar text are not collapsed. `dedup_chunk_sections`
+    does NOT drop the search itself (every RAG call still runs, every
+    section still gets its own targeted query) — it only removes the same
+    chunk being pasted into the prompt more than once.
+    See app/services/specs/progressed_synastry_rag_prompt_reduction_plan.md
+    and app/services/specs/rag_chunk_dedup_plan.md (same design, this is the
+    5th consumer).
+    """
+    seen: set = set()
+    result: List[tuple] = []
+    for label, chunks in sections:
+        unique_chunks = []
+        for chunk in chunks:
+            c_id = chunk.get("id")
+            if c_id and c_id in seen:
+                continue
+            if c_id:
+                seen.add(c_id)
+            unique_chunks.append(chunk)
+        result.append((label, unique_chunks))
+    return result
+
+
 async def _prepare_progressed_synastry_analysis(
     progressed_synastry: Dict[str, Any],
     language: str = "ru",
@@ -2370,8 +2401,14 @@ async def _prepare_progressed_synastry_analysis(
     Priority book — Brady "The Eagle and the Lark" (id=29, forecasting).
     """
     import asyncio
+    import time as _time
     from app.services.llm_adapter import get_llm_adapter
     from app.services.prompt_templates import get_template
+
+    # TEMPORARY — timing added to check whether the Пункт-1 dedup
+    # (prompt-size cut) moves LLM latency at all; remove once answered.
+    # See app/services/specs/progressed_synastry_rag_prompt_reduction_plan.md.
+    _t_start = _time.perf_counter()
 
     adapter = get_llm_adapter()
 
@@ -2425,6 +2462,14 @@ async def _prepare_progressed_synastry_analysis(
 
     print(f"[progressed_synastry_analysis] Parallel RAG: {len(tasks)} queries")
     results = await asyncio.gather(*tasks, return_exceptions=True)
+    # Dedup chunks repeated across the 14 queries (same book id=29 searched
+    # by many semantically-adjacent aspect queries) — see
+    # specs/progressed_synastry_rag_prompt_reduction_plan.md, Пункт 1. Search
+    # itself is unaffected: every RPC above still ran, this only prevents the
+    # same chunk being pasted into books_content more than once.
+    sections = [r for r in results if not isinstance(r, Exception)]
+    sections = dedup_chunk_sections(sections)
+    _t_rag = _time.perf_counter()  # TEMPORARY, see note above
 
     # --- Step 2: Format aspects by layer ---
     def fmt(asp: Dict, cross_houses: bool = False) -> str:
@@ -2500,12 +2545,9 @@ async def _prepare_progressed_synastry_analysis(
         block(L['l3fade'], dynamics.get("faded_aspects", [])),
     ])
 
-    # --- Step 3: Book excerpts ---
+    # --- Step 3: Book excerpts (post-dedup — see `sections` above) ---
     books_content = ""
-    for result in results:
-        if isinstance(result, Exception):
-            continue
-        label, chunks = result
+    for label, chunks in sections:
         if chunks:
             books_content += f"\n\n【{label}】\n"
             for i, chunk in enumerate(chunks, 1):
@@ -2553,6 +2595,8 @@ async def _prepare_progressed_synastry_analysis(
     _dyn_tmpl = _dyn_labels.get(language, _dyn_labels['en'])
     prompt += "\n\n" + _dyn_tmpl.format(n=dyn.get('natal_total', '?'), p=dyn.get('progressed_total', '?'))
 
+    _t_prompt = _time.perf_counter()  # TEMPORARY, see note above
+
     return {
         'adapter': adapter,
         'prompt': prompt,
@@ -2562,6 +2606,7 @@ async def _prepare_progressed_synastry_analysis(
         'prog1_to_natal2': prog1_to_natal2,
         'prog2_to_natal1': prog2_to_natal1,
         'dynamics': dynamics,
+        'timings': {'t_start': _t_start, 't_rag': _t_rag, 't_prompt': _t_prompt},  # TEMPORARY
     }
 
 
@@ -2580,6 +2625,8 @@ async def progressed_synastry_analysis(
     (plans/streaming-rollout-synastry-progressions-transits.md) — this is the
     same code that used to run inline in this function.
     """
+    import time as _time  # TEMPORARY, see _prepare_progressed_synastry_analysis note
+
     prep = await _prepare_progressed_synastry_analysis(progressed_synastry, language, top_k_per_book, mode)
     adapter = prep['adapter']
     prompt = prep['prompt']
@@ -2589,11 +2636,15 @@ async def progressed_synastry_analysis(
     prog1_to_natal2 = prep['prog1_to_natal2']
     prog2_to_natal1 = prep['prog2_to_natal1']
     dynamics = prep['dynamics']
+    _t_start = prep['timings']['t_start']
+    _t_rag = prep['timings']['t_rag']
+    _t_prompt = prep['timings']['t_prompt']
 
     # --- Step 5: LLM ---
     print(f"[progressed_synastry_analysis] Final prompt ~{len(prompt)//4} tokens")
     try:
         full_analysis = await adapter.generate(prompt, language)
+        _t_llm = _time.perf_counter()  # TEMPORARY
 
         if language in ('ru', 'en', 'uk'):
             _fabrication_layers = _collect_progressed_synastry_layers(
@@ -2628,6 +2679,20 @@ async def progressed_synastry_analysis(
                 print(f"[progressed_synastry_analysis] Coverage check: OK, all {len(all_aspects)} aspects covered")
     except Exception as e:
         full_analysis = f"Ошибка анализа: {str(e)}"
+        print(f"[progressed_synastry_analysis] LLM error: {e}")
+
+    # TEMPORARY timing block — remove together with the marks above once the
+    # dedup-vs-latency question is answered.
+    _t_llm = locals().get('_t_llm', _t_prompt)
+    _t_end = _time.perf_counter()
+    print(
+        "[timing] progressed_synastry_analysis"
+        f" rag={_t_rag - _t_start:.1f}s"
+        f" build={_t_prompt - _t_rag:.1f}s"
+        f" llm={_t_llm - _t_prompt:.1f}s"
+        f" verify={_t_end - _t_llm:.1f}s"
+        f" total={_t_end - _t_start:.1f}s"
+    )
 
     return {
         "analysis": full_analysis,
@@ -2669,6 +2734,8 @@ async def progressed_synastry_analysis_stream(
     Do not replace this with a real fix function by copy-pasting another
     step's fix_fn — see the plan's "Риски" table.
     """
+    import time as _time  # TEMPORARY, see _prepare_progressed_synastry_analysis note
+
     yield {"event": "stage", "data": {"stage": "searching"}}
 
     prep = await _prepare_progressed_synastry_analysis(progressed_synastry, language, top_k_per_book, mode)
@@ -2680,8 +2747,14 @@ async def progressed_synastry_analysis_stream(
     prog1_to_natal2 = prep['prog1_to_natal2']
     prog2_to_natal1 = prep['prog2_to_natal1']
     dynamics = prep['dynamics']
+    _t_start = prep['timings']['t_start']
+    _t_rag = prep['timings']['t_rag']
+    _t_prompt = prep['timings']['t_prompt']
+    _t_llm_end = None  # TEMPORARY
 
     async def finalize(buffer: str, released: str) -> Dict[str, Any]:
+        nonlocal _t_llm_end
+        _t_llm_end = _time.perf_counter()  # TEMPORARY
         full_analysis = buffer
         if language in ('ru', 'en', 'uk'):
             _fabrication_layers = _collect_progressed_synastry_layers(
@@ -2746,6 +2819,22 @@ async def progressed_synastry_analysis_stream(
 
     async for event in stream_verified_analysis(adapter, prompt, language, fix_fn, finalize):
         yield event
+
+    # TEMPORARY timing block — remove together with the marks above once the
+    # dedup-vs-latency question is answered. finalize() runs inside
+    # stream_verified_analysis, so _t_llm_end is set by the time the loop
+    # above finishes (falls back to _t_prompt if the stream errored before
+    # ever calling finalize).
+    _t_end = _time.perf_counter()
+    _t_llm = _t_llm_end if _t_llm_end is not None else _t_prompt
+    print(
+        "[timing] progressed_synastry_analysis_stream"
+        f" rag={_t_rag - _t_start:.1f}s"
+        f" build={_t_prompt - _t_rag:.1f}s"
+        f" llm={_t_llm - _t_prompt:.1f}s"
+        f" verify={_t_end - _t_llm:.1f}s"
+        f" total={_t_end - _t_start:.1f}s"
+    )
 
 
 async def _prepare_progressed_synastry_aspect_analysis(
