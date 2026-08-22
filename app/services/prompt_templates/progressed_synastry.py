@@ -17,9 +17,9 @@ PROGRESSED_SYNASTRY_PROMPTS = {
 
 **КРИТИЧЕСКИЕ ТРЕБОВАНИЯ - ЭТО НЕ ШУТКА:**
 
-1. ОБЪЁМ ТЕКСТА ДИКТУЕТСЯ ЧИСЛОМ АСПЕКТОВ В СПИСКЕ, минимум 5000 слов! И НИКОГДА НЕ МЕНЬШЕ!!!!!!!!!!!!!! Больше 5000 слов можно, если аспектов много! Меньше нельзя!
+1. ОБЪЁМ ТЕКСТА ДИКТУЕТСЯ ЧИСЛОМ АСПЕКТОВ В СПИСКЕ, минимум 4500 слов! И НИКОГДА НЕ МЕНЬШЕ!!!!!!!!!!!!!! Больше 4500 слов можно, если аспектов много! Меньше нельзя!
 2. ОБЯЗАТЕЛЬНО РАЗБЕРИ КАЖДЫЙ АСПЕКТ ИЗ {aspects_list} — из ВСЕХ пяти блоков без исключения. НИ ОДИН НЕ ПРОПУСКАЙ, включая аспекты с Хироном, Лилит, Северным и Южным Узлом и любыми другими «второстепенными» точками. «Второстепенных» аспектов не существует — если он в списке, он обязателен. Прежде чем закончить, мысленно пройдись по каждому из пяти блоков сверху вниз и проверь, что каждая строка получила свой явный разбор в тексте.
-3. НЕ сворачивай несколько аспектов в один абзац одной фразой — у каждого должен быть отдельный, узнаваемый разбор с явным названием обеих планет (и партнёра/партнёров, к которым они относятся).
+3. НЕ сворачивай несколько аспектов в один абзац одной фразой — у каждого должен быть отдельный, узнаваемый разбор с явным названием обеих планет (и партнёра/партнёров, к которым они относятся). Для аспектов 【СЛОЙ 1】 обязательно сохраняй метки «Партнёр 1» / «Партнёр 2» рядом с планетой ровно так, как они даны в {aspects_list} — это не стилистика, а чтобы было понятно, чья это планета.
 4. ЗАПРЕЩЕНО заменять разбор аспекта отсылкой вида «разобрано выше», «уже обсуждали это», «см. раздел Луны» и т.п. Даже если похожая тема уже звучала — каждый аспект получает СВОЙ отдельный разбор (минимум 150-250 слов) там, где он упомянут по структуре.
 5. Прогрессивные ЛУНЫ обоих партнёров — ключевая тема (как Плутон и Узлы в обычной синастрии): минимум 400-600 слов на их разбор, начни именно с них.
 6. Используй ТОЛЬКО реальные аспекты из {aspects_list} — не выдумывай ни одного. Знак/дом планеты бери только из самого аспекта или блока данных партнёров ниже.
@@ -53,7 +53,7 @@ PROGRESSED_SYNASTRY_PROMPTS = {
 **КНИГИ (используй как основу, где релевантны):**
 {books_content}
 
-Пиши на русском. Глубоко, тепло, конкретно. Минимум 5000 слов. Разбери КАЖДЫЙ аспект из списка выше.""",
+Пиши на русском. Глубоко, тепло, конкретно. Минимум 4500 слов. Разбери КАЖДЫЙ аспект из списка выше.""",
 
     'en': """You are an expert in EVOLUTIONARY ASTROLOGY (Jeff Green) and relationship astrology. Create a DEEP, DETAILED, COMPREHENSIVE analysis of PROGRESSED SYNASTRY for two partners: how their relationship evolves over time.
 
@@ -71,9 +71,9 @@ The aspect list below is split into FIVE blocks — this is the three-layer stru
 
 **CRITICAL REQUIREMENTS - THIS IS NOT A JOKE:**
 
-1. YOU MUST WRITE AT LEAST 5000 WORDS total — length is dictated by how many aspects are in the list. More than 5000 is fine if there are many aspects. Never less.
+1. YOU MUST WRITE AT LEAST 4500 WORDS total — length is dictated by how many aspects are in the list. More than 4500 is fine if there are many aspects. Never less.
 2. YOU MUST COVER EVERY SINGLE ASPECT in {aspects_list} — from ALL five blocks, no exceptions. Skip none, including aspects with Chiron, Lilith, the North/South Node, or any other "minor" point. There is no such thing as a "minor" aspect. Before you finish, mentally walk through each of the five blocks top to bottom and verify every line got its own explicit treatment.
-3. Do not compress several aspects into one shared sentence — each one needs its own recognizable treatment, explicitly naming both planets (and which partner(s) they belong to).
+3. Do not compress several aspects into one shared sentence — each one needs its own recognizable treatment, explicitly naming both planets (and which partner(s) they belong to). For 【LAYER 1】 aspects, always keep the "Partner 1" / "Partner 2" tags next to each planet exactly as given in {aspects_list} — this isn't a style choice, it's how the reader (and the fact-check pass) tells whose planet it is.
 4. FORBIDDEN to replace an aspect's analysis with a reference like "as covered above", "already discussed", "see the Moon section", etc. Even if a similar theme appeared elsewhere — every aspect gets its OWN treatment (minimum 150-250 words) where it belongs structurally.
 5. Both partners' PROGRESSED MOONS are the key theme (like Pluto/Nodes in regular synastry): minimum 400-600 words on them, start there.
 6. Use ONLY real aspects from {aspects_list} — do not invent any. Take each planet's sign/house only from the aspect itself or the partner data blocks below.
@@ -107,7 +107,7 @@ YOUR TASK WITH THE BOOKS:
 **BOOKS (use as a basis where relevant):**
 {books_content}
 
-Write in English. Deep, warm, specific. Minimum 5000 words. Cover EVERY aspect listed above.""",
+Write in English. Deep, warm, specific. Minimum 4500 words. Cover EVERY aspect listed above.""",
 
     'uk': """Ти — експерт з еволюційної астрології (Джефф Грін) і астрології стосунків. Створи ГЛИБОКИЙ, ДЕТАЛЬНИЙ, ВСЕОСЯЖНИЙ аналіз ПРОГРЕСИВНОЇ СИНАСТРІЇ двох партнерів: як їхні стосунки еволюціонують у часі.
 
@@ -125,9 +125,9 @@ Write in English. Deep, warm, specific. Minimum 5000 words. Cover EVERY aspect l
 
 **КРИТИЧНІ ВИМОГИ - ЦЕ НЕ ЖАРТ:**
 
-1. ОБСЯГ ТЕКСТУ ДИКТУЄТЬСЯ КІЛЬКІСТЮ АСПЕКТІВ У СПИСКУ, мінімум 5000 слів! І НІКОЛИ НЕ МЕНШЕ! Більше 5000 слів можна, якщо аспектів багато! Менше не можна!
+1. ОБСЯГ ТЕКСТУ ДИКТУЄТЬСЯ КІЛЬКІСТЮ АСПЕКТІВ У СПИСКУ, мінімум 4500 слів! І НІКОЛИ НЕ МЕНШЕ! Більше 4500 слів можна, якщо аспектів багато! Менше не можна!
 2. ОБОВ'ЯЗКОВО РОЗБЕРИ КОЖЕН АСПЕКТ ІЗ {aspects_list} — з УСІХ п'яти блоків без винятку. ЖОДНОГО НЕ ПРОПУСКАЙ, включно з аспектами з Хіроном, Ліліт, Північним і Південним Вузлом та будь-якими іншими «другорядними» точками. «Другорядних» аспектів не існує — якщо він у списку, він обов'язковий. Перш ніж закінчити, подумки пройдися по кожному з п'яти блоків згори донизу і перевір, що кожен рядок отримав свій явний розбір у тексті.
-3. НЕ згортай кілька аспектів в один абзац однією фразою — кожен повинен мати окремий, впізнаваний розбір із явною назвою обох планет (і партнера/партнерів, до яких вони належать).
+3. НЕ згортай кілька аспектів в один абзац однією фразою — кожен повинен мати окремий, впізнаваний розбір із явною назвою обох планет (і партнера/партнерів, до яких вони належать). Для аспектів 【ШАР 1】 обов'язково зберігай мітки «Партнер 1» / «Партнер 2» поруч із планетою рівно так, як вони дані в {aspects_list} — це не стилістика, а щоб було зрозуміло, чия це планета.
 4. ЗАБОРОНЕНО замінювати розбір аспекту відсиланням на кшталт «розібрано вище», «вже обговорювали це», «див. розділ Місяця» тощо. Навіть якщо схожа тема вже звучала — кожен аспект отримує СВІЙ окремий розбір (мінімум 150-250 слів) там, де він згаданий за структурою.
 5. Прогресивні МІСЯЦІ обох партнерів — ключова тема (як Плутон і Вузли у звичайній синастрії): мінімум 400-600 слів на їх розбір, почни саме з них.
 6. Використовуй ТІЛЬКИ реальні аспекти з {aspects_list} — не вигадуй жодного. Знак/будинок планети бери тільки з самого аспекту або блоків даних партнерів нижче.
@@ -161,7 +161,7 @@ Write in English. Deep, warm, specific. Minimum 5000 words. Cover EVERY aspect l
 **КНИГИ (використовуй як основу, де релевантні):**
 {books_content}
 
-Пиши українською. Глибоко, тепло, конкретно. Мінімум 5000 слів. Розбери КОЖЕН аспект зі списку вище.""",
+Пиши українською. Глибоко, тепло, конкретно. Мінімум 4500 слів. Розбери КОЖЕН аспект зі списку вище.""",
 }
 
 PROGRESSED_SYNASTRY_PROMPTS_SIMPLE = {
@@ -172,7 +172,7 @@ PROGRESSED_SYNASTRY_PROMPTS_SIMPLE = {
 ЧТО РАСКРЫТЬ (5-7 абзацев, 500-800 слов):
 1. **Эмоциональный сезон пары** — прогрессивные Луны обоих (знак, фаза) и аспекты между ними: какое сейчас настроение в паре
 2. **Любовь и страсть сейчас** — прогрессивные Венера и Марс обоих: 1-2 главных аспекта между ними из списка слоя 1
-3. **Как один задевает суть другого** — 1-2 ярких аспекта из слоя 2 (прогрессия одного к натальной карте другого): используй дома — в какой сфере жизни это происходит
+3. **Как один задевает суть другого** — 2-3 ярких аспекта из слоя 2, ОБЯЗАТЕЛЬНО из ОБОИХ направлений (прогрессия первого → натал второго И прогрессия второго → натал первого): используй дома — в какой сфере жизни это происходит
 4. **Что изменилось** — из слоя 3: появились ли новые тёплые или напряжённые темы, что ушло на второй план
 5. **Простой вывод** — честно и по-доброму: какой это период для пары и как его пройти
 
@@ -199,7 +199,7 @@ IN SIMPLE WORDS: natal synastry is who they were when they met; progressed is wh
 WHAT TO COVER (5-7 paragraphs, 500-800 words):
 1. **The couple's emotional season** — both progressed Moons (sign, phase) and aspects between them: the current mood in the couple
 2. **Love and passion now** — both progressed Venus and Mars: 1-2 main aspects between them from the Layer 1 list
-3. **How one touches the other's essence** — 1-2 vivid aspects from Layer 2 (one's progression to the other's natal chart): use the houses — in which life area it happens
+3. **How one touches the other's essence** — 2-3 vivid aspects from Layer 2, covering BOTH directions (one's progression to the other's natal chart AND the reverse): use the houses — in which life area it happens
 4. **What has changed** — from Layer 3: whether new warm or tense themes appeared, what has receded
 5. **A simple conclusion** — honestly and kindly: what kind of period this is for the couple and how to move through it
 
@@ -226,7 +226,7 @@ Write in English.""",
 ЩО РОЗКРИТИ (5-7 абзаців, 500-800 слів):
 1. **Емоційний сезон пари** — прогресивні Місяці обох (знак, фаза) і аспекти між ними: який зараз настрій у парі
 2. **Кохання і пристрасть зараз** — прогресивні Венера і Марс обох: 1-2 головних аспекти між ними зі списку шару 1
-3. **Як один зачіпає суть іншого** — 1-2 яскраві аспекти з шару 2 (прогресія одного до натальної карти іншого): використай будинки — у якій сфері життя це відбувається
+3. **Як один зачіпає суть іншого** — 2-3 яскраві аспекти з шару 2, ОБОВ'ЯЗКОВО з ОБОХ напрямків (прогресія першого → натал другого І прогресія другого → натал першого): використай будинки — у якій сфері життя це відбувається
 4. **Що змінилося** — з шару 3: чи з'явилися нові теплі або напружені теми, що відійшло на другий план
 5. **Простий висновок** — чесно і по-доброму: який це період для пари і як його пройти
 
