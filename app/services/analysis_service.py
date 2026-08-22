@@ -2472,28 +2472,53 @@ async def _prepare_progressed_synastry_analysis(
     _t_rag = _time.perf_counter()  # TEMPORARY, see note above
 
     # --- Step 2: Format aspects by layer ---
-    def fmt(asp: Dict, cross_houses: bool = False) -> str:
+    # partner_markers=True is used ONLY for layer1 (progressed A <-> progressed
+    # B) — the one layer where "progressed"/"natal" wording can't tell the two
+    # partners apart (see app/services/INSIGHTS.md, 2026-08-01 "Chose NOT to
+    # run aspect-type fabrication checking... on layer 1"). Tags "Партнёр 1"/
+    # "Партнёр 2" mirror synastry_service.py's _prepare_synastry_analysis
+    # ("ПАРТНЕР1:"/"ПАРТНЕР2:" in its aspects_list) — same wording
+    # find_fabricated_aspect_types/attribute_header_planets_to_partners
+    # already know how to read, reused as-is for layer1's fabrication check
+    # below instead of writing a new attribution function.
+    _partner_tags = {
+        'ru': ("Партнёр 1", "Партнёр 2"),
+        'uk': ("Партнер 1", "Партнер 2"),
+        'en': ("Partner 1", "Partner 2"),
+    }
+    _p1_tag, _p2_tag = _partner_tags.get(language, _partner_tags['en'])
+
+    def fmt(asp: Dict, cross_houses: bool = False, partner_markers: bool = False) -> str:
         p_a = _planet_display(asp.get("planet1", "?"), language)
         p_b = _planet_display(asp.get("planet2", "?"), language)
         orb_val = asp.get("orb", "?")
+        # Partner tag sits in the SAME parenthetical as the sign, right after
+        # the planet — not before it. attribute_header_planets_to_partners
+        # (synastry_service.py) only accepts a marker that comes AT OR AFTER
+        # the planet's position in the header; putting it before would never
+        # match. This also mirrors how the sign already reliably survives
+        # into the model's own text (same bracket, proven pattern) instead of
+        # introducing a new one for the partner tag alone.
+        tag1 = f"{_p1_tag}, " if partner_markers else ""
+        tag2 = f"{_p2_tag}, " if partner_markers else ""
         if language == 'ru':
             sign1 = asp.get('sign1_ru', asp.get('sign1', '?'))
             sign2 = asp.get('sign2_ru', asp.get('sign2', '?'))
             asp_name = asp.get("aspect_ru", asp.get("aspect", "?"))
             applying_str = "набирает силу" if asp.get("applying") else "завершается"
-            base = f"{p_a} ({sign1}) {asp_name} {p_b} ({sign2}) — орб {orb_val}°, {applying_str}"
+            base = f"{p_a} ({tag1}{sign1}) {asp_name} {p_b} ({tag2}{sign2}) — орб {orb_val}°, {applying_str}"
         elif language == 'uk':
             sign1 = asp.get('sign1_uk', asp.get('sign1', '?'))
             sign2 = asp.get('sign2_uk', asp.get('sign2', '?'))
             asp_name = asp.get("aspect_uk", asp.get("aspect", "?"))
             applying_str = "аплікуючий" if asp.get("applying") else "сепаруючий"
-            base = f"{p_a} ({sign1}) {asp_name} {p_b} ({sign2}) — орбіс {orb_val}°, {applying_str}"
+            base = f"{p_a} ({tag1}{sign1}) {asp_name} {p_b} ({tag2}{sign2}) — орбіс {orb_val}°, {applying_str}"
         else:
             sign1 = asp.get('sign1', '?')
             sign2 = asp.get('sign2', '?')
             asp_name = asp.get("aspect", "?")
             applying_str = "gaining strength" if asp.get("applying") else "wrapping up"
-            base = f"{p_a} ({sign1}) {asp_name} {p_b} ({sign2}) — orb {orb_val}°, {applying_str}"
+            base = f"{p_a} ({tag1}{sign1}) {asp_name} {p_b} ({tag2}{sign2}) — orb {orb_val}°, {applying_str}"
         h1 = asp.get("planet1_house_in_2")
         h2 = asp.get("planet2_house_in_1")
         houses = []
@@ -2508,7 +2533,7 @@ async def _prepare_progressed_synastry_analysis(
 
     L = {
         'ru': {
-            'l1': f"【СЛОЙ 1 — Прогрессивная синастрия: {name1} ↔ {name2}】",
+            'l1': f"【СЛОЙ 1 — Прогрессивная синастрия: Партнёр 1 = {name1} ↔ Партнёр 2 = {name2}】",
             'l2a': f"【СЛОЙ 2 — Прогрессии {name1} → натальная карта {name2}】",
             'l2b': f"【СЛОЙ 2 — Прогрессии {name2} → натальная карта {name1}】",
             'l3new': "【СЛОЙ 3 — НОВЫЕ аспекты (появились в прогрессии)】",
@@ -2516,7 +2541,7 @@ async def _prepare_progressed_synastry_analysis(
             'none': "(нет точных аспектов)",
         },
         'en': {
-            'l1': f"【LAYER 1 — Progressed synastry: {name1} ↔ {name2}】",
+            'l1': f"【LAYER 1 — Progressed synastry: Partner 1 = {name1} <-> Partner 2 = {name2}】",
             'l2a': f"【LAYER 2 — {name1}'s progressions → {name2}'s natal chart】",
             'l2b': f"【LAYER 2 — {name2}'s progressions → {name1}'s natal chart】",
             'l3new': "【LAYER 3 — NEW aspects (appeared in progression)】",
@@ -2524,7 +2549,7 @@ async def _prepare_progressed_synastry_analysis(
             'none': "(no exact aspects)",
         },
         'uk': {
-            'l1': f"【ШАР 1 — Прогресивна синастрія: {name1} ↔ {name2}】",
+            'l1': f"【ШАР 1 — Прогресивна синастрія: Партнер 1 = {name1} ↔ Партнер 2 = {name2}】",
             'l2a': f"【ШАР 2 — Прогресії {name1} → натальна карта {name2}】",
             'l2b': f"【ШАР 2 — Прогресії {name2} → натальна карта {name1}】",
             'l3new': "【ШАР 3 — НОВІ аспекти (з'явилися в прогресії)】",
@@ -2538,7 +2563,7 @@ async def _prepare_progressed_synastry_analysis(
         return f"{title}\n{body}"
 
     aspects_list = "\n\n".join([
-        block(L['l1'], layer1, cross_houses=True),
+        block(L['l1'], layer1, cross_houses=True, partner_markers=True),
         block(L['l2a'], prog1_to_natal2),
         block(L['l2b'], prog2_to_natal1),
         block(L['l3new'], dynamics.get("new_aspects", []), cross_houses=True),
@@ -2619,11 +2644,11 @@ async def progressed_synastry_analysis(
     """
     AI analysis of progressed synastry — RAG search + prompt assembly via
     _prepare_progressed_synastry_analysis, one final LLM call, then the
-    detect-only anti-fabrication pass (this endpoint never fixes text — see
-    _collect_progressed_synastry_layers / the 2026-08-01 INSIGHTS entry).
-    Behavior unchanged by the step-4б refactor
-    (plans/streaming-rollout-synastry-progressions-transits.md) — this is the
-    same code that used to run inline in this function.
+    anti-fabrication pass: fabricated planet positions are detected AND fixed
+    (fix_fabricated_positions_layered, mirroring progressions_analysis);
+    fabricated aspect types are detected only, for both layer 1 (partner-tag
+    attribution — see fmt()'s partner_markers) and layer 2 (progressed/natal
+    marker attribution) — see plans/progressed-synastry-validation-gaps.md.
     """
     import time as _time  # TEMPORARY, see _prepare_progressed_synastry_analysis note
 
@@ -2658,18 +2683,35 @@ async def progressed_synastry_analysis(
             else:
                 print("[progressed_synastry_analysis] Position check: OK, no fabricated positions")
 
-            # Aspect type — LAYER 2 only (prog.→natal): the prompt there really
-            # does write "прогрессивная"/"натальная" next to the planet. For
-            # LAYER 1 (prog.↔prog., both partners "progressed") this marker
-            # axis doesn't distinguish the partners — not checked, a documented gap.
+            full_analysis, _ = fix_fabricated_positions_layered(
+                full_analysis, _fabrication_layers, language=language
+            )
+
+            # Aspect type — LAYER 2 (prog.→natal): the prompt there writes
+            # "прогрессивная"/"натальная" next to the planet, so
+            # find_fabricated_aspect_types_layered's progressed/natal marker
+            # axis attributes each side correctly.
             cross_aspects = (prog1_to_natal2 or []) + (prog2_to_natal1 or [])
             fabricated_aspects = find_fabricated_aspect_types_layered(
                 full_analysis, cross_aspects, language=language, layer_keys=('progressed', 'natal')
             )
-            if fabricated_aspects:
-                print(f"[progressed_synastry_analysis] Fabricated aspect types detected (layer 2 only): {fabricated_aspects}")
+
+            # Aspect type — LAYER 1 (prog.↔prog. between the two partners):
+            # "progressed"/"natal" wording can't distinguish the partners here
+            # (both sides are "progressed") — fixed by tagging each planet
+            # with "Партнёр 1/2" in the aspects_list (see fmt()'s
+            # partner_markers above) and reusing synastry_service.py's own
+            # partner-marker attribution as-is, since the tag wording matches
+            # what it already looks for. Closes the gap documented in
+            # app/services/INSIGHTS.md (2026-08-01, "Chose NOT to run
+            # aspect-type fabrication checking... on layer 1").
+            from app.services.synastry_service import find_fabricated_aspect_types as _find_fab_aspect_types_partner
+            fabricated_layer1_aspects = _find_fab_aspect_types_partner(full_analysis, layer1 or [], language=language)
+
+            if fabricated_aspects or fabricated_layer1_aspects:
+                print(f"[progressed_synastry_analysis] Fabricated aspect types detected — layer 2: {fabricated_aspects}, layer 1: {fabricated_layer1_aspects}")
             else:
-                print("[progressed_synastry_analysis] Aspect-type check: OK, no fabricated aspect types (layer 2 only)")
+                print("[progressed_synastry_analysis] Aspect-type check: OK, no fabricated aspect types (layer 1 + layer 2)")
 
             all_aspects = (layer1 or []) + cross_aspects
             undercovered = find_undercovered_aspects_generic(full_analysis, all_aspects, language=language)
@@ -2720,19 +2762,16 @@ async def progressed_synastry_analysis_stream(
     """
     Streaming twin of progressed_synastry_analysis
     (plans/streaming-rollout-synastry-progressions-transits.md, step 4в). Same
-    prep (_prepare_progressed_synastry_analysis), same detect-only finalize
-    pipeline — only the delivery differs.
+    prep (_prepare_progressed_synastry_analysis), same finalize pipeline —
+    only the delivery differs.
 
-    IMPORTANT: `fix_fn` here is an identity stub (`lambda text: (text, [])`),
-    NOT a hack for simplicity — it precisely preserves today's behavior.
-    The non-stream path never fixes text either (only
-    find_fabricated_positions_layered is called, never fix_fabricated_positions_layered
-    — see _collect_progressed_synastry_layers' docstring / the 2026-08-01
-    INSIGHTS entry: planet positions in the finished text are never corrected
-    here, only logged as a finding). If the stream path fixed text, it would
-    silently become MORE corrective than the original it's supposed to mirror.
-    Do not replace this with a real fix function by copy-pasting another
-    step's fix_fn — see the plan's "Риски" table.
+    `fix_fn` applies fix_fabricated_positions_layered against
+    `_fabrication_layers`, mirroring the non-stream path and the natal/
+    progressions/transits streaming callers — no longer an identity stub
+    (see plans/progressed-synastry-validation-gaps.md, Этап 1). Aspect-type
+    fabrication stays detect-only for both layers (layer 1 via partner-tag
+    attribution, layer 2 via progressed/natal marker attribution) — same as
+    the non-stream twin.
     """
     import time as _time  # TEMPORARY, see _prepare_progressed_synastry_analysis note
 
@@ -2752,14 +2791,24 @@ async def progressed_synastry_analysis_stream(
     _t_prompt = prep['timings']['t_prompt']
     _t_llm_end = None  # TEMPORARY
 
+    # Computed here (not inside finalize) so fix_fn — a separate closure
+    # defined below, called incrementally per-paragraph by
+    # stream_verified_analysis BEFORE finalize ever runs — can also see it.
+    # Bug fixed 2026-08-22: this used to be computed only inside finalize,
+    # so fix_fn's reference to it raised NameError on the very first
+    # paragraph of every real streamed request (caught via a live traceback,
+    # not by the earlier synthetic-only testing — see
+    # app/services/INSIGHTS.md). Mirrors full_chart_analysis_v2_stream's
+    # `layers = prep['layers']` placement.
+    _fabrication_layers = _collect_progressed_synastry_layers(
+        p1, p2, layer1, prog1_to_natal2, prog2_to_natal1
+    )
+
     async def finalize(buffer: str, released: str) -> Dict[str, Any]:
         nonlocal _t_llm_end
         _t_llm_end = _time.perf_counter()  # TEMPORARY
         full_analysis = buffer
         if language in ('ru', 'en', 'uk'):
-            _fabrication_layers = _collect_progressed_synastry_layers(
-                p1, p2, layer1, prog1_to_natal2, prog2_to_natal1
-            )
             position_issues = find_fabricated_positions_layered(
                 full_analysis, _fabrication_layers, language=language
             )
@@ -2768,14 +2817,25 @@ async def progressed_synastry_analysis_stream(
             else:
                 print("[progressed_synastry_analysis_stream] Position check: OK, no fabricated positions")
 
+            full_analysis, _ = fix_fabricated_positions_layered(
+                full_analysis, _fabrication_layers, language=language
+            )
+
             cross_aspects = (prog1_to_natal2 or []) + (prog2_to_natal1 or [])
             fabricated_aspects = find_fabricated_aspect_types_layered(
                 full_analysis, cross_aspects, language=language, layer_keys=('progressed', 'natal')
             )
-            if fabricated_aspects:
-                print(f"[progressed_synastry_analysis_stream] Fabricated aspect types detected (layer 2 only): {fabricated_aspects}")
+
+            # Layer 1 aspect-type check — see the non-stream twin's comment
+            # for why this reuses synastry_service.py's partner-marker
+            # attribution instead of the progressed/natal marker axis.
+            from app.services.synastry_service import find_fabricated_aspect_types as _find_fab_aspect_types_partner
+            fabricated_layer1_aspects = _find_fab_aspect_types_partner(full_analysis, layer1 or [], language=language)
+
+            if fabricated_aspects or fabricated_layer1_aspects:
+                print(f"[progressed_synastry_analysis_stream] Fabricated aspect types detected — layer 2: {fabricated_aspects}, layer 1: {fabricated_layer1_aspects}")
             else:
-                print("[progressed_synastry_analysis_stream] Aspect-type check: OK, no fabricated aspect types (layer 2 only)")
+                print("[progressed_synastry_analysis_stream] Aspect-type check: OK, no fabricated aspect types (layer 1 + layer 2)")
 
             all_aspects = (layer1 or []) + cross_aspects
             undercovered = find_undercovered_aspects_generic(full_analysis, all_aspects, language=language)
@@ -2785,11 +2845,10 @@ async def progressed_synastry_analysis_stream(
                 print(f"[progressed_synastry_analysis_stream] Coverage check: OK, all {len(all_aspects)} aspects covered")
 
         if not full_analysis.startswith(released):
-            # Since fix_fn is identity, `released` can only fall short of
-            # `full_analysis` by the last unterminated paragraph (see
-            # stream_verified_analysis) — a mismatch here would mean a bug in
-            # the wrapper itself, not a false alarm from an active fix pass
-            # (contrast with the 2026-08-10 natal precedent).
+            # fix_fn now applies fix_fabricated_positions_layered incrementally
+            # per paragraph; `released` is the fully corrected prefix, and
+            # `full_analysis` (below) has also been fixed in this same finalize
+            # call, so the prefix check remains valid.
             print(
                 "[stream_mismatch] progressed_synastry_analysis_stream"
                 f" released={released!r} canonical={full_analysis!r}"
@@ -2811,8 +2870,13 @@ async def progressed_synastry_analysis_stream(
             "version": "progressed_synastry_v1"
         }
 
-    # Identity — see the docstring above for why this is correct, not a shortcut.
-    fix_fn = lambda text: (text, [])
+    # Real fix function — applies fix_fabricated_positions_layered to the
+    # finalized analysis text, mirroring the non-stream path. Previously
+    # identity stub (lambda text: (text, [])), see
+    # plans/progressed-synastry-validation-gaps.md:62 — consensus was that
+    # this was a deliberate design choice for parity, but now both paths
+    # apply the same fix, so consistency is maintained.
+    fix_fn = lambda text: fix_fabricated_positions_layered(text, _fabrication_layers, language=language)
 
     print(f"[progressed_synastry_analysis_stream] Final prompt ~{len(prompt)//4} tokens")
     yield {"event": "stage", "data": {"stage": "generating"}}
