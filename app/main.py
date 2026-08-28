@@ -31,7 +31,10 @@ async def rate_limit_handler(request: Request, exc):
 # CORS - must be before static files
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:12001",
+        "https://astrology-frontend-delta.vercel.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
