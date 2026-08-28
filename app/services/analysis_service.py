@@ -2382,7 +2382,8 @@ async def _prepare_progressed_synastry_analysis(
     progressed_synastry: Dict[str, Any],
     language: str = "ru",
     top_k_per_book: int = 2,
-    mode: str = 'advanced'
+    mode: str = 'advanced',
+    relationship_context: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Shared prep for progressed_synastry_analysis and its streaming twin
@@ -2403,7 +2404,7 @@ async def _prepare_progressed_synastry_analysis(
     import asyncio
     import time as _time
     from app.services.llm_adapter import get_llm_adapter
-    from app.services.prompt_templates import get_template
+    from app.services.prompt_templates import get_template, get_relationship_context_prompt
 
     # TEMPORARY — timing added to check whether the Пункт-1 dedup
     # (prompt-size cut) moves LLM latency at all; remove once answered.
@@ -2582,6 +2583,14 @@ async def _prepare_progressed_synastry_analysis(
 
     # --- Step 4: Assemble the prompt ---
     template = get_template("progressed_synastry", language, mode)
+    # Same relationship_context mechanism as full_synastry_analysis_v2
+    # (synastry_service.py:794) — reused as-is rather than duplicated, since
+    # RELATIONSHIP_CONTEXT_PROMPTS' wording isn't synastry-specific. Without
+    # this the prompt always wrote in a romantic-couple frame regardless of
+    # what relationship_context the request carried.
+    context_prompt = get_relationship_context_prompt(relationship_context, language) if relationship_context else ""
+    if context_prompt:
+        template = template + context_prompt
     prompt = template.replace("{aspects_list}", aspects_list).replace("{books_content}", books_content)
 
     # Partner data
@@ -2639,7 +2648,8 @@ async def progressed_synastry_analysis(
     progressed_synastry: Dict[str, Any],
     language: str = "ru",
     top_k_per_book: int = 2,
-    mode: str = 'advanced'
+    mode: str = 'advanced',
+    relationship_context: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     AI analysis of progressed synastry — RAG search + prompt assembly via
@@ -2652,7 +2662,7 @@ async def progressed_synastry_analysis(
     """
     import time as _time  # TEMPORARY, see _prepare_progressed_synastry_analysis note
 
-    prep = await _prepare_progressed_synastry_analysis(progressed_synastry, language, top_k_per_book, mode)
+    prep = await _prepare_progressed_synastry_analysis(progressed_synastry, language, top_k_per_book, mode, relationship_context)
     adapter = prep['adapter']
     prompt = prep['prompt']
     p1 = prep['p1']
@@ -2757,7 +2767,8 @@ async def progressed_synastry_analysis_stream(
     progressed_synastry: Dict[str, Any],
     language: str = "ru",
     top_k_per_book: int = 2,
-    mode: str = 'advanced'
+    mode: str = 'advanced',
+    relationship_context: Optional[str] = None
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """
     Streaming twin of progressed_synastry_analysis
@@ -2777,7 +2788,7 @@ async def progressed_synastry_analysis_stream(
 
     yield {"event": "stage", "data": {"stage": "searching"}}
 
-    prep = await _prepare_progressed_synastry_analysis(progressed_synastry, language, top_k_per_book, mode)
+    prep = await _prepare_progressed_synastry_analysis(progressed_synastry, language, top_k_per_book, mode, relationship_context)
     adapter = prep['adapter']
     prompt = prep['prompt']
     p1 = prep['p1']
