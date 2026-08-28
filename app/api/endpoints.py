@@ -2120,6 +2120,7 @@ async def progressed_synastry_analysis_endpoint(request: Request, payload: Progr
                 language=payload.language,
                 top_k_per_book=payload.top_k_per_book,
                 mode=payload.mode or 'advanced',
+                relationship_context=payload.relationship_context,
             )),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
@@ -2129,7 +2130,7 @@ async def progressed_synastry_analysis_endpoint(request: Request, payload: Progr
     period = progressed_synastry.get('period', '')
     p1n = (progressed_synastry.get('person1') or {}).get('name', 'p1')
     p2n = (progressed_synastry.get('person2') or {}).get('name', 'p2')
-    cache_key = f"progsyn|{p1n}|{p2n}|{period}|{payload.mode}|{payload.language}"
+    cache_key = f"progsyn|{p1n}|{p2n}|{period}|{payload.mode}|{payload.language}|{payload.relationship_context}"
 
     if cache_key in _analysis_cache:
         cached_result, timestamp = _analysis_cache[cache_key]
@@ -2144,6 +2145,7 @@ async def progressed_synastry_analysis_endpoint(request: Request, payload: Progr
         language=payload.language,
         top_k_per_book=payload.top_k_per_book,
         mode=payload.mode or 'advanced',
+        relationship_context=payload.relationship_context,
     )
 
     result["progressed_synastry_data"] = progressed_synastry

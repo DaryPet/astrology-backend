@@ -191,3 +191,88 @@ and per-folder guides like `app/services/AGENTS.md`.
 ## License
 
 MIT
+
+## Testing
+
+### Running tests
+
+Run everything (unit + integration + functional; performance tests are
+excluded by default, see below):
+
+```bash
+venv/bin/python -m pytest tests/
+```
+
+Run with full logs — shows every test name, keeps `print()` output from the
+code instead of hiding it, and prints a per-test timing table at the end:
+
+```bash
+venv/bin/python -m pytest tests/ -v -s --durations=0
+```
+
+Run one test type only:
+
+```bash
+# Unit — calls functions directly, no HTTP layer
+venv/bin/python -m pytest tests/test_text_verification.py tests/test_natal_chart_reference.py tests/test_geocode_locationiq.py tests/test_geocode_timezone.py
+
+# Integration — hits the FastAPI app through TestClient
+venv/bin/python -m pytest tests/test_api_deterministic_routes.py tests/test_api_llm_routes.py
+
+# Functional — multi-step scenarios chaining several endpoints
+venv/bin/python -m pytest tests/test_api_functional_flows.py -m functional
+
+# Performance — opt-in only, not part of the default run
+venv/bin/python -m pytest tests/test_perf.py -m perf -v -s
+```
+
+### Reading the output
+
+Without `-v`, pytest prints one character per test: `.` = passed, `F` =
+failed, `E` = error before/around the test itself (e.g. a fixture broke, not
+necessarily the logic under test). The final summary line looks like:
+
+```
+79 passed, 3 deselected, 1 failed in 7.30s
+```
+
+- **passed** — every `assert` in the test held.
+- **failed** — an `assert` didn't match reality; pytest prints the file:line
+  and the expected-vs-actual values right above the summary, which is
+  usually enough to see what broke without extra digging.
+- **deselected** — a test exists but wasn't run on purpose (this is how the
+  `perf` marker works — it stays out of the default run, see above).
+- **error** — something failed outside the test body (setup/fixture), not a
+  failed assertion.
+
+With `-v`, each line is `tests/file.py::test_name PASSED/FAILED` — makes it
+immediate which test, in which file, broke.
+
+### Test types in this repo
+
+| File | Type | What it checks |
+|---|---|---|
+| `test_text_verification.py`, `test_natal_chart_reference.py`, `test_geocode_*.py` | Unit | One function, called directly |
+| `test_api_deterministic_routes.py` | Integration | Non-LLM routes (chart calculation, synastry, geocoding) |
+| `test_api_llm_routes.py` | Integration | LLM-backed routes, with the LLM replaced by a fake adapter — checks the contract (status code, response shape, prompt built from real data), never real generated text |
+| `test_api_functional_flows.py` | Functional | Chains of several requests in sequence, the way the frontend actually calls the API |
+| `test_perf.py` | Performance | Math timing budgets (natal chart, progressed synastry) and a 50-concurrent-request load check on `/api/chart/calculate` |
+
+### Performance tests specifically
+
+These don't run with a plain `pytest tests/` — they're marked `perf` and
+excluded via `pytest.ini`. Run them explicitly:
+
+```bash
+venv/bin/python -m pytest tests/test_perf.py -m perf -v -s
+```
+
+A failure here reports the actual measured number next to the budget, e.g.:
+
+```
+AssertionError: calculate_planet_positions median 0.412s exceeds budget 0.3s over 20 runs — possible perf regression
+```
+
+so it's not just pass/fail — you get the concrete timing that tripped the
+threshold. See `plans/testing-plan-minimum.md` for the full testing plan and
+the reasoning behind the thresholds.
