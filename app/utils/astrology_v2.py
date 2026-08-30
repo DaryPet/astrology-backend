@@ -5,9 +5,8 @@ Accurate to fractions of an arcsecond
 # Use pre-initialized swisseph from helper
 from app.swephelper import swe
 
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Tuple, Optional
-import math
 from zoneinfo import ZoneInfo  # Python 3.9+
 
 ZODIAC_SIGNS = [
