@@ -224,7 +224,7 @@ _MSG_LABELS_BY_LANG = {
 }
 
 
-def _find_aspect_coverage(text: str, planet1_en: str, planet2_en: str, language: str) -> Optional[str]:
+def _find_aspect_coverage(text: str, planet1_en: str, planet2_en: str, language: str, aspect_en: Optional[str] = None) -> Optional[str]:
     """
     Best paragraph found for a pair of planets — searches the real text, not
     the markdown formatting: the model isn't required to format an aspect as
@@ -235,18 +235,32 @@ def _find_aspect_coverage(text: str, planet1_en: str, planet2_en: str, language:
     stems (PLANET_STEM_RU/EN — the same ones used for the aspect-type check),
     not the exact name — prose declines the planet's name by case ("Pluto's",
     "with Saturn").
+
+    aspect_en (optional): when given, a paragraph must ALSO contain this
+    aspect's stem (ASPECT_STEM_BY_LANG) to count as coverage — both planet
+    names appearing in the same paragraph for unrelated reasons (e.g. each
+    covered in its own separate sentence) used to falsely count as "covered"
+    even though the aspect between them was never actually discussed. Real
+    case that exposed this: transiting Moon conjunct transiting Neptune/
+    natal Mars-Lilith both silently passed as "OK" despite not being written
+    about — 2026-08-30. Omit (None) to fall back to the old, looser behavior
+    for any caller that doesn't have a reliable aspect name to check against.
     """
     lang = normalize_language(language)
     stems = PLANET_STEM_BY_LANG[lang]
     display = PLANET_DISPLAY_BY_LANG[lang]
     p1_pattern = stems.get(planet1_en, re.escape(display.get(planet1_en, planet1_en)))
     p2_pattern = stems.get(planet2_en, re.escape(display.get(planet2_en, planet2_en)))
+    asp_pattern = ASPECT_STEM_BY_LANG[lang].get(aspect_en) if aspect_en else None
 
     best = None
     for para in re.split(r"\n\s*\n", text):
-        if re.search(p1_pattern, para) and re.search(p2_pattern, para):
-            if best is None or len(para) > len(best):
-                best = para
+        if not (re.search(p1_pattern, para) and re.search(p2_pattern, para)):
+            continue
+        if asp_pattern and not re.search(asp_pattern, para):
+            continue
+        if best is None or len(para) > len(best):
+            best = para
     return best
 
 
@@ -628,6 +642,46 @@ def find_fabricated_aspect_types_layered(
     return mismatches
 
 
+_RETURN_WORD_BY_LANG = {
+    'ru': r'\bвозврат\w*\b',
+    'uk': r'\bповерненн\w*\b',
+    'en': r'\breturn(?:s|ed|ing)?\b',
+}
+
+
+def find_return_mislabeling(text: str, language: str) -> List[str]:
+    """
+    Detect-only, log-only (no fix) — flags the model calling a progressed
+    planet's conjunction to its OWN natal position a "planetary return" (a
+    real concept, but a TRANSIT-only one; see prompt_templates/progressions.py
+    rule 12, added 2026-08-30). This recurred even after the RAG chunk-filter
+    fix (_matches_technique) because the fabrication comes from the model's
+    own prior astrology "knowledge", not a retrieved book fragment — no
+    RAG-side fix can catch it, hence a text-side detector instead.
+
+    Flags a paragraph only when a return-word stem AND the same planet's
+    stem appear TOGETHER, that planet mentioned at least twice in the
+    paragraph (a proxy for "progressed X ... natal X") — a bare "let's
+    return to the topic of Saturn" (single mention, ordinary narrative
+    continuity per this same template's own "СВЯЗНОСТЬ"/"COHESION"
+    instruction) is deliberately NOT flagged.
+    """
+    lang = normalize_language(language)
+    return_pattern = _RETURN_WORD_BY_LANG.get(lang)
+    if not return_pattern:
+        return []
+    stems = PLANET_STEM_BY_LANG[lang]
+
+    findings: List[str] = []
+    for para in re.split(r"\n\s*\n", text):
+        if not re.search(return_pattern, para, re.I):
+            continue
+        for planet_en, stem in stems.items():
+            if len(re.findall(stem, para)) >= 2:
+                findings.append(f"{planet_en}: {para.strip()[:150]}")
+    return findings
+
+
 def find_undercovered_aspects_generic(
     full_analysis: str,
     aspects: List[Dict[str, Any]],
@@ -661,7 +715,7 @@ def find_undercovered_aspects_generic(
 
     missing: List[str] = []
     for asp in aspects:
-        para = _find_aspect_coverage(full_analysis, asp.get(key1), asp.get(key2), language)
+        para = _find_aspect_coverage(full_analysis, asp.get(key1), asp.get(key2), language, aspect_en=asp.get('aspect'))
         is_cop_out = bool(para) and any(phrase in para.lower() for phrase in cop_out_phrases)
         if not para or len(para) < SHALLOW_ASPECT_CHAR_THRESHOLD or is_cop_out:
             missing.append(label_for(asp))

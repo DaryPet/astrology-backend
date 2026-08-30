@@ -1,3 +1,4 @@
+import re
 from typing import List, Dict, Any, AsyncGenerator, Callable, Awaitable
 from app.services.prompt_templates.languages import normalize_language
 from app.services.text_verification import (
@@ -67,6 +68,37 @@ NATAL_BOOK_IDS = [22, 25, 23]
 # used to do). Both methods use the same narrow set (28, 29), rather than
 # different priority books each.
 TRANSITS_PROGRESSIONS_BOOK_IDS = [28, 29]
+
+# Book 28 (Hand, "Planets in Transit") is transit-only; book 29 (Brady,
+# "Predictive Astrology") covers BOTH transits and progressions in the same
+# book — so filtering by book_id alone can't separate the techniques (a
+# progressions search can still surface a purely-transit passage from book
+# 29 itself). Real case that exposed this: a progressions request retrieved
+# book 28's "Pluto transiting conjunct natal Pluto... does not happen except
+# possibly right after birth" — the LLM then fabricated a "progressed Pluto
+# return" from it, misapplying transit content to a different technique.
+# 2026-08-30.
+_TRANSIT_MARKERS = re.compile(r'\btransit(?:ing|s)?\b', re.I)
+_PROGRESSION_MARKERS = re.compile(r'\bprogress(?:ed|ion|ions)?\b', re.I)
+
+
+def _matches_technique(chunk_text: str, technique: str) -> bool:
+    """
+    Chunk-level filter, not book-level: drops a chunk only when it
+    unambiguously discusses the OTHER technique and never mentions this one
+    at all. A chunk that mentions both (many predictive-astrology books
+    compare the two techniques in the same passage) still passes — this is
+    deliberately soft, not a hard require-the-right-keyword filter, to avoid
+    dropping genuinely relevant fragments that happen to use both words.
+    technique: 'transit' or 'progression'; anything else passes everything.
+    """
+    has_transit = bool(_TRANSIT_MARKERS.search(chunk_text))
+    has_progression = bool(_PROGRESSION_MARKERS.search(chunk_text))
+    if technique == 'progression':
+        return not (has_transit and not has_progression)
+    if technique == 'transit':
+        return not (has_progression and not has_transit)
+    return True
 
 async def _fetch_book_titles(book_ids: List[int]) -> Dict[int, str]:
     """

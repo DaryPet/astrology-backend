@@ -1299,6 +1299,51 @@ def calculate_transits(
     # Slow and exact ones first (main themes), then fast ones
     aspects_to_natal.sort(key=lambda x: (not x['is_slow'], x['orb']))
 
+    # 4b. Moon-to-other-transiting-planets aspects ("sky" aspects, e.g.
+    # transiting Moon conjunct transiting Neptune). Separate from
+    # aspects_to_natal above, which only pairs a transit planet against a
+    # NATAL one — a transit-to-transit aspect involving the Moon (the
+    # fastest, most day-defining planet) was structurally invisible before
+    # this. Only Moon pairs, not a full all-vs-all "mundane" grid — that's a
+    # separate, rarer technique, out of scope here. Same TRANSIT_MOON_ORB and
+    # applying/separating logic as aspects_to_natal, reusing the
+    # future_longitudes already computed above for every transit planet.
+    aspects_moon_to_transit: List[Dict[str, Any]] = []
+    moon_data = transit_planets.get('Moon')
+    if moon_data:
+        for t_name, t_data in transit_planets.items():
+            if t_name == 'Moon':
+                continue
+            diff = abs(moon_data['full_degree'] - t_data['full_degree'])
+            if diff > 180:
+                diff = 360 - diff
+
+            for aspect_degree, aspect_name in ASPECTS.items():
+                deviation = abs(diff - aspect_degree)
+                if deviation <= TRANSIT_MOON_ORB:
+                    f_moon = future_longitudes.get('Moon', moon_data['full_degree'])
+                    f_other = future_longitudes.get(t_name, t_data['full_degree'])
+                    f_diff = abs(f_moon - f_other)
+                    if f_diff > 180:
+                        f_diff = 360 - f_diff
+                    applying = abs(f_diff - aspect_degree) < deviation
+
+                    aspects_moon_to_transit.append({
+                        'planet1': 'Moon',
+                        'planet2': t_name,
+                        'aspect': aspect_name,
+                        'aspect_ru': ASPECTS_RU[aspect_degree],
+                        'aspect_uk': ASPECTS_UK[aspect_degree],
+                        'orb': round(deviation, 2),
+                        'exactness': round(100 - deviation / TRANSIT_MOON_ORB * 100, 1),
+                        'applying': applying,
+                        'moon_sign': moon_data['sign'],
+                        'other_sign': t_data['sign'],
+                        'other_is_slow': t_data.get('is_slow', False),
+                    })
+                    break
+    aspects_moon_to_transit.sort(key=lambda x: x['orb'])
+
     # 5. Lunar phase of the day (real)
     lunar_phase = None
     if 'Sun' in transit_planets and 'Moon' in transit_planets:
@@ -1326,6 +1371,7 @@ def calculate_transits(
         'transit_planets': transit_planets,
         'lunar_phase': lunar_phase,
         'aspects_to_natal': aspects_to_natal,
+        'aspects_moon_to_transit': aspects_moon_to_transit,
         'natal_summary': {
             'sun_sign': natal['sun_sign'],
             'sun_sign_ru': natal['sun_sign_ru'],
