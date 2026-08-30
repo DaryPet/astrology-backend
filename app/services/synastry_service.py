@@ -8,7 +8,7 @@ from app.services.search_service import (
 from app.services.llm_adapter import get_llm_adapter
 from app.services.prompt_labels import get_labels
 from app.services.prompt_templates import get_template, get_relationship_context_prompt
-from app.services.analysis_service import search_chunks_all_books, _fetch_book_titles, stream_verified_analysis, stream_chat_reply
+from app.services.analysis_service import _fetch_book_titles, stream_verified_analysis, stream_chat_reply
 from app.services.text_verification import (
     SIGN_PREPOSITIONAL_TO_NOMINATIVE,
     SIGN_NOMINATIVE_TO_PREPOSITIONAL,

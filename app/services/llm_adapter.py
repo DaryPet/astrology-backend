@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, List, Dict, Any, AsyncGenerator
-import asyncio
+from typing import Optional, List, Dict, AsyncGenerator
 from app.core.config import settings
 
 
@@ -441,13 +440,3 @@ async def generate_analysis(
     """Convenience function for generating an analysis"""
     adapter = get_llm_adapter(provider)
     return await adapter.generate(prompt, language)
-
-
-async def generate_chat_analysis(
-    messages: List[Dict[str, str]],
-    language: str = "en",
-    provider: str = None
-) -> str:
-    """Convenience function for generating a chat-format analysis"""
-    adapter = get_llm_adapter(provider)
-    return await adapter.generate_with_messages(messages, language)
