@@ -1,4 +1,4 @@
-from typing import Dict, Any, AsyncGenerator
+from typing import Dict, Any, AsyncGenerator, List
 from app.services.prompt_labels import get_labels
 from app.services.prompt_templates import get_template
 from app.services.text_verification import (
@@ -8,6 +8,7 @@ from app.services.text_verification import (
     fix_fabricated_positions_layered,
     find_fabricated_aspect_types_layered,
     find_undercovered_aspects_generic,
+    find_return_mislabeling,
 )
 
 
@@ -18,6 +19,7 @@ from app.services.analysis_service._shared import (
     _lang_key,
     _localized,
     _localized2,
+    _matches_technique,
     _planet_display,
     search_chunks_by_book_ids,
     stream_verified_analysis,
@@ -59,6 +61,27 @@ async def _prepare_progressions_analysis(
 
     prog_planets = progressions.get("progressed_planets", {})
     aspects = progressions.get("aspects_to_natal", [])
+    # Drop same-planet self-conjunctions (progressed X ↔ natal X) for the
+    # slowest outer planets at the DATA layer, not via a prompt instruction —
+    # a hard, explicit, per-planet prompt-only ban on "return"/"повернення"
+    # wording was tried twice (2026-08-30) and the model violated it both
+    # times anyway (first Pluto, then Neptune). Structurally, this aspect can
+    # ONLY appear at all when the planet hasn't moved far enough to change
+    # sign (a sign change is 30°+, far outside any conjunction orb) — so
+    # removing it here removes exactly the "nothing new happened" case that
+    # kept inviting the "planetary return" hallucination, more reliably than
+    # any wording could. User decision: only these 3, not Saturn (which does
+    # change sign within a lifetime, so its self-conjunction isn't the same
+    # "stuck" case).
+    _NO_SELF_CONJUNCTION_PLANETS = {'Pluto', 'Neptune', 'Uranus'}
+    aspects = [
+        a for a in aspects
+        if not (
+            a.get('planet1') == a.get('planet2')
+            and a.get('planet1') in _NO_SELF_CONJUNCTION_PLANETS
+            and a.get('aspect') == 'Conjunction'
+        )
+    ]
     natal_summary = progressions.get("natal_summary", {})
     natal_planets = (natal_chart or {}).get("planets", {})
 
@@ -197,12 +220,33 @@ async def _prepare_progressions_analysis(
         else "No exact aspects to the natal chart right now"
     )
 
-    # Book excerpts
+    # Book excerpts. Chunk-level technique filter (_matches_technique) —
+    # books 28/29 are shared between transits and progressions, and book 29
+    # itself mixes both techniques, so a chunk can pass the book_id filter
+    # and still be purely about the wrong technique (see _shared.py comment
+    # for the real case this closes).
+    # Dev-only visibility (server log, never shown to the user, never fed
+    # back into the prompt): for each planet/aspect section, log whether the
+    # model will be grounded in a real book excerpt or falls back to its own
+    # knowledge per prompt_templates/progressions.py rule 6 ("Книга не
+    # обязана покрывать каждую конфигурацию — работай своими знаниями").
+    # Added so a developer can tell which parts of a given analysis are
+    # book-sourced vs the model's own claim, without changing the response
+    # itself. 2026-08-30.
+    def _log_rag_source(label: str, kept_chunks: List[Dict[str, Any]]) -> None:
+        if kept_chunks:
+            book_ids = sorted({c.get("book_id") for c in kept_chunks if c.get("book_id") is not None})
+            print(f"[progressions_analysis][RAG-SOURCE] {label}: grounded — book_ids={book_ids}, {len(kept_chunks)} chunks")
+        else:
+            print(f"[progressions_analysis][RAG-SOURCE] {label}: NO FRAGMENTS — model will answer from its own knowledge (prompt rule 6)")
+
     planet_chunks_text = ""
     for result in planet_results:
         if isinstance(result, Exception):
             continue
         section_name, chunks = result
+        chunks = [c for c in chunks if _matches_technique(c.get("text", ""), 'progression')]
+        _log_rag_source(section_name, chunks)
         if chunks:
             planet_chunks_text += f"\n\n【{section_name.upper()}】\n"
             for i, chunk in enumerate(chunks, 1):
@@ -215,6 +259,8 @@ async def _prepare_progressions_analysis(
         if isinstance(result, Exception):
             continue
         asp_label, chunks = result
+        chunks = [c for c in chunks if _matches_technique(c.get("text", ""), 'progression')]
+        _log_rag_source(asp_label, chunks)
         if chunks:
             aspect_chunks_text += f"\n\n【АСПЕКТ: {asp_label}】\n"
             for i, chunk in enumerate(chunks, 1):
@@ -410,6 +456,14 @@ async def progressions_analysis(
                 print(f"[progressions_analysis] Undercovered aspects detected (not filled): {undercovered}")
             else:
                 print(f"[progressions_analysis] Coverage check: OK, all {len(aspects)} aspects covered")
+
+            # Detect-only, no fix — see prompt rule 12 (prompt_templates/progressions.py)
+            # and find_return_mislabeling's docstring for the case this tracks.
+            return_mislabeling = find_return_mislabeling(full_analysis, language=language)
+            if return_mislabeling:
+                print(f"[progressions_analysis] Return-mislabeling detected (not fixed): {return_mislabeling}")
+            else:
+                print("[progressions_analysis] Return-mislabeling check: OK, no 'planetary return' language found")
     except Exception as e:
         full_analysis = f"Ошибка анализа: {str(e)}"
         print(f"[progressions_analysis] LLM error: {e}")
@@ -503,6 +557,12 @@ async def progressions_analysis_stream(
                 print(f"[progressions_analysis_stream] Undercovered aspects detected (not filled): {undercovered}")
             else:
                 print(f"[progressions_analysis_stream] Coverage check: OK, all {len(aspects)} aspects covered")
+
+            return_mislabeling = find_return_mislabeling(full_analysis, language=language)
+            if return_mislabeling:
+                print(f"[progressions_analysis_stream] Return-mislabeling detected (not fixed): {return_mislabeling}")
+            else:
+                print("[progressions_analysis_stream] Return-mislabeling check: OK, no 'planetary return' language found")
 
         if not full_analysis.startswith(released):
             print(

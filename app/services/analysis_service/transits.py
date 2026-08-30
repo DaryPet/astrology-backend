@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, AsyncGenerator
+from typing import Dict, Any, Optional, AsyncGenerator, List
 from app.services.prompt_labels import get_labels
 from app.services.prompt_templates import get_template
 from app.services.prompt_templates.languages import normalize_language
@@ -16,6 +16,7 @@ from app.services.analysis_service._shared import (
     _fetch_book_titles,
     _localized,
     _localized2,
+    _matches_technique,
     _planet_display,
     search_chunks_by_book_ids,
     stream_verified_analysis,
@@ -57,6 +58,12 @@ async def _prepare_transits_analysis(
 
     t_planets = transits.get("transit_planets", {})
     aspects = transits.get("aspects_to_natal", [])
+    # Moon vs other TRANSITING planets ("sky" aspects, e.g. transiting Moon
+    # conjunct transiting Neptune) — structurally separate from aspects
+    # above, which only pairs a transit planet against a natal one. Added
+    # 2026-08-30 after a real case where this was invisible end-to-end (not
+    # computed, not searched, not checked). See astrology_v2.py:calculate_transits.
+    moon_transit_aspects = transits.get("aspects_moon_to_transit", [])
     natal_summary = transits.get("natal_summary", {})
     natal_planets = (natal_chart or {}).get("planets", {})
 
@@ -96,6 +103,15 @@ async def _prepare_transits_analysis(
             chunks = await search_chunks_by_book_ids(query, TRANSITS_PROGRESSIONS_BOOK_IDS, book_titles, top_k_per_book=5)
         return f"{p1} {asp_type} {p2}", chunks
 
+    async def search_moon_transit_aspect(asp: Dict) -> tuple:
+        p2 = asp.get("planet2", "")
+        asp_type = asp.get("aspect", "")
+        # Both sides transiting — neither is "natal" here, unlike search_aspect.
+        query = f"transit moon {asp_type.lower()} transit {p2.lower()}"
+        async with search_semaphore:
+            chunks = await search_chunks_by_book_ids(query, TRANSITS_PROGRESSIONS_BOOK_IDS, book_titles, top_k_per_book=5)
+        return f"Moon {asp_type} {p2} (transit-transit)", chunks
+
     async def search_lunar_phase() -> tuple:
         phase = (transits.get("lunar_phase") or {}).get("phase", "")
         if not phase:
@@ -125,6 +141,7 @@ async def _prepare_transits_analysis(
     # Aspects: all slow + all fast, for a complete analysis
     aspect_pool = slow_aspects + fast_aspects
     aspect_tasks = [search_aspect(asp) for asp in aspect_pool]
+    aspect_tasks += [search_moon_transit_aspect(asp) for asp in moon_transit_aspects]
 
     print(f"[transits_analysis] Parallel RAG: {len(planet_tasks)} planet queries, {len(aspect_tasks)} aspect queries")
 
@@ -150,15 +167,12 @@ async def _prepare_transits_analysis(
         p2_display = _planet_display(p2, language)
         orb_val = asp.get("orb", "?")
         natal_house_of_transit_planet = asp.get("transit_house", "?")  # see the comment above
-        current_transit_house = asp.get("transit_planet_transit_house", "?")
-        if current_transit_house == "?":
-            transit_house_str = ""
-        elif lang == 'ru':
-            transit_house_str = f", транзитный дом {current_transit_house}"
-        elif lang == 'uk':
-            transit_house_str = f", транзитний дім {current_transit_house}"
-        else:
-            transit_house_str = f", transit house {current_transit_house}"
+        # 'transit_planet_transit_house' (houses rebuilt for the current
+        # moment/place, independent of the natal Ascendant) deliberately
+        # dropped from the prompt — a second, unlabeled house number for the
+        # same planet read as a contradiction ("Moon in house 1 AND house 4")
+        # rather than two different reference frames. Decision + real example:
+        # conversation with the user, 2026-08-30.
         ret_mark = ""
         if asp.get("is_return"):
             ret_mark = {
@@ -169,19 +183,40 @@ async def _prepare_transits_analysis(
         if lang == 'ru':
             asp_name = asp.get("aspect_ru", asp.get("aspect", "?"))
             applying_str = "сходящийся" if asp.get("applying") else "расходящийся"
-            return (f"ТРАНЗИТНЫЙ:{p1_display} (в {asp.get('transit_sign', '?')}, идёт по натальному дому {natal_house_of_transit_planet}{transit_house_str}) "
+            return (f"ТРАНЗИТНЫЙ:{p1_display} (в {asp.get('transit_sign', '?')}, идёт по натальному дому {natal_house_of_transit_planet}) "
                     f"{asp_name} НАТАЛЬНЫЙ:{p2_display} (в {asp.get('natal_sign', '?')}, дом {asp.get('natal_house', '?')}) "
                     f"— орб {orb_val}°, {applying_str}{ret_mark}")
         if lang == 'uk':
             asp_name = asp.get("aspect_uk", asp.get("aspect", "?"))
             applying_str = "аплікуючий" if asp.get("applying") else "сепаруючий"
-            return (f"ТРАНЗИТНА:{p1_display} (у {asp.get('transit_sign', '?')}, проходить по натальному будинку {natal_house_of_transit_planet}{transit_house_str}) "
+            return (f"ТРАНЗИТНА:{p1_display} (у {asp.get('transit_sign', '?')}, проходить по натальному будинку {natal_house_of_transit_planet}) "
                     f"{asp_name} НАТАЛЬНА:{p2_display} (у {asp.get('natal_sign', '?')}, будинок {asp.get('natal_house', '?')}) "
                     f"— орбіс {orb_val}°, {applying_str}{ret_mark}")
         applying_str = "applying" if asp.get("applying") else "separating"
-        return (f"TRANSITING:{p1_display} (in {asp.get('transit_sign', '?')}, moving through natal house {natal_house_of_transit_planet}{transit_house_str}) "
+        return (f"TRANSITING:{p1_display} (in {asp.get('transit_sign', '?')}, moving through natal house {natal_house_of_transit_planet}) "
                 f"{asp.get('aspect', '?')} NATAL:{p2_display} (in {asp.get('natal_sign', '?')}, house {asp.get('natal_house', '?')}) "
                 f"— orb {orb_val}°, {applying_str}{ret_mark}")
+
+    def fmt_moon_transit_aspect(asp: Dict) -> str:
+        # Both sides transiting today — no natal house/sign here at all
+        # (unlike fmt_aspect above), so this is a separate, simpler formatter
+        # rather than a branch of fmt_aspect.
+        p2 = asp.get("planet2", "?")
+        p2_display = _planet_display(p2, language)
+        orb_val = asp.get("orb", "?")
+        if lang == 'ru':
+            asp_name = asp.get("aspect_ru", asp.get("aspect", "?"))
+            applying_str = "сходящийся" if asp.get("applying") else "расходящийся"
+            return (f"ТРАНЗИТНЫЙ:Луна (в {asp.get('moon_sign', '?')}) {asp_name} "
+                    f"ТРАНЗИТНЫЙ:{p2_display} (в {asp.get('other_sign', '?')}) — орб {orb_val}°, {applying_str}")
+        if lang == 'uk':
+            asp_name = asp.get("aspect_uk", asp.get("aspect", "?"))
+            applying_str = "аплікуючий" if asp.get("applying") else "сепаруючий"
+            return (f"ТРАНЗИТНА:Місяць (у {asp.get('moon_sign', '?')}) {asp_name} "
+                    f"ТРАНЗИТНА:{p2_display} (у {asp.get('other_sign', '?')}) — орбіс {orb_val}°, {applying_str}")
+        applying_str = "applying" if asp.get("applying") else "separating"
+        return (f"TRANSITING:Moon (in {asp.get('moon_sign', '?')}) {asp.get('aspect', '?')} "
+                f"TRANSITING:{p2_display} (in {asp.get('other_sign', '?')}) — orb {orb_val}°, {applying_str}")
 
     _NO_SLOW_ASPECTS = {
         'ru': "Нет точных аспектов от медленных планет",
@@ -203,16 +238,44 @@ async def _prepare_transits_analysis(
         'uk': "\n\n【ШВИДКІ ПЛАНЕТИ — забарвлення саме цього дня】\n",
         'en': "\n\n【FAST PLANETS — the flavor of this specific day】\n",
     }
+    _MOON_TRANSIT_HEADER = {
+        'ru': "\n\n【ЛУНА — аспекты к другим ТРАНЗИТНЫМ планетам сегодня (обе стороны движутся сейчас, ни одна не натальная)】\n",
+        'uk': "\n\n【МІСЯЦЬ — аспекти до інших ТРАНЗИТНИХ планет сьогодні (обидві сторони рухаються зараз, жодна не натальна)】\n",
+        'en': "\n\n【MOON — aspects to other TRANSITING planets today (both sides are moving right now, neither is natal)】\n",
+    }
     slow_str = "\n".join(fmt_aspect(a) for a in slow_aspects) if slow_aspects else _NO_SLOW_ASPECTS[lang]
     fast_str = "\n".join(fmt_aspect(a) for a in fast_aspects) if fast_aspects else _NO_FAST_ASPECTS[lang]
     aspects_str = _SLOW_HEADER[lang] + slow_str + _FAST_HEADER[lang] + fast_str
+    if moon_transit_aspects:
+        aspects_str += _MOON_TRANSIT_HEADER[lang] + "\n".join(fmt_moon_transit_aspect(a) for a in moon_transit_aspects)
 
-    # Book excerpts
+    # Dev-only visibility (server log, never shown to the user, never fed
+    # back into the prompt) — same as progressions_analysis's [RAG-SOURCE]
+    # log: for each planet/aspect section, whether the model is grounded in
+    # a real book excerpt or has no fragments at all. Purely additive
+    # logging — does not filter/remove anything (unlike progressions, where
+    # Pluto/Neptune/Uranus self-conjunctions were removed at the data layer;
+    # that was NOT applied here per user decision — transits legitimately
+    # have real "returns"/conjunctions, e.g. is_return, Saturn return).
+    # 2026-08-30.
+    def _log_rag_source(label: str, kept_chunks: List[Dict[str, Any]]) -> None:
+        if kept_chunks:
+            book_ids = sorted({c.get("book_id") for c in kept_chunks if c.get("book_id") is not None})
+            print(f"[transits_analysis][RAG-SOURCE] {label}: grounded — book_ids={book_ids}, {len(kept_chunks)} chunks")
+        else:
+            print(f"[transits_analysis][RAG-SOURCE] {label}: NO FRAGMENTS — model will answer from its own knowledge")
+
+    # Book excerpts. Chunk-level technique filter (_matches_technique) — see
+    # _shared.py comment: books 28/29 are shared with progressions, and book
+    # 29 itself mixes both techniques, so a chunk can pass the book_id filter
+    # and still be purely about the wrong one.
     planet_chunks_text = ""
     for result in planet_results:
         if isinstance(result, Exception):
             continue
         section_name, chunks = result
+        chunks = [c for c in chunks if _matches_technique(c.get("text", ""), 'transit')]
+        _log_rag_source(section_name, chunks)
         if chunks:
             planet_chunks_text += f"\n\n【{section_name.upper()}】\n"
             for i, chunk in enumerate(chunks, 1):
@@ -225,6 +288,8 @@ async def _prepare_transits_analysis(
         if isinstance(result, Exception):
             continue
         asp_label, chunks = result
+        chunks = [c for c in chunks if _matches_technique(c.get("text", ""), 'transit')]
+        _log_rag_source(asp_label, chunks)
         if chunks:
             aspect_chunks_text += f"\n\n【АСПЕКТ: {asp_label}】\n"
             for i, chunk in enumerate(chunks, 1):
@@ -285,12 +350,12 @@ async def _prepare_transits_analysis(
         planet_display = _planet_display(planet_name, language)
         sign_display = _localized(planet_data, "sign", language, "?")
         degree = planet_data.get("degree", "?")
-        # Here 'natal_house'/'transit_house' in t_planets[X] are NOT the same
-        # values as the same-named fields in aspects_to_natal (see the comment
-        # by fmt_aspect above): here natal_house = the planet's natal house,
-        # transit_house = the real house in the current place's transit chart.
+        # 'transit_house' (t_planets[X]) — houses rebuilt for the current
+        # moment/place, independent of the natal Ascendant — deliberately not
+        # surfaced to the model here (see fmt_aspect above for why). Only
+        # natal_house (this transiting position mapped onto the NATAL cusps)
+        # goes into the prompt.
         house = planet_data.get("natal_house", "?")
-        transit_house = planet_data.get("transit_house", "?")
         rx_str = labels['retrograde_inline'] if planet_data.get("is_retrograde") else ""
         slow_str2 = labels['slow_planet_marker'] if planet_data.get("is_slow") else ""
         try:
@@ -298,7 +363,7 @@ async def _prepare_transits_analysis(
         except (TypeError, ValueError):
             degree_str = f"{degree}°"
         prompt += (f"\n{labels['layer_transit']}: {planet_display}: {degree_str} {sign_display}, "
-                   f"{labels['natal_house_word']} {house}, {labels['transit_house_word']} {transit_house}{rx_str}{slow_str2}")
+                   f"{labels['natal_house_word']} {house}{rx_str}{slow_str2}")
 
     # The full natal chart — the basis for the overlay
     prompt += f"\n\n{labels['natal_chart_overlay_header']}"
@@ -337,6 +402,7 @@ async def _prepare_transits_analysis(
         'adapter': adapter,
         'prompt': prompt,
         'aspects': aspects,
+        'moon_transit_aspects': moon_transit_aspects,
         'layers': layers,
         'period': period,
         'lunar_phase': lunar_phase,
@@ -367,6 +433,7 @@ async def transits_analysis(
     adapter = prep['adapter']
     prompt = prep['prompt']
     aspects = prep['aspects']
+    moon_transit_aspects = prep['moon_transit_aspects']
     layers = prep['layers']
     period = prep['period']
     lunar_phase = prep['lunar_phase']
@@ -408,6 +475,13 @@ async def transits_analysis(
 
             # Detection only — the claimed transit→natal aspect type is
             # checked against the actually calculated one (aspects_to_natal).
+            # moon_transit_aspects deliberately NOT included here: layer_keys=
+            # ('transit','natal') attributes a planet by which of those two
+            # marker words sits nearest it in the text — but both sides of a
+            # Moon-to-transiting-planet aspect are "transiting", there's no
+            # natal side to anchor the attribution to (same reasoning as
+            # progressed_synastry's layer 1, see app/services/INSIGHTS.md
+            # 2026-08-01/2026-08-22 entries). Coverage IS checked below.
             fabricated_aspects = find_fabricated_aspect_types_layered(
                 full_analysis, aspects, language=language, layer_keys=('transit', 'natal')
             )
@@ -416,12 +490,15 @@ async def transits_analysis(
             else:
                 print("[transits_analysis] Aspect-type check: OK, no fabricated aspect types")
 
-            # Detection only, from prose.
-            undercovered = find_undercovered_aspects_generic(full_analysis, aspects, language=language)
+            # Detection only, from prose. Includes moon_transit_aspects — this
+            # check only needs planet1/planet2 (find_undercovered_aspects_generic's
+            # defaults), no transit/natal layer marker, so it applies cleanly.
+            _all_aspects_for_coverage = aspects + moon_transit_aspects
+            undercovered = find_undercovered_aspects_generic(full_analysis, _all_aspects_for_coverage, language=language)
             if undercovered:
                 print(f"[transits_analysis] Undercovered aspects detected (not filled): {undercovered}")
             else:
-                print(f"[transits_analysis] Coverage check: OK, all {len(aspects)} aspects covered")
+                print(f"[transits_analysis] Coverage check: OK, all {len(_all_aspects_for_coverage)} aspects covered")
     except Exception as e:
         full_analysis = f"Ошибка анализа: {str(e)}"
         print(f"[transits_analysis] LLM error: {e}")
@@ -466,6 +543,7 @@ async def transits_analysis_stream(
     adapter = prep['adapter']
     prompt = prep['prompt']
     aspects = prep['aspects']
+    moon_transit_aspects = prep['moon_transit_aspects']
     layers = prep['layers']
     period = prep['period']
     lunar_phase = prep['lunar_phase']
@@ -500,6 +578,8 @@ async def transits_analysis_stream(
             else:
                 print("[transits_analysis_stream] Layer-confusion check: OK, no layer-confused positions")
 
+            # moon_transit_aspects deliberately excluded here — see the
+            # non-stream twin's comment (no natal side to attribute by).
             fabricated_aspects = find_fabricated_aspect_types_layered(
                 full_analysis, aspects, language=language, layer_keys=('transit', 'natal')
             )
@@ -508,11 +588,12 @@ async def transits_analysis_stream(
             else:
                 print("[transits_analysis_stream] Aspect-type check: OK, no fabricated aspect types")
 
-            undercovered = find_undercovered_aspects_generic(full_analysis, aspects, language=language)
+            _all_aspects_for_coverage = aspects + moon_transit_aspects
+            undercovered = find_undercovered_aspects_generic(full_analysis, _all_aspects_for_coverage, language=language)
             if undercovered:
                 print(f"[transits_analysis_stream] Undercovered aspects detected (not filled): {undercovered}")
             else:
-                print(f"[transits_analysis_stream] Coverage check: OK, all {len(aspects)} aspects covered")
+                print(f"[transits_analysis_stream] Coverage check: OK, all {len(_all_aspects_for_coverage)} aspects covered")
 
         if not full_analysis.startswith(released):
             print(

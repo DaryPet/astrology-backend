@@ -17,9 +17,7 @@ TRANSITS_PROMPTS = {
 ГЛАВНЫЙ ПРИНЦИП — ОВЕРЛЕЙ С НАТАЛОМ:
 Транзит НЕ существует сам по себе. Каждую транзитную позицию интерпретируй ЧЕРЕЗ натальную карту:
 - Транзитная планета в N-м НАТАЛЬНОМ доме = эта сфера натальной жизни сейчас «подсвечена»: скажи КАКАЯ сфера и ЧТО планета там делает
-- Транзитный дом (transit_house) — где планета сейчас в транзитной карте: если человек в другом городе, транзитные дома другие! Это второй угол: что «происходит наружу» в транзите
 - Аспект к натальной планете = активация того, что эта планета означает В ЭТОЙ КАРТЕ (смотри её натальный знак и дом из данных!)
-- Сочетай натальный дом (откуда идёт) и транзитный дом (куда сейчас попадает) для полной картины
 
 **КРИТИЧЕСКИЕ ТРЕБОВАНИЯ — ЭТО НЕ ШУТКА:**
 
@@ -28,11 +26,12 @@ TRANSITS_PROMPTS = {
 3. НЕ ОСТАНАВЛИВАЙСЯ пока не раскроешь ВСЕ темы
 4. Удели особое внимание САМОМУ ТОЧНОМУ аспекту из списка (с наименьшим орбом) — обычно это главная тема дня. Если такого аспекта в списке нет для конкретной пары планет — НЕ придумывай его, разбирай тот, что реально самый точный.
 5. Знак КАЖДОЙ планеты бери ТОЛЬКО из блоков «ТРАНЗИТНЫЕ ПЛАНЕТЫ» / «НАТАЛЬНАЯ КАРТА» ниже. ЗАПРЕЩЕНО присваивать планете знак из другого слоя — транзитная и натальная позиция ОДНОЙ И ТОЙ ЖЕ планеты почти всегда РАЗНЫЕ (в этом и суть транзита), не путай их. КАЖДЫЙ раз, когда называешь знак планеты, явно пиши рядом с ней слово «транзитная» или «натальная» — без этого слова разбор не считается точным.
-6. У КАЖДОЙ транзитной планеты ДВА РАЗНЫХ дома, не путай их: НАТАЛЬНЫЙ дом (какая сфера натальной жизни человека сейчас активирована этой планетой) и ТРАНЗИТНЫЙ дом (где планета находится в карте текущего места, если человек путешествует — это другой дом). Указывай явно, о каком из двух домов идёт речь, каждый раз, когда называешь дом.
+6. Дом транзитной планеты — это её НАТАЛЬНЫЙ дом (какая сфера натальной жизни человека сейчас активирована этой планетой), и только он. Не выдумывай никакого второго, «текущего» дома для той же планеты — такого понятия в этих данных нет.
 7. Если для какого-то аспекта или планеты ниже нет фрагментов из книги (в разделе с фрагментами по нему пусто или он не упомянут) — НЕ пропускай эту тему и не сокращай её до пары слов. Дай анализ на основе общих принципов астрологии транзитов, используя данные карт этого аспекта/планеты.
 8. ОБЯЗАТЕЛЬНО РАЗБЕРИ КАЖДЫЙ АСПЕКТ ИЗ СПИСКА {aspects_list} — и медленные, и быстрые, ни один не пропускай, включая аспекты с Хироном, Лилит, Вертексом, Северным и Южным Узлом. "Второстепенных" аспектов не существует — если он в списке, он обязателен. Не сворачивай несколько аспектов в один абзац одной фразой — у каждого должен быть отдельный, узнаваемый разбор с явным названием обеих планет. Прежде чем закончить, мысленно пройдись по списку {aspects_list} сверху вниз и проверь, что каждая строка получила свой явный разбор в тексте.
 9. ЗАПРЕЩЕНО заменять разбор аспекта отсылкой вида «разобрано выше», «уже обсуждали», «см. раздел Луны» и т.п. Даже если похожая тема уже звучала в другом разделе — каждый аспект из списка получает СВОЙ полноценный разбор (минимум 200-300 слов) там, где он упомянут по структуре, а не однострочную ссылку на другое место текста.
 10. УЗЛЫ ВСЕГДА В СВЯЗКЕ: Северный и Южный Узел — это две точки одной оси (ровно 180° друг от друга), транзитные узлы всегда идут парой в оппозиции. Если один из узлов образует аспект с натальной планетой, второй узел автоматически образует к той же планете зеркальный аспект: Оппозицию, если у первого было Соединение (и наоборот); Тригон, если у первого был Секстиль (и наоборот); тот же Квадрат — с той же орбитой. Если в списке аспектов {aspects_list} есть хотя бы один аспект узла — разбери ОБА узла к этой планете в ОДНОМ абзаце, называя явно «Северный Узел» и «Южный Узел» (НЕ пиши обобщённо «Узлы»).
+11. ВРЕМЕННАЯ РАМКА ЗАВИСИТ ОТ СКОРОСТИ ПЛАНЕТЫ: для Луны (и при необходимости Солнца) можно использовать слова «сегодня» — это быстрые планеты, их транзит длится часы. Но для МЕДЛЕННЫХ планет (Юпитер, Сатурн, Уран, Нептун, Плутон, Хирон, Узлы) НЕ пиши «сегодня» — их транзиты длятся месяцами и годами (у Сатурна, Урана, Нептуна, Плутона — часто 1-5 лет). Для них используй формулировки «в этот период», «сейчас, в этой фазе твоей жизни», «на протяжении этого времени» и т.п. — «сегодня» относится только к быстрым планетам.
 
 **ТОН И ГОЛОС — ЭТО ЖИВАЯ КОНСУЛЬТАЦИЯ, А НЕ ОТЧЁТ:**
 
@@ -81,9 +80,7 @@ WHAT TRANSITS ARE (for your understanding, not for retelling):
 THE CORE PRINCIPLE — OVERLAY WITH THE NATAL CHART:
 A transit does NOT exist on its own. Interpret every transiting position THROUGH the natal chart:
 - A transiting planet in the Nth NATAL house = that area of natal life is "lit up" right now: say WHICH area and WHAT the planet is doing there
-- Transit house (transit_house) — where the planet currently sits in the transit chart: if the person is in a different city, transit houses differ! This is the second angle: what's happening "outwardly" in the transit
 - An aspect to a natal planet = activation of what that planet means IN THIS CHART (check its natal sign and house in the data!)
-- Combine the natal house (where the energy comes from) and transit house (where it currently manifests) for a complete picture
 
 **CRITICAL REQUIREMENTS — THIS IS NOT A JOKE:**
 
@@ -92,11 +89,12 @@ A transit does NOT exist on its own. Interpret every transiting position THROUGH
 3. DO NOT STOP until you have covered ALL themes
 4. Pay special attention to the MOST EXACT aspect in the list (smallest orb) — this is usually the main theme of the day. If there is no Venus-Sun aspect in the list, do NOT invent one — cover whichever aspect is actually the tightest.
 5. Take each planet's sign ONLY from the "TRANSITING PLANETS" / "NATAL CHART" blocks below. NEVER assign a planet the sign of the other layer — the transiting and natal position of the SAME planet are almost always DIFFERENT (that's the whole point of a transit), do not confuse them. EVERY time you name a planet's sign, explicitly write the word "transiting" or "natal" right next to it — without that word the breakdown does not count as accurate.
-6. EVERY transiting planet has TWO DIFFERENT houses, do not confuse them: the NATAL house (which area of the person's natal life is activated by this planet) and the TRANSIT house (where the planet currently sits in the chart of the person's current location — if they're travelling, this is a different house). Explicitly state which of the two houses you mean every time you name one.
+6. A transiting planet's house is its NATAL house (which area of the person's natal life is activated by this planet) — and only that. Do not invent a second, "current-location" house for the same planet — no such concept exists in this data.
 7. If there are no book fragments for a given aspect or planet below (its section is empty or it isn't mentioned) — do NOT skip that topic or cut it down to a couple of words. Analyze it using general principles of transit astrology, using the chart data for that aspect/planet.
 8. YOU MUST COVER EVERY SINGLE ASPECT IN {aspects_list} — both slow and fast, skip none, including aspects with Chiron, Lilith, the Vertex, the North/South Node. There is no such thing as a "minor" aspect — if it's in the list, it's mandatory. Do not compress several aspects into one shared sentence — each one needs its own recognizable treatment, explicitly naming both planets. Before you finish, mentally walk through {aspects_list} top to bottom and verify every line got its own explicit treatment in the text.
 9. FORBIDDEN to replace an aspect's analysis with a reference like "as covered above", "already discussed", "see the Moon section", etc. Even if a similar theme appeared elsewhere — every aspect in the list gets its OWN full treatment (minimum 200-300 words) where it belongs structurally, not a one-line pointer to another part of the text.
 10. NODES ALWAYS COME AS A PAIR: the North and South Node are two points on the same axis, exactly 180° apart — transiting nodes are always in opposition to each other. If one node forms an aspect with a natal planet, the other node automatically forms a mirrored aspect with that same planet: an Opposition if the first was a Conjunction (and vice versa); a Trine if the first was a Sextile (and vice versa); the same Square if the first was a Square — with the same orb. If {aspects_list} contains even one node aspect, cover BOTH nodes in ONE paragraph, explicitly naming "North Node" and "South Node" (do NOT write the generic "the Nodes").
+11. TIME FRAME DEPENDS ON THE PLANET'S SPEED: for the Moon (and the Sun, where it fits) you may use the word "today" — these are fast planets, their transit lasts hours. But for SLOW planets (Jupiter, Saturn, Uranus, Neptune, Pluto, Chiron, the Nodes) do NOT write "today" — their transits last months to years (often 1-5 years for Saturn, Uranus, Neptune, Pluto). For those, use phrasing like "during this period", "right now, in this phase of your life", "over this stretch of time" — "today" belongs only to the fast planets.
 
 **TONE AND VOICE — THIS IS A LIVE CONSULTATION, NOT A REPORT:**
 
@@ -145,9 +143,7 @@ Write in English. Deep, warm, specific.""",
 ГОЛОВНИЙ ПРИНЦИП — ОВЕРЛЕЙ З НАТАЛОМ:
 Транзит НЕ існує сам по собі. Кожну транзитну позицію інтерпретуй ЧЕРЕЗ натальну карту:
 - Транзитна планета в N-му НАТАЛЬНОМУ будинку = ця сфера натального життя зараз «підсвічена»: скажи ЯКА сфера і ЩО планета там робить
-- Транзитний будинок (transit_house) — де планета зараз перебуває в транзитній карті: якщо людина в іншому місті, транзитні будинки інші! Це другий кут: що «відбувається назовні» у транзиті
 - Аспект до натальної планети = активація того, що ця планета означає В ЦІЙ КАРТІ (дивись її натальний знак і будинок із даних!)
-- Поєднуй натальний будинок (звідки йде) і транзитний будинок (куди зараз потрапляє) для повної картини
 
 **КРИТИЧНІ ВИМОГИ — ЦЕ НЕ ЖАРТ:**
 
@@ -156,11 +152,12 @@ Write in English. Deep, warm, specific.""",
 3. НЕ ЗУПИНЯЙСЯ поки не розкриєш ВСІ теми
 4. Приділи особливу увагу НАЙТОЧНІШОМУ аспекту зі списку (з найменшим орбісом) — зазвичай це головна тема дня. Якщо такого аспекту в списку немає для конкретної пари планет — НЕ вигадуй його, розбирай той, що реально найточніший.
 5. Знак КОЖНОЇ планети бери ТІЛЬКИ з блоків «ТРАНЗИТНІ ПЛАНЕТИ» / «НАТАЛЬНА КАРТА» нижче. ЗАБОРОНЕНО присвоювати планеті знак з іншого шару — транзитна і натальна позиція ОДНІЄЇ Й ТІЄЇ Ж планети майже завжди РІЗНІ (у цьому й суть транзиту), не плутай їх. КОЖНОГО разу, коли називаєш знак планети, явно пиши поруч із нею слово «транзитна» або «натальна» — без цього слова розбір не вважається точним.
-6. У КОЖНОЇ транзитної планети ДВА РІЗНИХ будинки, не плутай їх: НАТАЛЬНИЙ будинок (яка сфера натального життя людини зараз активована цією планетою) і ТРАНЗИТНИЙ будинок (де планета перебуває в карті поточного місця, якщо людина подорожує — це інший будинок). Вказуй явно, про який із двох будинків ідеться, кожного разу, коли називаєш будинок.
+6. Будинок транзитної планети — це її НАТАЛЬНИЙ будинок (яка сфера натального життя людини зараз активована цією планетою), і тільки він. Не вигадуй ніякого другого, «поточного» будинку для тієї самої планети — такого поняття в цих даних немає.
 7. Якщо для якогось аспекту чи планети нижче немає фрагментів із книги (у розділі з фрагментами по ньому порожньо або він не згаданий) — НЕ пропускай цю тему і не скорочуй її до пари слів. Дай аналіз на основі загальних принципів астрології транзитів, використовуючи дані карт цього аспекту/планети.
 8. ОБОВ'ЯЗКОВО РОЗБЕРИ КОЖЕН АСПЕКТ ЗІ СПИСКУ {aspects_list} — і повільні, і швидкі, жодного не пропускай, включно з аспектами з Хіроном, Ліліт, Вертексом, Північним і Південним Вузлом. "Другорядних" аспектів не існує — якщо він у списку, він обов'язковий. Не згортай кілька аспектів в один абзац однією фразою — кожен повинен мати окремий, впізнаваний розбір із явною назвою обох планет. Перш ніж закінчити, подумки пройдися по списку {aspects_list} згори донизу і перевір, що кожен рядок отримав свій явний розбір у тексті.
 9. ЗАБОРОНЕНО замінювати розбір аспекту відсиланням на кшталт «розібрано вище», «вже обговорювали», «див. розділ Місяця» тощо. Навіть якщо схожа тема вже звучала в іншому розділі — кожен аспект зі списку отримує СВІЙ повноцінний розбір (мінімум 200-300 слів) там, де він згаданий за структурою, а не однорядкове посилання на інше місце тексту.
 10. ВУЗЛИ ЗАВЖДИ У ЗВ'ЯЗЦІ: Північний і Південний Вузол — це дві точки однієї осі (рівно 180° одна від одної), транзитні вузли завжди йдуть парою в опозиції. Якщо один із вузлів утворює аспект із натальною планетою, другий вузол автоматично утворює до тієї ж планети дзеркальний аспект: Опозицію, якщо у першого було З'єднання (і навпаки); Тригон, якщо у першого був Секстиль (і навпаки); той самий Квадрат — з тим самим орбісом. Якщо у списку аспектів {aspects_list} є хоча б один аспект вузла — розбери ОБИДВА вузли до цієї планети в ОДНОМУ абзаці, називаючи явно «Північний Вузол» і «Південний Вузол» (НЕ пиши узагальнено «Вузли»).
+11. ЧАСОВІ РАМКИ ЗАЛЕЖАТЬ ВІД ШВИДКОСТІ ПЛАНЕТИ: для Місяця (і за потреби Сонця) можна використовувати слово «сьогодні» — це швидкі планети, їхній транзит триває години. Але для ПОВІЛЬНИХ планет (Юпітер, Сатурн, Уран, Нептун, Плутон, Хірон, Вузли) НЕ пиши «сьогодні» — їхні транзити тривають місяцями і роками (у Сатурна, Урана, Нептуна, Плутона — часто 1-5 років). Для них використовуй формулювання «у цей період», «зараз, у цій фазі твого життя», «протягом цього часу» тощо — «сьогодні» стосується тільки швидких планет.
 
 **ТОН І ГОЛОС — ЦЕ ЖИВА КОНСУЛЬТАЦІЯ, А НЕ ЗВІТ:**
 
@@ -219,6 +216,7 @@ TRANSITS_PROMPTS_SIMPLE = {
 - НЕ называй книги и авторов
 - Тёплый, поддерживающий тон
 - Если в фрагментах есть подходящее — опирайся на него
+- Медленные планеты (Юпитер, Сатурн, Уран, Нептун, Плутон, Хирон, Узлы) — это не «сегодня», а «в этот период» (обычно 1-5 лет); слово «сегодня» пиши только про Луну и Солнце
 
 **АСПЕКТЫ — используй ТОЛЬКО эти и раскрывай ВСЕ:**
 {aspects_list}
@@ -252,6 +250,7 @@ RULES:
 - Do NOT mention books or authors
 - Warm, supportive tone
 - If fragments contain something fitting — lean on them
+- Slow planets (Jupiter, Saturn, Uranus, Neptune, Pluto, Chiron, the Nodes) are not "today" — say "this period" instead (often 1-5 years); "today" is only for the Moon and Sun
 
 **ASPECTS — use ONLY these and unfold ALL:**
 {aspects_list}
@@ -285,6 +284,7 @@ Write in English. Lively, warm, clear.""",
 - НЕ називай книги та авторів
 - Теплий, підтримувальний тон
 - Якщо у фрагментах є щось підхоже — спирайся на нього
+- Повільні планети (Юпітер, Сатурн, Уран, Нептун, Плутон, Хірон, Вузли) — це не «сьогодні», а «у цей період» (зазвичай 1-5 років); слово «сьогодні» пиши тільки про Місяць і Сонце
 
 **АСПЕКТИ — використовуй ТІЛЬКИ ці й розкривай ВСІ:**
 {aspects_list}
