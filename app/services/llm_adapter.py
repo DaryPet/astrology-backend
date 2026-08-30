@@ -353,6 +353,9 @@ class DeepSeekAdapter(LLMAdapter):
 class OpenRouterAdapter(LLMAdapter):
     """OpenRouter adapter: OpenAI-compatible API, any model by slug"""
 
+    # Same ceiling and rationale as DeepSeekAdapter.MAX_TOKENS above.
+    MAX_TOKENS = 45000
+
     def __init__(self, model: Optional[str] = None):
         self.model = model or settings.OPENROUTER_MODEL
         self.client = None
@@ -381,10 +384,17 @@ class OpenRouterAdapter(LLMAdapter):
                 model=self.model,
                 messages=[{"role": "user", "content": self._with_language(prompt, language)}],
                 temperature=0.3,
-                max_tokens=4096,
-                timeout=300,
+                max_tokens=self.MAX_TOKENS,
+                timeout=500,
             )
-            return response.choices[0].message.content
+            choice = response.choices[0]
+            usage = getattr(response, "usage", None)
+            print(
+                f"[OpenRouterAdapter] finish_reason={choice.finish_reason}"
+                f" completion_tokens={getattr(usage, 'completion_tokens', '?')}"
+                f" max_tokens={self.MAX_TOKENS}"
+            )
+            return choice.message.content
         except Exception as e:
             return f"Error: {str(e)}"
 
@@ -401,8 +411,7 @@ class OpenRouterAdapter(LLMAdapter):
                 model=self.model,
                 messages=messages,
                 temperature=0.3,
-                max_tokens=4096,
-                timeout=300,
+                timeout=500,
             )
             return response.choices[0].message.content
         except Exception as e:
@@ -415,6 +424,90 @@ _adapters = {
     'ollama': OllamaAdapter,
     'gemini': GeminiAdapter,
 }
+
+# Fallback model for when the primary provider fails: routed through
+# OpenRouter (own key/quota, separate from any direct OpenAI account) rather
+# than OpenAI directly, since this account's direct OpenAI key is shared with
+# other unrelated projects and already runs into rate limits there.
+FALLBACK_MODEL = "openai/gpt-5.6-luna"
+
+
+class FallbackAdapterWrapper(LLMAdapter):
+    """Wraps a primary adapter with a fallback adapter used whenever the
+    primary either raises or returns its own swallowed-error string (every
+    adapter in this file catches exceptions internally and returns
+    f"Error: {e}" instead of raising, so checking the string is the only way
+    to detect a failed call)."""
+
+    def __init__(self, primary: LLMAdapter, fallback: LLMAdapter):
+        self.primary = primary
+        self.fallback = fallback
+
+    @staticmethod
+    def _failed(result: str) -> bool:
+        return not result or result.strip().startswith("Error:")
+
+    @staticmethod
+    def _log_fallback(result: str) -> None:
+        print(f"[FallbackAdapterWrapper] primary failed ({result!r}) -> falling back to {FALLBACK_MODEL}")
+
+    async def generate(self, prompt: str, language: str = "en") -> str:
+        try:
+            result = await self.primary.generate(prompt, language)
+        except Exception as e:
+            result = f"Error: {str(e)}"
+        if self._failed(result):
+            self._log_fallback(result)
+            return await self.fallback.generate(prompt, language)
+        return result
+
+    async def generate_with_messages(self, messages: List[Dict[str, str]], language: str = "en") -> str:
+        try:
+            result = await self.primary.generate_with_messages(messages, language)
+        except Exception as e:
+            result = f"Error: {str(e)}"
+        if self._failed(result):
+            self._log_fallback(result)
+            return await self.fallback.generate_with_messages(messages, language)
+        return result
+
+    async def generate_stream(self, prompt: str, language: str = "en") -> AsyncGenerator[str, None]:
+        # Only recovers a failure on the very first chunk (connection refused,
+        # rate limit, etc.) — once real tokens have already been streamed to
+        # the caller, a mid-stream failure can't be undone, so it's left to
+        # surface as-is rather than risk duplicating/garbling output.
+        gen = self.primary.generate_stream(prompt, language)
+        try:
+            first_chunk = await gen.__anext__()
+        except StopAsyncIteration:
+            return
+        except Exception as e:
+            first_chunk = f"Error: {str(e)}"
+        if self._failed(first_chunk):
+            self._log_fallback(first_chunk)
+            async for chunk in self.fallback.generate_stream(prompt, language):
+                yield chunk
+            return
+        yield first_chunk
+        async for chunk in gen:
+            yield chunk
+
+    async def generate_stream_with_messages(self, messages: List[Dict[str, str]], language: str = "en") -> AsyncGenerator[str, None]:
+        gen = self.primary.generate_stream_with_messages(messages, language)
+        try:
+            first_chunk = await gen.__anext__()
+        except StopAsyncIteration:
+            return
+        except Exception as e:
+            first_chunk = f"Error: {str(e)}"
+        if self._failed(first_chunk):
+            self._log_fallback(first_chunk)
+            async for chunk in self.fallback.generate_stream_with_messages(messages, language):
+                yield chunk
+            return
+        yield first_chunk
+        async for chunk in gen:
+            yield chunk
 
 
 def get_llm_adapter(provider: str = None, model: str = None) -> LLMAdapter:
@@ -429,7 +522,15 @@ def get_llm_adapter(provider: str = None, model: str = None) -> LLMAdapter:
         return OpenRouterAdapter(model)
 
     adapter_class = _adapters.get(provider, FallbackAdapter)
-    return adapter_class()
+    adapter = adapter_class()
+
+    # Wrap the production (deepseek) adapter with an OpenRouter fallback —
+    # only if a key is configured, so behaviour is unchanged for anyone who
+    # hasn't opted in.
+    if provider == 'deepseek' and settings.OPENROUTER_API_KEY:
+        adapter = FallbackAdapterWrapper(adapter, OpenRouterAdapter(FALLBACK_MODEL))
+
+    return adapter
 
 
 async def generate_analysis(
