@@ -22,6 +22,7 @@ from app.services.analysis_service._shared import (
     _matches_technique,
     _planet_display,
     search_chunks_by_book_ids,
+    stream_chat_reply,
     stream_verified_analysis,
 )
 
@@ -598,4 +599,222 @@ async def progressions_analysis_stream(
     yield {"event": "stage", "data": {"stage": "generating"}}
 
     async for event in stream_verified_analysis(adapter, prompt, language, fix_fn, finalize):
+        yield event
+
+
+# ============================================================
+# PROGRESSIONS CHAT
+# ============================================================
+
+async def _prepare_chat_with_progressions_astrologer(
+    question: str,
+    chart_data: Dict[str, Any],
+    full_analysis: str,
+    chat_history: List[Dict[str, str]],
+    language: str = "ru"
+) -> Dict[str, Any]:
+    """
+    Shared prep for chat_with_progressions_astrologer and its streaming twin:
+    hybrid RAG search (restricted to the progressions/transits book set —
+    same TRANSITS_PROGRESSIONS_BOOK_IDS as _prepare_progressions_analysis) +
+    messages build. Mirrors chat.py's _prepare_chat_with_astrologer, but
+    reads a progressions-shaped chart_data — the same dict
+    calculate_secondary_progressions/the /analysis/progressions endpoint
+    returns (progressed_planets, natal_summary, lunar_phase,
+    aspects_to_natal, period, age_years) — instead of a flat natal chart, and
+    frames the system prompt around the progressed chart rather than "this
+    person's natal chart" (see app/services/INSIGHTS.md, 2026-07-31 entry on
+    chat.py's natal-chat language gap — this prep is 3-way localized from the
+    start via _localized/_planet_display instead of copying that gap).
+
+    Every entry in progressed_planets already carries its own natal_sign/
+    natal_house/changed_sign/changed_house (astrology_v2.py:899-918) — no
+    separate full natal_chart is needed here, only chart_data itself.
+    """
+    import asyncio
+    from app.services.llm_adapter import get_llm_adapter
+    from app.utils.astrology_v2 import ZODIAC_SIGNS, ZODIAC_SIGNS_RU, ZODIAC_SIGNS_UK
+
+    adapter = get_llm_adapter()
+    lang = language if language in ('ru', 'en', 'uk') else 'en'
+    en_to_ru = dict(zip(ZODIAC_SIGNS, ZODIAC_SIGNS_RU))
+    en_to_uk = dict(zip(ZODIAC_SIGNS, ZODIAC_SIGNS_UK))
+
+    def _natal_sign_display(en_sign) -> str:
+        if not en_sign:
+            return "?"
+        return {'ru': en_to_ru, 'uk': en_to_uk}.get(lang, {}).get(en_sign, en_sign)
+
+    prog_planets = chart_data.get("progressed_planets", {}) or {}
+    natal_summary = chart_data.get("natal_summary", {}) or {}
+    lunar_phase = chart_data.get("lunar_phase") or {}
+    aspects = chart_data.get("aspects_to_natal", []) or []
+    period = chart_data.get("period", "?")
+    age = chart_data.get("age_years", "?")
+
+    PERSONAL_PLANETS = ["Sun", "Moon", "Mercury", "Venus", "Mars"]
+
+    book_titles = await _fetch_book_titles(TRANSITS_PROGRESSIONS_BOOK_IDS)
+
+    async def search_question():
+        return await search_chunks_by_book_ids(question, TRANSITS_PROGRESSIONS_BOOK_IDS, book_titles, top_k_per_book=5)
+
+    async def search_planet(planet_name: str, planet_data: Dict) -> tuple:
+        sign = planet_data.get("sign", "")
+        house = planet_data.get("natal_house", "")
+        query = f"progressed {planet_name.lower()} {sign.lower()} house {house}"
+        chunks = await search_chunks_by_book_ids(query, TRANSITS_PROGRESSIONS_BOOK_IDS, book_titles, top_k_per_book=2)
+        return planet_name, chunks
+
+    planet_tasks = [
+        search_planet(name, prog_planets[name])
+        for name in PERSONAL_PLANETS if name in prog_planets
+    ]
+    question_chunks, *planet_results = await asyncio.gather(
+        search_question(), *planet_tasks, return_exceptions=True
+    )
+
+    question_context = ""
+    if question_chunks and not isinstance(question_chunks, Exception):
+        question_context = "\n=== FRAGMENTS ON THE QUESTION ===\n"
+        for i, chunk in enumerate(question_chunks, 1):
+            text = chunk.get("text", "")
+            book_title = chunk.get("book_title", "")
+            question_context += f"[{i}] ({book_title}):\n{text}\n"
+
+    planet_context = ""
+    for result in planet_results:
+        if isinstance(result, Exception):
+            continue
+        planet_name, chunks = result
+        if chunks:
+            planet_context += f"\n【{planet_name.upper()}】\n"
+            for i, chunk in enumerate(chunks, 1):
+                text = chunk.get("text", "")
+                book_title = chunk.get("book_title", "")
+                planet_context += f"[{i}] ({book_title}):\n{text}\n"
+
+    books_context = f"{question_context}\n=== FRAGMENTS ON PROGRESSED PLANETS ===\n{planet_context}"
+    if not question_context.strip() and not planet_context.strip():
+        books_context = {
+            'ru': "В библиотеке не найдено релевантных фрагментов по этому вопросу. Используйте общие принципы вторичных прогрессий.",
+            'uk': "У бібліотеці не знайдено релевантних фрагментів щодо цього питання. Використовуйте загальні принципи вторинних прогресій.",
+            'en': "No relevant fragments found in the library for this question. Use general secondary-progressions principles.",
+        }[lang]
+
+    planets_summary = ""
+    for planet_name in PERSONAL_PLANETS + [n for n in prog_planets if n not in PERSONAL_PLANETS]:
+        pd = prog_planets.get(planet_name)
+        if not pd:
+            continue
+        p_display = _planet_display(planet_name, language)
+        sign_display = _localized(pd, "sign", language, "?")
+        house = pd.get("natal_house", "?")
+        rx = " (Rx)" if pd.get("is_retrograde") else ""
+        marker = ""
+        if pd.get("changed_sign"):
+            marker = f" [changed sign, natally {_natal_sign_display(pd.get('natal_sign'))}]"
+        planets_summary += f"  {p_display}: {sign_display}, house {house}{rx}{marker}\n"
+
+    aspects_list = []
+    for asp in aspects[:15]:
+        p1 = _planet_display(asp.get("progressed", asp.get("planet1", "?")), language)
+        p2 = _planet_display(asp.get("natal", asp.get("planet2", "?")), language)
+        asp_name = _localized(asp, "aspect", language, asp.get("aspect", "?"))
+        orb_val = asp.get("orb", "?")
+        aspects_list.append(f"PROGRESSED:{p1} {asp_name} NATAL:{p2} — orb {orb_val}°")
+    aspects_str = "\n".join(aspects_list) if aspects_list else "—"
+
+    natal_sun = _localized(natal_summary, "sun_sign", language, "?")
+    natal_moon = _localized(natal_summary, "moon_sign", language, "?")
+    natal_asc = _localized(natal_summary, "ascendant", language, "?")
+    phase_name = _localized(lunar_phase, "phase", language, "?") if lunar_phase else "?"
+
+    system_prompt = f"""You are a personal astrologer. You have already done a full analysis of this person's SECONDARY PROGRESSIONS (the progressed chart, age {age}, period {period}) and now answer their questions about it.
+
+=== NATAL CHART (reference layer — do not present these as progressed) ===
+Sun: {natal_sun}
+Moon: {natal_moon}
+Ascendant: {natal_asc}
+
+=== PROGRESSED LUNAR PHASE ===
+{phase_name}
+
+=== PROGRESSED PLANETS (vs natal) ===
+{planets_summary}
+
+=== KEY PROGRESSED ASPECTS TO NATAL ===
+{aspects_str}
+
+=== FULL PROGRESSIONS ANALYSIS ===
+{full_analysis}
+
+=== KNOWLEDGE FROM ASTROLOGY BOOKS ===
+{books_context}
+
+RULES:
+- Answer personally — you know this person's progressed chart
+- Always distinguish PROGRESSED positions from NATAL positions explicitly — never present one as the other, never call a progressed position "natal" or vice versa
+- Use book fragments as knowledge source
+- Answer in the language of the user's question
+- Be specific, not general
+- Remember the full conversation history
+- Do NOT make up book titles or authors"""
+
+    messages = [{"role": "system", "content": system_prompt}]
+    for msg in chat_history:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+    messages.append({"role": "user", "content": question})
+
+    return {
+        "adapter": adapter,
+        "messages": messages,
+        "question_chunks": question_chunks if not isinstance(question_chunks, Exception) else []
+    }
+
+async def chat_with_progressions_astrologer(
+    question: str,
+    chart_data: Dict[str, Any],
+    full_analysis: str,
+    chat_history: List[Dict[str, str]],
+    language: str = "ru"
+) -> Dict[str, Any]:
+    """
+    Chat with the astrologer about secondary progressions — HYBRID approach.
+    Modeled on chat_with_astrologer (chat.py).
+    """
+    prep = await _prepare_chat_with_progressions_astrologer(question, chart_data, full_analysis, chat_history, language)
+    answer = await prep["adapter"].generate_with_messages(prep["messages"], language)
+
+    return {
+        "answer": answer,
+        "relevant_chunks": prep["question_chunks"]
+    }
+
+async def chat_with_progressions_astrologer_stream(
+    question: str,
+    chart_data: Dict[str, Any],
+    full_analysis: str,
+    chat_history: List[Dict[str, str]],
+    language: str = "ru"
+) -> AsyncGenerator[Dict[str, Any], None]:
+    """
+    Streaming twin of chat_with_progressions_astrologer — typewriter delivery
+    for the chat modal. No anti-fabrication fix runs on chat replies (same as
+    chat_with_astrologer_stream/chat_with_synastry_astrologer_stream), so
+    this goes through stream_chat_reply (raw token relay), not
+    stream_verified_analysis.
+    """
+    yield {"event": "stage", "data": {"stage": "searching"}}
+
+    prep = await _prepare_chat_with_progressions_astrologer(question, chart_data, full_analysis, chat_history, language)
+
+    async def finalize(buffer: str) -> Dict[str, Any]:
+        return {
+            "answer": buffer,
+            "relevant_chunks": prep["question_chunks"]
+        }
+
+    yield {"event": "stage", "data": {"stage": "generating"}}
+    async for event in stream_chat_reply(prep["adapter"], prep["messages"], language, finalize):
         yield event
