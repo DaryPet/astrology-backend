@@ -4,7 +4,7 @@ from datetime import datetime
 
 
 class PlanetAnalysisRequest(BaseModel):
-    """Запрос на анализ одной планеты"""
+    """Request to analyze a single planet"""
     planet: str
     sign: str
     degree: float = Field(..., ge=0, le=30)
@@ -19,14 +19,14 @@ class PlanetAnalysisRequest(BaseModel):
 
 
 class PlanetAspectInfo(BaseModel):
-    """Информация об аспекте планеты"""
+    """Information about a planet's aspect"""
     aspect: str
     planet: str
     orb: float
 
 
 class PlanetAnalysisResponse(BaseModel):
-    """Ответ с анализом планеты"""
+    """Response with a planet analysis"""
     planet: str
     sign: str
     house: int
@@ -36,7 +36,7 @@ class PlanetAnalysisResponse(BaseModel):
 
 
 class FullAnalysisRequest(BaseModel):
-    """Запрос на полный анализ натальной карты"""
+    """Request for a full natal chart analysis"""
     chart_data: Optional[Dict[str, Any]] = None
     
     birth_date: Optional[datetime] = None
@@ -54,37 +54,37 @@ class FullAnalysisRequest(BaseModel):
 
 
 class BookAnalysisResult(BaseModel):
-    """Результат анализа одной книги"""
+    """Analysis result for a single book"""
     book_id: int
     title: str
     analysis: str
 
 
 class FullAnalysisResponse(BaseModel):
-    """Ответ с полным анализом натальной карты"""
+    """Response with a full natal chart analysis"""
     analysis: str
     language: str
     created_at: datetime
 
 
 class SummaryRequest(BaseModel):
-    """Запрос на генерацию краткого резюме"""
+    """Request to generate a short summary"""
     text: str
     language: str = "en"
 
 
 class SummaryResponse(BaseModel):
-    """Ответ с кратким резюме"""
+    """Response with a short summary"""
     summary: str
 
 class ChatMessage(BaseModel):
-    """Одно сообщение в истории чата"""
+    """A single message in the chat history"""
     role: str  # "user" or "assistant"
     content: str
 
 
 class ChatRequest(BaseModel):
-    """Запрос к астрологу-агенту"""
+    """Request to the astrologer agent"""
     question: str
     chart_data: Dict[str, Any]
     summary: str
@@ -95,11 +95,11 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    """Ответ астролога-агента"""
+    """Response from the astrologer agent"""
     answer: str
     relevant_chunks: List[Dict[str, Any]] = []
 class ChartRequest(BaseModel):
-    """Запрос на данные одной карты (для синастрии)"""
+    """Request for a single chart's data (for synastry)"""
     birth_date: datetime
     birth_time: Optional[str] = None
     birth_place: str
@@ -110,7 +110,7 @@ class ChartRequest(BaseModel):
 
 
 class SynastryAnalysisRequest(BaseModel):
-    """Запрос на полный анализ синастрии"""
+    """Request for a full synastry analysis"""
     chart1: ChartRequest
     chart2: ChartRequest
     aspects: Optional[List[Dict[str, Any]]] = None
@@ -123,7 +123,7 @@ class SynastryAnalysisRequest(BaseModel):
 
 
 class SynastryAnalysisResponse(BaseModel):
-    """Ответ с анализом синастрии"""
+    """Response with a synastry analysis"""
     chart1_summary: Dict[str, Any]
     chart2_summary: Dict[str, Any]
     aspects: List[Dict[str, Any]]
@@ -135,7 +135,7 @@ class SynastryAnalysisResponse(BaseModel):
 
 
 class SynastryChatRequest(BaseModel):
-    """Запрос к астрологу-агенту по синастрии"""
+    """Request to the astrologer agent about a synastry"""
     question: str
     chart1_data: Dict[str, Any]
     chart2_data: Dict[str, Any]
@@ -147,13 +147,13 @@ class SynastryChatRequest(BaseModel):
 
 
 class SynastryChatResponse(BaseModel):
-    """Ответ астролога-агента по синастрии"""
+    """Response from the astrologer agent about a synastry"""
     answer: str
     relevant_chunks: List[Dict[str, Any]] = []
 
 
 class SynastryAspectRequest(BaseModel):
-    """Запрос на анализ аспекта синастрии"""
+    """Request to analyze a synastry aspect"""
     planet1: str
     planet2: str
     aspect_name: str
@@ -166,7 +166,7 @@ class SynastryAspectRequest(BaseModel):
 
 
 class SynastryAspectResponse(BaseModel):
-    """Ответ с анализом аспекта синастрии"""
+    """Response with a synastry aspect analysis"""
     planet1: str
     planet2: str
     aspect: str
@@ -178,14 +178,14 @@ class SynastryAspectResponse(BaseModel):
 
 
 class RelationshipTypeInfo(BaseModel):
-    """Информация о типе отношений"""
+    """Information about a relationship type"""
     percentage: int
     label: str
     description: Optional[str] = None
 
 
 class SynastryRelationshipRequest(BaseModel):
-    """Запрос на определение типов отношений в синастрии"""
+    """Request to determine relationship types in a synastry"""
     # New format (preferred)
     full_analysis: Optional[str] = None
     # Old format (for backward compatibility)
@@ -199,7 +199,7 @@ class SynastryRelationshipRequest(BaseModel):
 
 
 class SynastryRelationshipResponse(BaseModel):
-    """Ответ с типами отношений"""
+    """Response with relationship types"""
     relationship_types: Dict[str, RelationshipTypeInfo]
     dominant_type: str
     analysis: str
@@ -210,7 +210,7 @@ class SynastryRelationshipResponse(BaseModel):
 # ============================================================
 
 class ProgressionsRequest(BaseModel):
-    """Запрос на расчёт вторичных прогрессий"""
+    """Request to calculate secondary progressions"""
     birth_date: datetime
     birth_time: Optional[str] = None
     birth_place: Optional[str] = None
@@ -223,7 +223,7 @@ class ProgressionsRequest(BaseModel):
 
 
 class ProgressionsAnalysisRequest(BaseModel):
-    """Запрос на AI-анализ вторичных прогрессий"""
+    """Request for an AI analysis of secondary progressions"""
     # Preferred path: the frontend sends ready-made data (no recalculation)
     natal_chart: Optional[Dict[str, Any]] = None       # natal chart chart_data
     progression_data: Optional[Dict[str, Any]] = None  # result of /api/progressions
@@ -245,7 +245,7 @@ class ProgressionsAnalysisRequest(BaseModel):
 
 
 class ProgressionsAnalysisResponse(BaseModel):
-    """Ответ с анализом прогрессий"""
+    """Response with a progressions analysis"""
     analysis: str
     progressions_summary: Dict[str, Any]
     language: str
@@ -253,7 +253,7 @@ class ProgressionsAnalysisResponse(BaseModel):
 
 
 class TransitsRequest(BaseModel):
-    """Запрос на расчёт транзитов на конкретный день"""
+    """Request to calculate transits for a specific day"""
     birth_date: datetime
     birth_time: Optional[str] = None
     birth_place: Optional[str] = None
@@ -273,7 +273,7 @@ class TransitsRequest(BaseModel):
 
 
 class TransitsAnalysisRequest(BaseModel):
-    """Запрос на AI-анализ транзитов дня"""
+    """Request for an AI analysis of the day's transits"""
     # Preferred path: the frontend sends ready-made data (no recalculation)
     natal_chart: Optional[Dict[str, Any]] = None    # natal chart chart_data
     transit_data: Optional[Dict[str, Any]] = None   # result of /api/transits
@@ -300,8 +300,8 @@ class TransitsAnalysisRequest(BaseModel):
 
 
 class DailyForecastRequest(TransitsAnalysisRequest):
-    """Прогноз дня: те же входные данные, что у анализа транзитов,
-    плюс выбор LLM с фронтенда."""
+    """Daily forecast: the same input as the transits analysis,
+    plus the LLM choice from the frontend."""
     llm_provider: Optional[str] = None  # claude | deepseek | gemini | openrouter; None = settings.LLM_PROVIDER
     llm_model: Optional[str] = None     # model slug for openrouter
     transit_timezone: Optional[str] = None  # IANA timezone of the transit place: time is treated as LOCAL
@@ -318,7 +318,7 @@ class TransitsAnalysisResponse(BaseModel):
 
 
 class ProgressedSynastryRequest(BaseModel):
-    """Запрос расчёта прогрессивной синастрии (два партнёра)"""
+    """Request to calculate a progressed synastry (two partners)"""
     chart1: ChartRequest
     chart2: ChartRequest
     target_date: Optional[datetime] = None  # default — today; can be any day
@@ -326,7 +326,7 @@ class ProgressedSynastryRequest(BaseModel):
 
 
 class ProgressedSynastryAnalysisRequest(BaseModel):
-    """Запрос AI-анализа прогрессивной синастрии"""
+    """Request for an AI analysis of a progressed synastry"""
     # Preferred path: the frontend sends ready-made calculation data
     progressed_synastry_data: Optional[Dict[str, Any]] = None
     # Partners' natal charts (for layers 2 and 3) — chart_data from the DB
@@ -353,7 +353,7 @@ class ProgressedSynastryAnalysisResponse(BaseModel):
 
 
 class ProgressedSynastryAspectRequest(BaseModel):
-    """Запрос на анализ одного аспекта прогрессивной синастрии (клик на аспект)"""
+    """Request to analyze a single progressed synastry aspect (click on an aspect)"""
     planet1: str
     planet2: str
     aspect_name: str
@@ -374,7 +374,7 @@ class ProgressedSynastryAspectRequest(BaseModel):
 
 
 class ProgressedSynastryAspectResponse(BaseModel):
-    """Ответ с анализом одного аспекта прогрессивной синастрии"""
+    """Response with the analysis of a single progressed synastry aspect"""
     planet1: str
     planet2: str
     aspect: str

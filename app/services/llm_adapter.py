@@ -26,7 +26,7 @@ class LLMAdapter(ABC):
 
 
 # class OpenAIAdapter(LLMAdapter):
-    """Адаптер для OpenAI GPT"""
+    """Adapter for OpenAI GPT"""
     
     def __init__(self):
         self.client = None

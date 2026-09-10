@@ -37,7 +37,7 @@ async def process_book_async(filename: str) -> Dict:
 
     # Parse
     parsed = parse_file(temp_path)
-    print(f"ДЛИНА ТЕКСТА: {len(parsed['text'])}")
+    print(f"Text length: {len(parsed['text'])}")
     text = parsed["text"]
     os.unlink(temp_path)
 

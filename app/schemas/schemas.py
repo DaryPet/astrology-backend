@@ -138,14 +138,14 @@ class SynastryRequestDirect(BaseModel):
 
 
 class AnalysisRequest(BaseModel):
-    """Запрос на поиск и анализ астрологического запроса"""
+    """Request to search and analyze an astrology query"""
     query: str
     chart_data: Optional[NatalChartRequest] = None
     top_k: int = 5
 
 
 class ParsedQuery(BaseModel):
-    """Результат парсинга астрологического запроса"""
+    """Result of parsing an astrology query"""
     language: str = "en"
     planets: List[str] = []
     houses: List[int] = []
@@ -154,7 +154,7 @@ class ParsedQuery(BaseModel):
 
 
 class RelevantChunk(BaseModel):
-    """Найденный чанк из книги"""
+    """A chunk found in a book"""
     id: int
     book_id: int
     text: str
@@ -164,7 +164,7 @@ class RelevantChunk(BaseModel):
 
 
 class AnalysisResponse(BaseModel):
-    """Ответ с результатами анализа"""
+    """Response with the analysis results"""
     query: str
     query_language: str
     parsed_query: ParsedQuery
