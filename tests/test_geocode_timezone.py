@@ -1,17 +1,18 @@
 """
-Регрессионный тест для упрощения /api/geocode/coordinates
-(plans/concurrency-100-plus-users.md, проблема 1).
+Regression test for simplifying /api/geocode/coordinates
+(plans/concurrency-100-plus-users.md, problem 1).
 
-Фронтенд (Home.tsx, Synastry.tsx, EventAnalysisPanel.tsx через
-geocodeAPI.detectTimezone, api.ts:263) использует из ответа этого эндпоинта
-только поле `timezone`. Эндпоинт сейчас получает его косвенно, через
-reverse_geocode() -> Nominatim -> get_timezone() внутри. План — вызывать
-get_timezone() напрямую, без похода в Nominatim.
+The frontend (Home.tsx, Synastry.tsx, EventAnalysisPanel.tsx via
+geocodeAPI.detectTimezone, api.ts:263) only uses the `timezone` field from
+this endpoint's response. The endpoint currently gets it indirectly, via
+reverse_geocode() -> Nominatim -> get_timezone() inside. The plan is to call
+get_timezone() directly, without going through Nominatim.
 
-Этот тест фиксирует, что get_timezone() (та же функция, что и сегодня
-формирует поле timezone в ответе) даёт ожидаемые IANA-имена для реальных
-городов — до и после переноса вызова из reverse_geocode() прямо в роут
-результат не должен отличаться, потому что функция та же самая.
+This test locks in that get_timezone() (the same function that today
+produces the timezone field in the response) gives the expected IANA names
+for real cities — before and after moving the call from reverse_geocode()
+straight into the route, the result should not differ, because it's the
+same function.
 """
 import pytest
 
@@ -33,7 +34,7 @@ def test_get_timezone_matches_expected(city, lat, lon, expected_tz):
 
 
 def test_get_timezone_returns_str_not_none_for_ocean_point():
-    # Открытый океан — валидный сценарий (координаты вне суши), функция
-    # должна отдать что-то вменяемое (fallback на nearby/UTC), а не упасть.
+    # Open ocean is a valid scenario (coordinates outside land) — the function
+    # should return something sensible (fallback to nearby/UTC) rather than crash.
     result = get_timezone(0.0, -140.0)
     assert isinstance(result, str) and result

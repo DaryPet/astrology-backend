@@ -1,10 +1,10 @@
 """
-Тесты на маппинг ответа LocationIQ -> формат, ожидаемый фронтендом
-(plans/geocoding-locationiq-migration.md, Часть 2, пункт 8 плана).
+Tests for mapping the LocationIQ response -> the format expected by the frontend
+(plans/geocoding-locationiq-migration.md, Part 2, plan item 8).
 
-Никаких живых вызовов к LocationIQ — только записанные/фиктивные ответы,
-проверяем именно логику get_coordinates()/autocomplete_place() (парсинг,
-float(lat/lon), fallback-цепочку, кэш, определение place_type).
+No live calls to LocationIQ — only recorded/fake responses; we test the
+get_coordinates()/autocomplete_place() logic itself (parsing, float(lat/lon),
+the fallback chain, caching, place_type detection).
 """
 import asyncio
 
@@ -24,7 +24,7 @@ class FakeResponse:
 
 
 class FakeAsyncClient:
-    """Заменяет httpx.AsyncClient: возвращает по очереди ответы из `responses`."""
+    """Replaces httpx.AsyncClient: returns responses from `responses` in order."""
 
     def __init__(self, calls, responses, *args, **kwargs):
         self._calls = calls
@@ -77,7 +77,7 @@ def test_get_coordinates_success_first_attempt(monkeypatch):
 
 def test_get_coordinates_falls_back_to_english_attempt(monkeypatch):
     calls = install_fake_httpx(monkeypatch, [
-        FakeResponse(200, []),  # ru-попытка ничего не нашла
+        FakeResponse(200, []), 
         FakeResponse(200, [{"lat": "51.5074", "lon": "-0.1278", "display_name": "London, UK"}]),
     ])
     lat, lon = asyncio.run(endpoints.get_coordinates("London"))
@@ -108,7 +108,7 @@ def test_get_coordinates_uses_cache_on_second_call(monkeypatch):
     first = asyncio.run(endpoints.get_coordinates("New York"))
     second = asyncio.run(endpoints.get_coordinates("New York"))
     assert first == second
-    assert len(calls) == 1  # второй вызов обслужен из кэша, без сети
+    assert len(calls) == 1 
 
 
 # --- autocomplete_place ---
@@ -130,7 +130,7 @@ def test_autocomplete_place_maps_fields(monkeypatch):
     assert item["display_name"] == "Empire State Building, 350"
     assert item["country"] == "USA"
     assert item["type"] == "city"
-    assert item["timezone"]  # локальный TimezoneFinder, но должен быть непустым
+    assert item["timezone"] 
 
 
 def test_autocomplete_place_short_query_returns_empty_without_network(monkeypatch):
