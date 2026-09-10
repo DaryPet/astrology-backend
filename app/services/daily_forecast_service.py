@@ -1,47 +1,47 @@
 # app/services/daily_forecast_service.py
-# Прогноз дня матча: ГИБРИДНЫЙ метод на основе КАРТЫ СОБЫТИЯ (event chart) по
-# книге John Frawley, «Sports Astrology» (2007), глава 2 «The Chart for the
-# Event» — приоритетная книга RAG id=30.
-# Спеки: app/services/specs/daily_forecast_event_chart_plan.md,
-# plans/daily-forecast-hybrid-method.md (гибридный слой, см. ниже).
+# Match-day forecast: a HYBRID method based on the EVENT CHART, following
+# John Frawley's book "Sports Astrology" (2007), chapter 2 "The Chart for the
+# Event" — priority RAG book id=30.
+# Specs: app/services/specs/daily_forecast_event_chart_plan.md,
+# plans/daily-forecast-hybrid-method.md (hybrid layer, see below).
 #
-# База — метод карты события гл. 2 (НЕ хорарный метод главы 1). Фроули:
-# «IT'S NOT THE SAME AS HORARY. DON'T MIX THE METHODS» и «FORGET ESSENTIAL
-# DIGNITY. FORGET ACCIDENTAL DIGNITY. FORGET RECEPTIONS» — по книге эти
-# понятия в карте события не работают.
+# Base — the ch. 2 event-chart method (NOT the ch. 1 horary method). Frawley:
+# "IT'S NOT THE SAME AS HORARY. DON'T MIX THE METHODS" and "FORGET ESSENTIAL
+# DIGNITY. FORGET ACCIDENTAL DIGNITY. FORGET RECEPTIONS" — per the book these
+# concepts do not work in an event chart.
 #
-# ГИБРИДНЫЙ СЛОЙ (сознательное отступление от прямого запрета книги, см.
-# plans/daily-forecast-hybrid-method.md): по итогам месяца эмпирических
-# тестов на реальных матчах для Lord 1 и Lord 7 (ТОЛЬКО главные значители, не
-# 10/4) дополнительно считаются эссенциальное достоинство, угловатость их
-# СОБСТВЕННОГО дома и ретроградность — классическая хорарная (гл.1-стиль)
-# оценка. Тестимонии этого слоя помечены source='mixed'/[ГИБРИД], не ищутся в
-# книге через RAG (книга прямо против них) и суммируются в тот же base_score
-# наравне с тестимониями гл. 2. См. `_mixed_method_testimonies`,
-# `_build_significator_card`.
+# HYBRID LAYER (a deliberate departure from the book's explicit ban, see
+# plans/daily-forecast-hybrid-method.md): after a month of empirical tests on
+# real matches, for Lord 1 and Lord 7 (ONLY the main significators, not
+# 10/4) we additionally score essential dignity, the angularity of their
+# OWN house and retrogradation — a classical horary (ch. 1-style)
+# assessment. Testimonies of this layer are tagged source='mixed'/[HYBRID], are
+# not searched in the book via RAG (the book is explicitly against them) and are
+# summed into the same base_score on a par with the ch. 2 testimonies. See
+# `_mixed_method_testimonies`, `_build_significator_card`.
 #
-# Карта: время+место НАЧАЛА матча (Placidus). Фаворит = 1-й дом (+10-й, дом его
-# успеха), соперник = 7-й (+4-й = 10-й от 7-го). Свидетельства гл. 2:
-#   A. Положения Lords 1/4/7/10 и их антисций в 2-3° от куспидов 1/4/7/10:
-#      НА куспиде = контролирует дом, СРАЗУ ВНУТРИ = в плену у дома.
-#   B. Луна = «поток событий»: её ФИНАЛЬНЫЙ применяющийся аспект в пределах
-#      хода (спорт-зависимого) к Lord 1/10 -> фаворит, к Lord 7/4 -> соперник.
-#      Аспект к Фортуне/её антисции — финален всегда. Граница знака — предел.
-#   C. Фортуна (ВСЕГДА ASC+Луна-Солнце, без ночного переворота): антисция у
-#      куспидов 1/7 — сильнейшее одиночное свидетельство; аспекты Lords 1/7
-#      к ней; её диспозитор; её соединение с узлами.
-#   D. Узлы: значитель conj Северный узел (<=2°) усилен, conj Южный ослаблен.
-#   E. Комбустия: значитель в 2° от Солнца поражён. Кажими не существует.
-#   F. Внешние планеты: Плутон на релевантном куспиде (против фаворита),
-#      Уран к MC/Фортуне (за фаворита), Сатурн-малефик. Нептун — игнор.
-#   G. ГИБРИД: эссенциальное достоинство + угловатость + ретроградность
-#      Lord 1/7 (см. выше).
+# Chart: time+place of the match START (Placidus). Favourite = 1st house (+10th,
+# the house of its success), opponent = 7th (+4th = 10th from the 7th). Ch. 2 testimonies:
+#   A. Placements of Lords 1/4/7/10 and their antiscia within 2-3° of cusps 1/4/7/10:
+#      ON the cusp = controls the house, JUST INSIDE = imprisoned by the house.
+#   B. Moon = "the flow of events": its FINAL applying aspect within its
+#      (sport-dependent) range to Lord 1/10 -> favourite, to Lord 7/4 -> opponent.
+#      An aspect to Fortune/its antiscion is always final. The sign boundary is the limit.
+#   C. Fortune (ALWAYS ASC+Moon-Sun, no night reversal): its antiscion near
+#      cusps 1/7 is the strongest single testimony; aspects of Lords 1/7
+#      to it; its dispositor; its conjunction with the nodes.
+#   D. Nodes: a significator conj the North Node (<=2°) is strengthened, conj the South Node weakened.
+#   E. Combustion: a significator within 2° of the Sun is harmed. Cazimi does not exist.
+#   F. Outer planets: Pluto on a relevant cusp (against the favourite),
+#      Uranus to MC/Fortune (for the favourite), Saturn as malefic. Neptune is ignored.
+#   G. HYBRID: essential dignity + angularity + retrogradation
+#      of Lord 1/7 (see above).
 #
-# Переиспользует: calculate_transits (astrology_v2) -> transit_houses (куспиды
-# Плацидуса на момент матча) + transit_planets (включая NorthNode/SouthNode,
-# Uranus/Neptune/Pluto, transit_house каждой планеты); RAG
+# Reuses: calculate_transits (astrology_v2) -> transit_houses (Placidus cusps
+# at the match moment) + transit_planets (including NorthNode/SouthNode,
+# Uranus/Neptune/Pluto, each planet's transit_house); RAG
 # search_chunks_priority_book; get_llm_adapter.
-# Натальная карта — только контекстная сноска, не участвует в скоринге.
+# The natal chart is only a context note and does not take part in scoring.
 import asyncio
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
@@ -53,79 +53,79 @@ from app.utils.horary_tables import (
 )
 from app.utils.astrology_v2 import ZODIAC_SIGNS, ZODIAC_SIGNS_RU
 
-# Приоритетная книга ПРОГНОЗА ДНЯ — sport_astrology (id=30).
-# Обычные транзиты (/analysis/transits) используют свою книгу (28) — не трогаем.
+# Priority book for the DAILY FORECAST — sport_astrology (id=30).
+# Regular transits (/analysis/transits) use their own book (28) — leave it alone.
 DAILY_FORECAST_PRIORITY_BOOK_ID = 30
 
 ASPECT_ANGLES = {
     'conjunction': 0, 'sextile': 60, 'square': 90, 'trine': 120, 'opposition': 180,
 }
-HARMONIOUS_ASPECTS = {'conjunction', 'trine', 'sextile'}  # для аспектов к Фортуне
+HARMONIOUS_ASPECTS = {'conjunction', 'trine', 'sextile'}  # for all acpects
 
-# Орбы по книге (гл. 2): «Small measures of movement and certain narrowly
+# Orbs by books (ch. 2): «Small measures of movement and certain narrowly
 # prescribed house-placements are all that concern us».
 CUSP_ORB = 3.0          # «sitting on the cusp, at most a couple of degrees before it;
                         #  tucked just inside, at most a couple of degrees inside» (2-3°)
 FORTUNA_ASPECT_ORB = 5.0  # «keep to a limit of around 5 degrees»
 NODE_ORB = 2.0          # «conjunctions only, within a couple of degrees at most»
 COMBUST_ORB = 2.0       # «any significator within 2 degrees of the Sun is harmed»
-OUTER_ORB = 1.5         # внешние планеты: «a degree or so away at most»
-SATURN_ORB = 2.0        # Сатурн-малефик: тесное касание
-MOON_RANGE_DEFAULT = 5.0  # футбол 80+ минут; +1° если возможно доп. время
+OUTER_ORB = 1.5         # outer planets: «a degree or so away at most»
+SATURN_ORB = 2.0        # Saturn as malefic: close contact
+MOON_RANGE_DEFAULT = 5.0  # football 80+ minutes; +1° if extra time is possible
 
 RELEVANT_HOUSES = (1, 10, 7, 4)
 FAVOURITE_HOUSES = {1, 10}
 UNDERDOG_HOUSES = {7, 4}
 
-# Веса свидетельств (тиры из спеки). Знак: + за фаворита, - за соперника.
-W_MAIN_LORD_PLACEMENT = 2.5   # Lord 1/7 на/в куспиде — «will usually outweigh anything else»
-W_SUCCESS_LORD_PLACEMENT = 1.5  # Lords 10/4 у куспидов
-W_OWN_HOUSE_BONUS = 1.0       # свой дом: усиление, но «слабее доминирования над врагом»
+# Testimony weights (tiers from the spec). Sign: + for the favourite, - for the opponent.
+W_MAIN_LORD_PLACEMENT = 2.5   # Lord 1/7 on/in the cusp — «will usually outweigh anything else»
+W_SUCCESS_LORD_PLACEMENT = 1.5  # Lords 10/4 near cusps
+W_OWN_HOUSE_BONUS = 1.0       # own house: strengthening, but «weaker than dominating the enemy»
 W_FORTUNA_ANTISCION_PLACEMENT = 2.5  # «perhaps the most powerful of all»
 W_MOON_FINAL_ASPECT = 2.0     # «Moon's final aspect wins»
-W_MOON_PLACEMENT = 2.0        # Луна у куспида 1/10/7/4
-W_MOON_EARLY_ASPECT = 0.3     # ранний (не финальный) аспект = «ранний перевес»
-W_FORTUNA_ASPECT = 1.5        # conj/opp Lords 1/7 к Фортуне/антисции
+W_MOON_PLACEMENT = 2.0        # Moon near cusp 1/10/7/4
+W_MOON_EARLY_ASPECT = 0.3     # early (non-final) aspect = «early advantage»
+W_FORTUNA_ASPECT = 1.5        # conj/opp of Lords 1/7 to Fortune/its antiscion
 W_FORTUNA_DISPOSITOR = 1.2
 W_NODE = 1.2
 W_COMBUSTION = 1.0
 W_PLUTO = 1.5
 W_URANUS = 1.0
 W_SATURN_MALEFIC = 0.7
-ANTISCION_FACTOR = 0.7        # антисции «not quite so compelling as bodily placements»
-RETRO_ON_CUSP_FACTOR = 0.6    # ретроградная НА куспиде: позитив, но слабее прямой
+ANTISCION_FACTOR = 0.7        # antiscia «not quite so compelling as bodily placements»
+RETRO_ON_CUSP_FACTOR = 0.6    # retrograde ON the cusp: positive, but weaker than direct
 
-# ГИБРИДНЫЙ СЛОЙ (НЕ из книги — сознательная эмпирика пользователя, см.
-# plans/daily-forecast-hybrid-method.md). Книга гл.2 прямо требует
-# «FORGET ESSENTIAL DIGNITY. FORGET ACCIDENTAL DIGNITY... DON'T MIX THE
-# METHODS», но по итогам месяца реальных тестов классическая (гл.1-стиль)
-# оценка Lord 1/7 по достоинству/угловатости/ретроградности повышает точность
-# прогноза. Применяется ТОЛЬКО к Lord 1 и Lord 7 (не к Lord 10/4). Веса — не
-# из книги, эмпирический выбор классической хорарной шкалы.
+# HYBRID LAYER (NOT from the book — the user's deliberate empirical choice, see
+# plans/daily-forecast-hybrid-method.md). The book's ch. 2 explicitly demands
+# "FORGET ESSENTIAL DIGNITY. FORGET ACCIDENTAL DIGNITY... DON'T MIX THE
+# METHODS", but after a month of real tests a classical (ch. 1-style)
+# assessment of Lord 1/7 by dignity/angularity/retrogradation improves forecast
+# accuracy. Applied ONLY to Lord 1 and Lord 7 (not to Lord 10/4). The weights are
+# not from the book — an empirical choice of the classical horary scale.
 W_MIXED_DIGNITY = {
     'domicile': 1.0, 'exaltation': 1.75, 'detriment': -1.75, 'fall': -2.25,
     'peregrine': 0.0,
 }
-# Простая 3-уровневая шкала силы дома (angular/succedent/cadent), а НЕ полная
-# точечная таблица Лилли: угловой = бонус, succedent = нейтрально («без
-# бонуса»), кадентный = слабый минус. 8-й дом отдельно — «дом смерти»,
-# выделен из succedent и трактуется как сильный минус независимо от того,
-# что формально succedent. Подтверждено пользователем на реальных примерах
-# (11-й succedent = нейтрально, 9-й кадентный = слабый минус, 8-й = сильный
-# минус), см. plans/daily-forecast-hybrid-method.md.
+# A simple 3-level house strength scale (angular/succedent/cadent), NOT Lilly's
+# full point table: angular = bonus, succedent = neutral ("no
+# bonus"), cadent = weak minus. The 8th house is separate — "the house of death",
+# singled out from succedent and treated as a strong minus even though it is
+# formally succedent. Confirmed by the user on real examples
+# (11th succedent = neutral, 9th cadent = weak minus, 8th = strong
+# minus), see plans/daily-forecast-hybrid-method.md.
 ANGULAR_HOUSES = {1, 4, 7, 10}
 CADENT_HOUSES = {3, 6, 9, 12}
 EIGHTH_HOUSE = 8
 HOUSE_STRENGTH = {h: 1.75 for h in ANGULAR_HOUSES}
 HOUSE_STRENGTH.update({h: -1.0 for h in CADENT_HOUSES})
 HOUSE_STRENGTH[EIGHTH_HOUSE] = -2.25
-HOUSE_STRENGTH.update({h: 0.0 for h in (2, 5, 11)})  # succedent (кроме 8-го) — нейтрально
-# «Дом врага» — оговорка к угловому бонусу, без которой он неверен: «being in
+HOUSE_STRENGTH.update({h: 0.0 for h in (2, 5, 11)})  # succedent (except the 8th) — neutral
+# «Enemy's house» — a caveat to the angular bonus, without which it is wrong: «being in
 # an angle is like being in a castle. Unless it is your enemy's castle, in
 # which case you're in prison... Lord 1 in the 1st, 4th or 10th is very
-# strong, but in the 7th it is very weak» (Frawley, Sports Astrology, гл. 1 —
-# тот же источник, откуда взят весь гибридный слой). Плоская HOUSE_STRENGTH
-# давала Lord 1 в 7-м +1.75 вместо минуса и переворачивала вердикт.
+# strong, but in the 7th it is very weak» (Frawley, Sports Astrology, ch. 1 —
+# the same source the whole hybrid layer comes from). A flat HOUSE_STRENGTH
+# gave Lord 1 in the 7th +1.75 instead of a minus and flipped the verdict.
 ENEMY_HOUSE = {1: 7, 7: 1}
 HOUSE_STRENGTH_ENEMY = -1.75
 HOUSE_NICKNAME = {
@@ -175,9 +175,9 @@ def _side_name(side_key: str, language: str) -> str:
     return ROLE_LABEL.get(language, ROLE_LABEL['en'])[side_key]
 
 
-# Падежная форма (винительный/родительный — «за/против X»), нужна ТОЛЬКО в
-# русском («Сильно за Фаворита», «Против Аутсайдера»); в английском падежей
-# нет, «for/against the Favourite» используют ту же форму, что и именительная.
+# Case form (accusative/genitive — "for/against X"), needed ONLY in
+# Russian ("Strongly for the Favourite", "Against the Underdog" take a declined form);
+# English has no cases, "for/against the Favourite" uses the same form as the nominative.
 _SIDE_OBJECT_FORM_RU = {'favourite': 'Фаворита', 'underdog': 'Аутсайдера'}
 
 
@@ -188,12 +188,12 @@ def _side_object(side_key: str, language: str) -> str:
 
 
 def _sign_label(sign: str, language: str) -> str:
-    """Внутренние значения знаков уже английские — для EN перевод не нужен."""
+    """Internal sign values are already English — no translation needed for EN."""
     return SIGN_RU.get(sign, sign) if language == 'ru' else sign
 
 
 def _planet_label(planet: str, language: str) -> str:
-    """Внутренние значения планет уже английские — для EN перевод не нужен."""
+    """Internal planet values are already English — no translation needed for EN."""
     return PLANET_RU.get(planet, planet) if language == 'ru' else planet
 
 
@@ -205,10 +205,10 @@ def _house_nickname(house_num: Optional[int], language: str) -> Optional[str]:
     return HOUSE_NICKNAME.get(language, HOUSE_NICKNAME['en']).get(house_num)
 
 
-# ---------- утилиты ----------
+# ---------- utilities ----------
 
 def _lon(value: Any) -> Optional[float]:
-    """Долгота из значения: float или dict с full_degree/longitude/degree/cusp_longitude."""
+    """Longitude from a value: a float or a dict with full_degree/longitude/degree/cusp_longitude."""
     if isinstance(value, (int, float)):
         return float(value) % 360
     if isinstance(value, dict):
@@ -224,9 +224,9 @@ def _angle_diff(a: float, b: float) -> float:
 
 
 def _signed_offset(point: float, cusp: float) -> float:
-    """Смещение точки относительно куспида вдоль зодиака в (-180, 180].
-    Отрицательное = точка ПЕРЕД куспидом (применяется к нему),
-    положительное = точка ЗА куспидом (внутри дома)."""
+    """Offset of a point relative to a cusp along the zodiac, in (-180, 180].
+    Negative = the point is BEFORE the cusp (applying to it),
+    positive = the point is PAST the cusp (inside the house)."""
     d = (point - cusp) % 360
     return d - 360 if d > 180 else d
 
@@ -236,16 +236,16 @@ def _sign_of(longitude: float) -> int:
 
 
 def _closeness(orb: float, max_orb: float) -> float:
-    """«The closer the stronger»: 1.0 вплотную -> 0.5 на границе орба."""
+    """«The closer the stronger»: 1.0 right up close -> 0.5 at the orb edge."""
     if max_orb <= 0:
         return 1.0
     return max(0.5, 1.0 - (orb / max_orb) * 0.5)
 
 
-# ---------- движок карты события ----------
+# ---------- event chart engine ----------
 
 class EventChart:
-    """Разбор карты момента матча: значители, куспиды, Фортуна."""
+    """Parsing the chart of the match moment: significators, cusps, Fortune."""
 
     def __init__(self, transit_houses: Dict[Any, Any], transit_planets: Dict[str, Any],
                  moon_range: float = MOON_RANGE_DEFAULT, language: str = 'ru'):
@@ -253,7 +253,7 @@ class EventChart:
         self.planets = transit_planets
         self.moon_range = moon_range
         self.language = language
-        self.notes: List[str] = []  # человекочитаемые пометки для листа суждения
+        self.notes: List[str] = []  # human-readable notes for the judgement sheet
 
         self.cusps: Dict[int, Optional[float]] = {
             n: _lon((self._house(n) or {}).get('cusp_longitude')) for n in range(1, 13)
@@ -261,12 +261,12 @@ class EventChart:
         self.asc = self.cusps.get(1)
         self.mc = self.cusps.get(10)
 
-        # --- значители: Lords 1/10 = фаворит, Lords 7/4 = соперник ---
+        # --- significators: Lords 1/10 = favourite, Lords 7/4 = opponent ---
         raw = {n: classical_ruler((self._house(n) or {}).get('sign')) for n in RELEVANT_HOUSES}
         self.lords: Dict[int, Optional[str]] = dict(raw)
 
-        # Луна = «поток событий». Если она правит 1-й/7-й — дом представляет её
-        # ДИСПОЗИТОР; если 10-й/4-й — обходимся без этого лорда (книга, гл. 2).
+        # Moon = «the flow of events». If it rules the 1st/7th, the house is represented by its
+        # DISPOSITOR; if the 10th/4th, we do without that lord (the book, ch. 2).
         self.moon_substituted_for: Optional[int] = None
         for h in (1, 7):
             if self.lords.get(h) == 'Moon':
@@ -290,9 +290,9 @@ class EventChart:
                 else:
                     self.notes.append(f"Moon rules the success house {h}: proceeding without Lord {h}")
 
-        # Конфликт ролей: одна планета правит домами обеих сторон или дом успеха
-        # дублирует главный дом -> приоритет Lords 1/7, без Lords 10/4
-        # (пример книги: Ювентус-Дортмунд, Lord10=Lord7 и Lord4=Lord1).
+        # Role conflict: one planet rules houses of both sides, or the success house
+        # duplicates the main house -> priority to Lords 1/7, without Lords 10/4
+        # (book example: Juventus-Dortmund, Lord10=Lord7 and Lord4=Lord1).
         main = {self.lords.get(1), self.lords.get(7)} - {None}
         for h in (10, 4):
             if self.lords.get(h) in main:
@@ -306,13 +306,13 @@ class EventChart:
                         f"Lords 1/7 take priority, proceeding without Lord {h}")
                 self.lords[h] = None
         if self.lords.get(1) and self.lords.get(1) == self.lords.get(7):
-            # Один управитель обоих главных домов (Рак/Козерог ASC после подмены и т.п.)
+            # One ruler of both main houses (Cancer/Capricorn ASC after substitution, etc.)
             if self.language == 'ru':
                 self.notes.append("Lord 1 и Lord 7 — одна планета: суждение ненадёжно")
             else:
                 self.notes.append("Lord 1 and Lord 7 are the same planet: judgement unreliable")
 
-        # --- Фортуна: ВСЕГДА дневная формула, «Do I reverse in night charts? NEVER!» ---
+        # --- Fortune: ALWAYS the day formula, «Do I reverse in night charts? NEVER!» ---
         moon, sun = self.planets.get('Moon'), self.planets.get('Sun')
         self.fortuna: Optional[float] = None
         self.fortuna_antiscion: Optional[float] = None
@@ -331,7 +331,7 @@ class EventChart:
         return ZODIAC_SIGNS[_sign_of(longitude)]
 
     def lord_side(self, house: int) -> int:
-        """+1 = значитель фаворита, -1 = соперника."""
+        """+1 = the favourite's significator, -1 = the opponent's."""
         return 1 if house in FAVOURITE_HOUSES else -1
 
     def planet_lon(self, name: Optional[str]) -> Optional[float]:
@@ -340,10 +340,10 @@ class EventChart:
 
 
 def _cusp_relation(point_lon: float, cusp_lon: float, cusp_sign: int) -> Optional[Tuple[str, float]]:
-    """Отношение точки к куспиду по книге:
-    ('on', orb) — до CUSP_ORB° ПЕРЕД куспидом, в знаке куспида: контролирует дом;
-    ('inside', orb) — до CUSP_ORB° ЗА куспидом, в знаке куспида: в плену у дома.
-    Другой знак = изоляция границей знака («sign boundaries act like insulators»)."""
+    """Relation of a point to a cusp per the book:
+    ('on', orb) — up to CUSP_ORB° BEFORE the cusp, in the cusp's sign: controls the house;
+    ('inside', orb) — up to CUSP_ORB° PAST the cusp, in the cusp's sign: imprisoned by the house.
+    A different sign = isolation by the sign boundary («sign boundaries act like insulators»)."""
     off = _signed_offset(point_lon, cusp_lon)
     if -CUSP_ORB <= off < 0 and _sign_of(point_lon) == cusp_sign:
         return 'on', abs(off)
@@ -353,9 +353,9 @@ def _cusp_relation(point_lon: float, cusp_lon: float, cusp_sign: int) -> Optiona
 
 
 def _lord_profile(chart: 'EventChart', lord_house: int) -> Optional[Dict[str, Any]]:
-    """Профиль значителя (Lord 1 или Lord 7) для гибридного слоя: собственный
-    дом, знак, эссенциальное достоинство, сила дома (angular/succedent/
-    cadent+8-й, см. HOUSE_STRENGTH), ретроградность."""
+    """Significator profile (Lord 1 or Lord 7) for the hybrid layer: own
+    house, sign, essential dignity, house strength (angular/succedent/
+    cadent+8th, see HOUSE_STRENGTH), retrogradation."""
     lord = chart.lords.get(lord_house)
     if not lord:
         return None
@@ -383,8 +383,8 @@ def _lord_profile(chart: 'EventChart', lord_house: int) -> Optional[Dict[str, An
 
 
 def _house_label(house_num: Optional[int], language: str) -> str:
-    """Короткая метка дома для сырого лога тестимоний (не для карточки —
-    там используется _house_phrase)."""
+    """Short house label for the raw testimony log (not for the card —
+    the card uses _house_phrase)."""
     if not house_num:
         return ""
     nickname = _house_nickname(house_num, language)
@@ -394,9 +394,9 @@ def _house_label(house_num: Optional[int], language: str) -> str:
 
 
 def _house_weight(house_num: Optional[int], lord_house: Optional[int]) -> float:
-    """Вес дома для значителя, с оговоркой про дом врага (ENEMY_HOUSE).
-    lord_house=1|7 — чей это значитель; None — считать без оговорки (блок
-    «Планеты» для не-значителей, где понятия «свой/чужой» нет)."""
+    """House weight for a significator, with the enemy-house caveat (ENEMY_HOUSE).
+    lord_house=1|7 — whose significator this is; None — compute without the caveat (the
+    «Planets» block for non-significators, where «own/enemy» does not apply)."""
     if not house_num:
         return 0.0
     if lord_house is not None and house_num == ENEMY_HOUSE.get(lord_house):
@@ -406,11 +406,11 @@ def _house_weight(house_num: Optional[int], lord_house: Optional[int]) -> float:
 
 def _house_phrase(house_num: Optional[int], lord_house: int, planet_label: str,
                    own_side: str, language: str) -> Tuple[str, str]:
-    """(описание, эффект) для показания «сила дома» значителя. Формулировки
-    по образцу пользователя: succedent (кроме 8-го) — нейтрально «без
-    бонуса»; кадентный — слабый минус; 8-й — «смерть», минус без усиления
-    словом «сильно»; угловой — «сильно за», с пометкой «свой же!», если дом
-    совпадает с номером значителя (Lord1 в 1-м / Lord7 в 7-м)."""
+    """(description, effect) for a significator's «house strength» showing. Wording
+    follows the user's examples: succedent (except the 8th) — neutral, «no
+    bonus»; cadent — weak minus; 8th — «death», a minus without the
+    «strongly» intensifier; angular — «strongly for», marked «its own!» if the house
+    matches the significator's number (Lord1 in the 1st / Lord7 in the 7th)."""
     if language == 'ru':
         if not house_num:
             return (f"{planet_label}: дом неизвестен", "Нейтрально")
@@ -443,7 +443,7 @@ def _house_phrase(house_num: Optional[int], lord_house: int, planet_label: str,
 
 
 def _dignity_phrase(dignity: str, planet_label: str, own_side: str, language: str) -> Tuple[str, str]:
-    """(описание, эффект) для показания «достоинство» значителя."""
+    """(description, effect) for a significator's «dignity» showing."""
     if language == 'ru':
         if dignity == 'fall':
             return (f"{planet_label} в Падении", f"Против {own_side}")
@@ -466,15 +466,15 @@ def _dignity_phrase(dignity: str, planet_label: str, own_side: str, language: st
 
 
 def _mixed_method_testimonies(chart: 'EventChart', add) -> Dict[int, Dict[str, Any]]:
-    """Гибридный слой (НЕ из книги гл.2 — сознательная эмпирика пользователя,
-    см. plans/daily-forecast-hybrid-method.md). Классическая хорарная
-    (гл.1-стиль) оценка Lord 1/7: эссенциальное достоинство, сила их
-    СОБСТВЕННОГО дома (angular/succedent/cadent+8-й — HOUSE_STRENGTH),
-    ретроградность. Книга прямо запрещает это для карты события («FORGET
-    ESSENTIAL DIGNITY... DON'T MIX THE METHODS»), но по месяцу эмпирических
-    тестов гибрид даёт точнее прогнозы. Тестимонии помечены source='mixed' и
-    намеренно НЕ ищутся в книге (RAG) — см. daily_forecast_analysis, где
-    book-only фильтр отсекает их перед поиском."""
+    """Hybrid layer (NOT from the book's ch. 2 — the user's deliberate empirical choice,
+    see plans/daily-forecast-hybrid-method.md). A classical horary
+    (ch. 1-style) assessment of Lord 1/7: essential dignity, strength of their
+    OWN house (angular/succedent/cadent+8th — HOUSE_STRENGTH),
+    retrogradation. The book explicitly forbids this for an event chart («FORGET
+    ESSENTIAL DIGNITY... DON'T MIX THE METHODS»), but over a month of empirical
+    tests the hybrid gives more accurate forecasts. Testimonies are tagged source='mixed' and
+    are deliberately NOT searched in the book (RAG) — see daily_forecast_analysis, where
+    the book-only filter drops them before the search."""
     profiles: Dict[int, Dict[str, Any]] = {}
     language = chart.language
     for lord_house in (1, 7):
@@ -488,9 +488,9 @@ def _mixed_method_testimonies(chart: 'EventChart', add) -> Dict[int, Dict[str, A
         label = f"{profile['planet']} [L{lord_house}]"
         showings: List[Dict[str, Any]] = []
 
-        # Порядок показаний в карточке: дом ПЕРЕД достоинством (так во всех
-        # эталонных примерах пользователя — «succedent, без бонуса» идёт
-        # первой строкой, «в Падении/в обители» второй).
+        # Order of showings in the card: house BEFORE dignity (as in all
+        # of the user's reference examples — «succedent, no bonus» comes
+        # as the first line, «in Fall/in Domicile» as the second).
         house_num = profile['house']
         w = _house_weight(house_num, lord_house)
         if w:
@@ -500,7 +500,7 @@ def _mixed_method_testimonies(chart: 'EventChart', add) -> Dict[int, Dict[str, A
         showings.append({
             'kind': 'house_strength', 'label_ru': desc,
             'warn': HOUSE_WARN.get(house_num, ''), 'star': HOUSE_STAR.get(house_num, ''),
-            'effect': effect,  # всегда показываем, даже «Нейтрально» при succedent (w=0)
+            'effect': effect,  # always shown, even «Neutral» for succedent (w=0)
             'weight': round(w, 2),
         })
 
@@ -516,10 +516,10 @@ def _mixed_method_testimonies(chart: 'EventChart', add) -> Dict[int, Dict[str, A
             'weight': round(w, 2),
         })
 
-        # Комбустия: УЖЕ добавлена в testimonies отдельно, книжным способом
-        # (секция E judge_event_chart, source='book') — здесь НЕ вызываем
-        # add() повторно (иначе задвоим вес в base_score), только строим
-        # показание для карточки с тем же весом, что и там.
+        # Combustion: ALREADY added to testimonies separately, the book way
+        # (section E of judge_event_chart, source='book') — we do NOT call
+        # add() again here (otherwise the weight would be doubled in base_score), we only build
+        # the showing for the card with the same weight as there.
         combust_w = 0.0
         if profile.get('combust'):
             combust_w = -W_COMBUSTION * _closeness(profile['combust_orb'], COMBUST_ORB)
@@ -541,7 +541,7 @@ def _mixed_method_testimonies(chart: 'EventChart', add) -> Dict[int, Dict[str, A
         if profile['retrograde']:
             add(label, 'retrograde', 'Rx', side * retro_w, is_point=False, source='mixed')
         if language == 'ru':
-            own_side_dative = 'Фавориту' if side > 0 else 'Аутсайдеру'  # «минус» требует дательного
+            own_side_dative = 'Фавориту' if side > 0 else 'Аутсайдеру'  # a «minus» requires the dative case (Russian)
             retro_label = f"{planet_label}: ретрограден"
             retro_effect = f"Ещё минус {own_side_dative}" if profile['retrograde'] else None
         else:
@@ -562,7 +562,7 @@ def _mixed_method_testimonies(chart: 'EventChart', add) -> Dict[int, Dict[str, A
 
 
 def _describe_testimony(t: Dict[str, Any], language: str) -> str:
-    """Читаемое описание книжной (гл.2) тестимонии для показаний в карточке."""
+    """Readable description of a book (ch. 2) testimony for the card showings."""
     aspect, natal = t['aspect'], t['natal']
     if language != 'ru':
         if aspect == 'on_cusp':
@@ -631,10 +631,10 @@ def _describe_testimony(t: Dict[str, Any], language: str) -> str:
 
 
 def _mixed_effect_label(weight: float, own_side: str, language: str) -> str:
-    """Обобщённая (не bespoke) формулировка эффекта — для книжных (гл.2)
-    показаний значителя (on_cusp/moon_final_aspect/узлы/внешние планеты и
-    т.п.), для которых нет отдельного шаблона фразы, в отличие от
-    dignity/house_strength (см. _dignity_phrase/_house_phrase)."""
+    """Generic (not bespoke) effect wording — for book (ch. 2)
+    significator showings (on_cusp/moon_final_aspect/nodes/outer planets and
+    the like), which have no dedicated phrase template, unlike
+    dignity/house_strength (see _dignity_phrase/_house_phrase)."""
     if language == 'ru':
         if weight >= 1.5:
             return f"Сильно за {own_side}"
@@ -658,19 +658,19 @@ def _mixed_effect_label(weight: float, own_side: str, language: str) -> str:
 
 def _merged_showings(profile: Dict[str, Any], testimonies: List[Dict[str, Any]],
                       side: int, own_side: str, language: str) -> List[Dict[str, Any]]:
-    """Показания для карточки: собственные (dignity/house_strength/retrograde,
-    уже в profile['showings']) + релевантные книжные (гл.2) тестимонии этого
-    же значителя (куспиды, комбустия, узлы, внешние планеты и т.п.)."""
+    """Showings for the card: own ones (dignity/house_strength/retrograde,
+    already in profile['showings']) + relevant book (ch. 2) testimonies of the
+    same significator (cusps, combustion, nodes, outer planets, etc.)."""
     showings = list(profile.get('showings') or [])
     prefix = f"{profile['planet']} [L{profile['lord_house']}"
     for t in testimonies:
-        # 'mixed' (dignity/house_strength/retrograde) уже в profile['showings'].
-        # 'combustion' (книжная, source='book') — тоже уже там: гибридный слой
-        # строит собственное показание сгорания с тем же весом (см.
-        # _mixed_method_testimonies), чтобы не дублировать при merge.
+        # 'mixed' (dignity/house_strength/retrograde) is already in profile['showings'].
+        # 'combustion' (book, source='book') is already there too: the hybrid layer
+        # builds its own combustion showing with the same weight (see
+        # _mixed_method_testimonies), so it is not duplicated on merge.
         if t.get('source') == 'mixed' or t['aspect'] == 'combustion' or not t['transit'].startswith(prefix):
             continue
-        own_weight = t['weight'] * side  # разворачиваем к «за/против своей стороны»
+        own_weight = t['weight'] * side  # flip to «for/against its own side»
         showings.append({
             'kind': t['aspect'], 'label_ru': _describe_testimony(t, language),
             'warn': '⚠️' if own_weight < 0 else '', 'star': '⭐' if own_weight > 0 else '',
@@ -682,11 +682,11 @@ def _merged_showings(profile: Dict[str, Any], testimonies: List[Dict[str, Any]],
 
 
 def _all_planets_report(chart: 'EventChart') -> List[Dict[str, Any]]:
-    """Позиции всех 7 традиционных планет — блок «Планеты» карточки.
-    Информационно (не влияет на score вне Lord 1/7)."""
+    """Positions of all 7 traditional planets — the card's «Planets» block.
+    Informational (does not affect the score outside Lord 1/7)."""
     sun_lon = chart.planet_lon('Sun')
-    # Оговорка про дом врага применима только к Lord 1/7 — для остальных планет
-    # «свой/чужой дом» не определено, они считаются по плоской HOUSE_STRENGTH.
+    # The enemy-house caveat applies only to Lord 1/7 — for other planets
+    # «own/enemy house» is undefined, they are scored by the flat HOUSE_STRENGTH.
     lord_house_of = {p: h for h, p in chart.lords.items() if h in (1, 7) and p}
     report: List[Dict[str, Any]] = []
     for planet in ('Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'):
@@ -721,8 +721,8 @@ def _all_planets_report(chart: 'EventChart') -> List[Dict[str, Any]]:
 
 def _build_significator_card(chart: 'EventChart', mixed_profiles: Dict[int, Dict[str, Any]],
                               testimonies: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """Детерминированная карточка (без LLM): Сигнификаторы + Планеты +
-    Показания, формат по образцу пользователя."""
+    """Deterministic card (no LLM): Significators + Planets +
+    Showings, format following the user's example."""
     if chart.asc is None or chart.cusps.get(7) is None:
         return None
 
@@ -751,12 +751,12 @@ def _build_significator_card(chart: 'EventChart', mixed_profiles: Dict[int, Dict
             'degree': profile['degree_in_sign'],
             'house': house_num, 'house_nickname': profile.get('house_nickname'),
             'house_strength': profile['house_strength'],
-            # house_mark: единичный ⭐/⚠️ у «Дом N» в блоке «Планеты» (угловой/кадентный+8-й).
+            # house_mark: a single ⭐/⚠️ next to «House N» in the «Planets» block (angular/cadent+8th).
             'house_mark': ('⚠️' if house_num == ENEMY_HOUSE.get(lord_house)
                            else HOUSE_STAR.get(house_num, '') or HOUSE_WARN.get(house_num, '')),
             'dignity': dignity,
             'dignity_ru': _dignity_label(dignity, chart.language),
-            # dignity_mark: ⭐⭐/⭐/⚠️/⚠️⚠️ у названия достоинства (пусто при peregrine).
+            # dignity_mark: ⭐⭐/⭐/⚠️/⚠️⚠️ next to the dignity name (empty for peregrine).
             'dignity_mark': DIGNITY_STAR.get(dignity, '') or DIGNITY_WARN.get(dignity, ''),
             'retrograde': profile['retrograde'],
             'combust': profile.get('combust', False),
@@ -772,19 +772,19 @@ def _build_significator_card(chart: 'EventChart', mixed_profiles: Dict[int, Dict
         'favourite': favourite,
         'underdog': underdog,
         'planets': _all_planets_report(chart),
-        # Показания гл.2, НЕ привязанные к конкретному Lord1/Lord7 (финальный
-        # аспект Луны как «поток событий», антисция Фортуны у куспида, её
-        # диспозитор/узлы, внешние планеты на Фортуне/куспидах) — уже
-        # посчитаны в testimonies/base_score, здесь только делаем их видимыми.
+        # Ch. 2 showings NOT tied to a specific Lord1/Lord7 (the Moon's final
+        # aspect as «the flow of events», Fortune's antiscion near a cusp, its
+        # dispositor/nodes, outer planets on Fortune/cusps) — already
+        # counted in testimonies/base_score, here we only make them visible.
         'chart_wide': _chart_wide_showings(favourite, underdog, testimonies, chart.language),
     }
 
-    # Победитель — ТОЛЬКО из _card_verdict, единого счётчика для всей карточки.
-    # Раньше здесь был собственный подсчёт (сумма side['showings'] с порогом
-    # 0.3), который игнорировал chart_wide (Луна/Фортуна/Плутон/узлы) и не знал
-    # порога уверенности CARD_DECISIVE_THRESHOLD. Из-за этого одна карточка
-    # могла одновременно писать «🏆 Фаворит побеждает» (по mixed_winner) и
-    # «Вероятна ничья» (по _card_verdict) — см. карту Любляны.
+    # The winner comes ONLY from _card_verdict, the single counter for the whole card.
+    # Previously there was a separate count here (sum of side['showings'] with a threshold
+    # of 0.3), which ignored chart_wide (Moon/Fortune/Pluto/nodes) and did not know
+    # the confidence threshold CARD_DECISIVE_THRESHOLD. Because of that one card
+    # could say both «🏆 Favourite wins» (per mixed_winner) and
+    # «Draw likely» (per _card_verdict) — see the Ljubljana chart.
     decisive, winner, diff = _card_verdict(card)
     card['mixed_winner'] = winner or 'draw'
     card['decisive'] = decisive
@@ -818,10 +818,10 @@ def _global_effect_label(weight: float, language: str) -> str:
 
 def _chart_wide_showings(favourite: Optional[Dict[str, Any]], underdog: Optional[Dict[str, Any]],
                           testimonies: List[Dict[str, Any]], language: str) -> List[Dict[str, Any]]:
-    """Книжные (гл.2) показания карты, НЕ привязанные к Lord1/Lord7 напрямую
-    (их 'transit' не начинается с метки ни одного из значителей) — Луна,
-    Фортуна, узлы на Фортуне, внешние планеты и т.п. Знак веса глобальный:
-    + за Фаворита, − за Аутсайдера (та же конвенция, что и во всём листе)."""
+    """Book (ch. 2) chart showings NOT tied to Lord1/Lord7 directly
+    (their 'transit' does not start with either significator's label) — Moon,
+    Fortune, nodes on Fortune, outer planets, etc. The weight sign is global:
+    + for the Favourite, − for the Underdog (the same convention as in the whole sheet)."""
     prefixes = []
     if favourite:
         prefixes.append(f"{favourite['planet']} [L{favourite['lord_house']}")
@@ -849,9 +849,9 @@ def judge_event_chart(
     extra_time_possible: bool = False,
     language: str = 'ru',
 ) -> Dict[str, Any]:
-    """Суждение карты события по чек-листу гл. 2. Возвращает base_score (1-10),
-    testimonies (формат key_aspects фронтенда: transit/aspect/natal/orb/weight/is_point,
-    weight>0 = за фаворита, <0 = за соперника) и лист суждения."""
+    """Event chart judgement per the ch. 2 checklist. Returns base_score (1-10),
+    testimonies (frontend key_aspects format: transit/aspect/natal/orb/weight/is_point,
+    weight>0 = for the favourite, <0 = for the opponent) and the judgement sheet."""
     chart = EventChart(transit_houses, transit_planets,
                        moon_range=moon_range_degrees + (1.0 if extra_time_possible else 0.0),
                        language=language)
@@ -865,10 +865,10 @@ def judge_event_chart(
         testimonies.append({
             'transit': transit, 'aspect': aspect, 'natal': natal,
             'orb': round(orb, 2), 'weight': round(weight, 2), 'is_point': is_point,
-            'source': source,  # 'book' = гл.2 Frawley; 'mixed' = гибридный слой (см. плейс ниже)
+            'source': source,  # 'book' = Frawley ch. 2; 'mixed' = hybrid layer (see the section below)
         })
 
-    # ===== A. Положения значителей (и их антисций) у куспидов 1/10/7/4 =====
+    # ===== A. Placements of significators (and their antiscia) near cusps 1/10/7/4 =====
     # «A PLANET ON A CUSP CONTROLS THAT HOUSE;
     #  A PLANET INSIDE A CUSP IS CONTROLLED BY THAT HOUSE»
     for lord_house in RELEVANT_HOUSES:
@@ -896,8 +896,8 @@ def judge_event_chart(
                 factor = _closeness(orb, CUSP_ORB) * (ANTISCION_FACTOR if antisc else 1.0)
                 label = f"L{lord_house}{'(ant)' if antisc else ''}"
                 if kind == 'on':
-                    # Контроль дома -> всегда ЗА сторону лорда; над домом врага —
-                    # «нога на горле врага», в своём — просто усиление (слабее).
+                    # House control -> always FOR the lord's side; over the enemy's house —
+                    # «a foot on the enemy's throat», in its own — just strengthening (weaker).
                     w = base_w if not own_house else min(base_w, W_OWN_HOUSE_BONUS + 0.5)
                     if is_retro and not antisc:
                         w *= RETRO_ON_CUSP_FACTOR  # «still positive, but less strong»
@@ -905,26 +905,26 @@ def judge_event_chart(
                         side * w * factor, orb)
                 else:  # inside
                     if own_house:
-                        # В своём доме сразу за куспидом = усилен (слабое свидетельство).
+                        # In its own house just past the cusp = strengthened (weak testimony).
                         add(f"{lord} [{label}]", 'inside_own_house', f"house {target_house}",
                             side * W_OWN_HOUSE_BONUS * factor, orb)
                     else:
-                        # В плену дома врага: «like a man in prison» — ретроградность
-                        # не спасает («bang as much as he wants, he is still in prison»).
+                        # Imprisoned in the enemy's house: «like a man in prison» — retrogradation
+                        # does not save it («bang as much as he wants, he is still in prison»).
                         add(f"{lord} [{label}]", 'inside_enemy_house', f"house {target_house}",
                             -side * base_w * factor, orb)
 
-    # ===== B. Луна — «поток событий» =====
+    # ===== B. Moon — «the flow of events» =====
     moon = transit_planets.get('Moon')
     moon_report: Dict[str, Any] = {'range': chart.moon_range}
     if moon:
         moon_lon = moon['full_degree']
-        # Ход Луны ограничен и границей знака: «THE END OF THE SIGN IS THE LIMIT».
+        # The Moon's range is also limited by the sign boundary: «THE END OF THE SIGN IS THE LIMIT».
         deg_left_in_sign = 30.0 - (moon_lon % 30.0)
         effective_range = min(chart.moon_range, deg_left_in_sign)
         moon_report['effective_range'] = round(effective_range, 2)
 
-        # Луна у куспидов 1/10/7/4 (применяется к куспиду или сразу внутри) + антисция.
+        # Moon near cusps 1/10/7/4 (applying to the cusp or just inside) + antiscion.
         for body_lon, antisc in ((moon_lon, False), (antiscion(moon_lon), True)):
             for target_house in RELEVANT_HOUSES:
                 cusp = chart.cusps.get(target_house)
@@ -934,12 +934,12 @@ def judge_event_chart(
                 if not rel:
                     continue
                 kind, orb = rel
-                side = chart.lord_side(target_house)  # Луна в доме = поток К этой стороне
+                side = chart.lord_side(target_house)  # Moon in a house = flow TOWARDS that side
                 factor = _closeness(orb, CUSP_ORB) * (ANTISCION_FACTOR if antisc else 1.0)
                 add(f"Moon{'(ant)' if antisc else ''}", f"moon_{kind}_cusp",
                     f"house {target_house}", side * W_MOON_PLACEMENT * factor, orb)
 
-        # Секвенсор аспектов Луны: применяющиеся, в пределах effective_range.
+        # Moon aspect sequencer: applying aspects within effective_range.
         events = _moon_aspect_events(chart, moon, effective_range)
         moon_report['events'] = [
             {'travel': round(e['travel'], 2), 'aspect': e['aspect'], 'target': e['target'],
@@ -947,7 +947,7 @@ def judge_event_chart(
         ]
         final_event = None
         early_events: List[Dict[str, Any]] = []
-        for e in events:  # отсортированы по пути Луны
+        for e in events:  # sorted along the Moon's path
             if e['kind'] == 'fortuna':
                 final_event = e  # «ASPECTS TO FORTUNA OR ITS ANTISCION ARE FINAL»
                 break
@@ -956,10 +956,10 @@ def judge_event_chart(
                 break
             early_events.append(e)
         if final_event is None and early_events:
-            final_event = early_events.pop()  # последний аспект в диапазоне
+            final_event = early_events.pop()  # the last aspect within range
 
         for e in early_events:
-            # Ранний аспект = ранний перевес («early advantage, often on the scoreboard»)
+            # Early aspect = early advantage («early advantage, often on the scoreboard»)
             side = e['side']
             add('Moon', 'moon_early_aspect', e['target'], side * W_MOON_EARLY_ASPECT,
                 e['travel'], is_point=False)
@@ -971,9 +971,9 @@ def judge_event_chart(
                 side * w, final_event['travel'], is_point=False)
             moon_report['final'] = f"{final_event['aspect']} {final_event['target']}"
 
-    # ===== C. Фортуна =====
+    # ===== C. Fortune =====
     if chart.fortuna is not None:
-        # C1. Положение АНТИСЦИИ Фортуны у куспидов («ANTISCION, NOT BODILY PLACEMENT»).
+        # C1. Placement of Fortune's ANTISCION near cusps («ANTISCION, NOT BODILY PLACEMENT»).
         for target_house in RELEVANT_HOUSES:
             cusp = chart.cusps.get(target_house)
             if cusp is None:
@@ -985,18 +985,18 @@ def judge_event_chart(
                 add('Fortuna(ant)', 'fortuna_antiscion_cusp', f"house {target_house}",
                     side * w * _closeness(orb, CUSP_ORB), orb)
 
-        # C2. Аспекты Lords 1/7 к Фортуне и её антисции (перфектирующие, ~5°).
+        # C2. Aspects of Lords 1/7 to Fortune and its antiscion (perfecting, ~5°).
         for lord_house in (1, 7):
             lord = chart.lords.get(lord_house)
             if not lord or lord == 'Moon':
                 continue
             _fortuna_aspect_testimonies(chart, lord, lord_house, add)
 
-        # C3. Диспозитор Фортуны.
+        # C3. Fortune's dispositor.
         disp = chart.fortuna_dispositor
         main_roles = {chart.lords.get(1), chart.lords.get(7), 'Moon'}
         if disp and disp not in main_roles:
-            # если диспозитор = Lord 10/4 — приоритет роли диспозитора (книга)
+            # if the dispositor = Lord 10/4 — the dispositor role takes priority (the book)
             disp_lon = chart.planet_lon(disp)
             disp_data = chart.planets.get(disp) or {}
             if disp_lon is not None:
@@ -1008,7 +1008,7 @@ def judge_event_chart(
                         add(disp, 'fortuna_dispositor',
                             'conj Fortuna' if angle == 0 else 'opp Fortuna',
                             verdict * W_FORTUNA_DISPOSITOR * _closeness(orb, FORTUNA_ASPECT_ORB), orb)
-                # Диспозитор в плену дома 1/7 (пример Ювентус: Солнце-диспозитор в 7-м)
+                # Dispositor imprisoned in house 1/7 (Juventus example: Sun as dispositor in the 7th)
                 for target_house in (1, 7):
                     cusp = chart.cusps.get(target_house)
                     if cusp is None:
@@ -1019,7 +1019,7 @@ def judge_event_chart(
                         add(disp, 'fortuna_dispositor_inside', f"house {target_house}",
                             side * 1.0 * _closeness(rel[1], CUSP_ORB), rel[1])
 
-        # C4. Фортуна на узлах: «Fortuna belongs to the favourite».
+        # C4. Fortune on the nodes: «Fortuna belongs to the favourite».
         for node, verdict in (('NorthNode', 1), ('SouthNode', -1)):
             node_lon = chart.planet_lon(node)
             if node_lon is not None:
@@ -1028,17 +1028,17 @@ def judge_event_chart(
                     add('Fortuna', 'node_conjunction', node,
                         verdict * W_NODE * _closeness(orb, NODE_ORB), orb)
 
-        # C5. Фортуна комбуст: «good news for the underdogs».
+        # C5. Fortune combust: «good news for the underdogs».
         sun = transit_planets.get('Sun')
         if sun and _angle_diff(chart.fortuna, sun['full_degree']) <= COMBUST_ORB:
             add('Fortuna', 'combustion', 'Sun', -W_COMBUSTION,
                 _angle_diff(chart.fortuna, sun['full_degree']))
 
-    # ===== D. Узлы: значитель conj узел (<=2°) =====
+    # ===== D. Nodes: significator conj a node (<=2°) =====
     for lord_house in RELEVANT_HOUSES:
         lord = chart.lords.get(lord_house)
         lord_lon = chart.planet_lon(lord)
-        if lord_lon is None or lord == 'Moon':  # Луна на узле — ничего
+        if lord_lon is None or lord == 'Moon':  # Moon on a node — nothing
             continue
         side = chart.lord_side(lord_house)
         for node, good in (('NorthNode', True), ('SouthNode', False)):
@@ -1051,7 +1051,7 @@ def judge_event_chart(
                 add(f"{lord} [L{lord_house}]", 'node_conjunction', node,
                     verdict * W_NODE * _closeness(orb, NODE_ORB), orb)
 
-    # ===== E. Комбустия 2° (кажими в картах события НЕ существует) =====
+    # ===== E. Combustion 2° (cazimi does NOT exist in event charts) =====
     sun = transit_planets.get('Sun')
     if sun:
         seen_combust = set()
@@ -1069,17 +1069,17 @@ def judge_event_chart(
                 add(f"{lord} [L{lord_house}]", 'combustion', 'Sun',
                     -side * W_COMBUSTION * _closeness(orb, COMBUST_ORB), orb)
 
-    # ===== F. Внешние планеты =====
+    # ===== F. Outer planets =====
     _outer_planet_testimonies(chart, add)
 
-    # ===== G. ГИБРИД: эссенциальное+акцидентальное достоинство Lord 1/7 =====
-    # НЕ из книги гл.2 — сознательная эмпирика пользователя (см.
-    # plans/daily-forecast-hybrid-method.md). Тестимонии помечены
-    # source='mixed' и не участвуют в RAG-поиске по книге.
+    # ===== G. HYBRID: essential+accidental dignity of Lord 1/7 =====
+    # NOT from the book's ch. 2 — the user's deliberate empirical choice (see
+    # plans/daily-forecast-hybrid-method.md). Testimonies are tagged
+    # source='mixed' and do not take part in the RAG search over the book.
     mixed_profiles = _mixed_method_testimonies(chart, add)
     significator_card = _build_significator_card(chart, mixed_profiles, testimonies)
 
-    # ===== Итог =====
+    # ===== Result =====
     testimonies.sort(key=lambda t: abs(t['weight']), reverse=True)
     fav_total = round(sum(t['weight'] for t in testimonies if t['weight'] > 0), 2)
     ud_total = round(-sum(t['weight'] for t in testimonies if t['weight'] < 0), 2)
@@ -1087,7 +1087,7 @@ def judge_event_chart(
 
     diff = fav_total - ud_total
     if not testimonies or abs(diff) < 0.5:
-        # «Gridlocked» карта: свидетельств нет/баланс -> вероятна ничья
+        # «Gridlocked» chart: no testimonies/balanced -> draw likely
         match_type = 'draw_likely'
     elif diff >= 2.0:
         match_type = 'comfortable_win'
@@ -1119,7 +1119,7 @@ def judge_event_chart(
 
 
 def _is_applying_to_point(planet: Dict[str, Any], point_lon: float, aspect_angle: float) -> bool:
-    """Планета применяется к аспекту с НЕПОДВИЖНОЙ точкой (Фортуна): орб сокращается."""
+    """A planet applying to an aspect with a FIXED point (Fortune): the orb shrinks."""
     speed = planet.get('speed', 0) or 0
     lon = planet.get('full_degree')
     if lon is None:
@@ -1130,9 +1130,9 @@ def _is_applying_to_point(planet: Dict[str, Any], point_lon: float, aspect_angle
 
 
 def _moon_aspect_events(chart: EventChart, moon: Dict[str, Any], travel_limit: float) -> List[Dict[str, Any]]:
-    """Все применяющиеся события Луны в пределах её хода, по порядку пути:
-    аспекты к значителям (тела и антисции) и к Фортуне/её антисции.
-    Путь считается в градусах хода Луны с поправкой на скорость цели."""
+    """All applying Moon events within its range, in path order:
+    aspects to significators (bodies and antiscia) and to Fortune/its antiscion.
+    The path is measured in degrees of the Moon's travel, corrected for the target's speed."""
     moon_lon = moon['full_degree']
     moon_speed = abs(moon.get('speed', 0) or 13.2) or 13.2
     events: List[Dict[str, Any]] = []
@@ -1140,12 +1140,12 @@ def _moon_aspect_events(chart: EventChart, moon: Dict[str, Any], travel_limit: f
     def scan(target_lon: float, target_speed: float, label: str, kind: str,
              side: int, antisc: bool):
         for aspect, angle in ASPECT_ANGLES.items():
-            # Луна догоняет аспект: сколько градусов ей идти до точности.
-            # Точки аспекта: target_lon ± angle. Луна движется вперёд.
+            # The Moon catches up with the aspect: how many degrees it has to go until exact.
+            # Aspect points: target_lon ± angle. The Moon moves forward.
             for direction in (1, -1) if angle not in (0, 180) else (1,):
                 point = (target_lon + direction * angle) % 360
-                gap = (point - moon_lon) % 360  # путь Луны вперёд до точки
-                # Поправка на движение цели (планеты уходят вперёд/назад):
+                gap = (point - moon_lon) % 360  # the Moon's forward path to the point
+                # Correction for the target's motion (planets move forward/backward):
                 rel = moon_speed - target_speed
                 if rel <= 0.1:
                     continue
@@ -1156,7 +1156,7 @@ def _moon_aspect_events(chart: EventChart, moon: Dict[str, Any], travel_limit: f
                         'kind': kind, 'side': side, 'antiscion': antisc,
                     })
 
-    # Значители (тела + антисции)
+    # Significators (bodies + antiscia)
     for lord_house in RELEVANT_HOUSES:
         lord = chart.lords.get(lord_house)
         if not lord or lord == 'Moon':
@@ -1167,18 +1167,18 @@ def _moon_aspect_events(chart: EventChart, moon: Dict[str, Any], travel_limit: f
         lord_speed = (chart.planets.get(lord) or {}).get('speed', 0) or 0
         side = chart.lord_side(lord_house)
         scan(lord_lon, lord_speed, f"{lord} [L{lord_house}]", 'lord_body', side, False)
-        # Антисции лордов: соединения на коротком ходе НЕ финальны, вес ниже.
+        # Lords' antiscia: conjunctions over a short range are NOT final, lower weight.
         scan(antiscion(lord_lon), -lord_speed, f"{lord} [L{lord_house}](ant)",
              'lord_antiscion', side, True)
 
-    # Фортуна и её антисция: аспект к ним ФИНАЛЕН; знак решает тип аспекта.
+    # Fortune and its antiscion: an aspect to them is FINAL; the sign decides the aspect type.
     if chart.fortuna is not None:
         for point, label in ((chart.fortuna, 'Fortuna'), (chart.fortuna_antiscion, 'Fortuna(ant)')):
             for aspect, angle in ASPECT_ANGLES.items():
                 for direction in (1, -1) if angle not in (0, 180) else (1,):
                     p = (point + direction * angle) % 360
                     gap = (p - moon_lon) % 360
-                    travel = gap  # Фортуна неподвижна
+                    travel = gap  # Fortune is stationary
                     if 0.01 <= travel <= travel_limit:
                         side = 1 if aspect in HARMONIOUS_ASPECTS else -1
                         events.append({
@@ -1187,7 +1187,7 @@ def _moon_aspect_events(chart: EventChart, moon: Dict[str, Any], travel_limit: f
                             'antiscion': label.endswith('(ant)'),
                         })
 
-    # Дедуп (одно и то же событие через два direction) и сортировка по пути.
+    # Dedup (the same event via two directions) and sort by path.
     seen = set()
     unique = []
     for e in sorted(events, key=lambda x: x['travel']):
@@ -1200,22 +1200,22 @@ def _moon_aspect_events(chart: EventChart, moon: Dict[str, Any], travel_limit: f
 
 
 def _fortuna_aspect_testimonies(chart: EventChart, lord: str, lord_house: int, add) -> None:
-    """Аспекты Lord 1/7 к Фортуне/антисции (гл. 2):
-    L1 conj Фортуна/антисция -> фаворит; L1 opp -> соперник;
-    L7 conj -> соперник; L7 opp антисции -> фаворит;
-    АНОМАЛИЯ книги: L7 телесная оппозиция Фортуне -> СОПЕРНИК.
-    Trine/sextile/square Lords 1/7 к Фортуне ненадёжны — игнор.
-    «MAKE SURE THE ASPECT ACTUALLY HAPPENS» — перехват другой планетой отменяет."""
+    """Aspects of Lord 1/7 to Fortune/its antiscion (ch. 2):
+    L1 conj Fortune/antiscion -> favourite; L1 opp -> opponent;
+    L7 conj -> opponent; L7 opp antiscion -> favourite;
+    The book's ANOMALY: L7 bodily opposition to Fortune -> OPPONENT.
+    Trine/sextile/square of Lords 1/7 to Fortune are unreliable — ignored.
+    «MAKE SURE THE ASPECT ACTUALLY HAPPENS» — interception by another planet cancels it."""
     lord_lon = chart.planet_lon(lord)
     lord_data = chart.planets.get(lord) or {}
     if lord_lon is None or chart.fortuna is None:
         return
 
     def prohibited(travel_orb: float) -> bool:
-        """Лорд перфектирует аспект к другой планете раньше, чем дойдёт до Фортуны."""
+        """The lord perfects an aspect to another planet before it reaches Fortune."""
         speed = abs(lord_data.get('speed', 0) or 0)
         if speed < 1e-6:
-            return True  # стоит на месте — не дойдёт
+            return True  # stationary — will not get there
         for other, odata in chart.planets.items():
             if other == lord or other not in TRADITIONAL_PLANETS or other == 'Moon':
                 continue
@@ -1245,7 +1245,7 @@ def _fortuna_aspect_testimonies(chart: EventChart, lord: str, lord_house: int, a
             (chart.fortuna, 0, -1, 'conj Fortuna'),
             (chart.fortuna_antiscion, 0, -1, 'conj Fortuna(ant)'),
             (chart.fortuna_antiscion, 180, +1, 'opp Fortuna(ant)'),
-            (chart.fortuna, 180, -1, 'opp Fortuna'),  # аномалия книги
+            (chart.fortuna, 180, -1, 'opp Fortuna'),  # the book's anomaly
         ]
     for point, angle, verdict, label in checks:
         if point is None:
@@ -1259,9 +1259,9 @@ def _fortuna_aspect_testimonies(chart: EventChart, lord: str, lord_house: int, a
 
 
 def _outer_planet_testimonies(chart: EventChart, add) -> None:
-    """Плутон/Уран/Сатурн по гл. 2. Нептун — игнор («inconsistent»)."""
-    # Плутон: «powerful destructive effect on a relevant cusp... holds a grudge
-    # against favourites»; на 2-м куспиде — вредит фавориту.
+    """Pluto/Uranus/Saturn per ch. 2. Neptune is ignored («inconsistent»)."""
+    # Pluto: «powerful destructive effect on a relevant cusp... holds a grudge
+    # against favourites»; on the 2nd cusp it harms the favourite.
     pluto_lon = chart.planet_lon('Pluto')
     if pluto_lon is not None:
         for house, side in ((1, 1), (10, 1), (2, 1), (7, -1), (4, -1)):
@@ -1270,7 +1270,7 @@ def _outer_planet_testimonies(chart: EventChart, add) -> None:
                 continue
             orb = _angle_diff(pluto_lon, cusp)
             if orb <= OUTER_ORB:
-                w = W_PLUTO if side > 0 else W_PLUTO * 0.5  # к андердогу он снисходительнее
+                w = W_PLUTO if side > 0 else W_PLUTO * 0.5  # it is more lenient to the underdog
                 add('Pluto', 'pluto_on_cusp', f"house {house}",
                     -side * w * _closeness(orb, OUTER_ORB), orb)
         for point, label in ((chart.fortuna, 'Fortuna'),
@@ -1284,7 +1284,7 @@ def _outer_planet_testimonies(chart: EventChart, add) -> None:
                     add('Pluto', 'pluto_fortuna', label,
                         -W_PLUTO * 0.8 * _closeness(orb, OUTER_ORB), orb)
 
-    # Уран: немедленно применяется к MC или conj Фортуна -> фаворит; opp Фортуна -> соперник.
+    # Uranus: immediately applying to MC or conj Fortune -> favourite; opp Fortune -> opponent.
     uranus = chart.planets.get('Uranus')
     uranus_lon = _lon(uranus) if uranus else None
     if uranus_lon is not None:
@@ -1299,13 +1299,13 @@ def _outer_planet_testimonies(chart: EventChart, add) -> None:
                 add('Uranus', 'uranus_fortuna', 'conj Fortuna', W_URANUS * _closeness(orb_c, OUTER_ORB), orb_c)
             elif orb_o <= OUTER_ORB and _is_applying_to_point(uranus, chart.fortuna, 180):
                 add('Uranus', 'uranus_fortuna', 'opp Fortuna', -W_URANUS * _closeness(orb_o, OUTER_ORB), orb_o)
-            # opp антисции Фортуны — пример Super Bowl 2002 (за андердога)
+            # opp Fortune's antiscion — the Super Bowl 2002 example (for the underdog)
             if chart.fortuna_antiscion is not None:
                 orb_a = abs(_angle_diff(uranus_lon, chart.fortuna_antiscion) - 180)
                 if orb_a <= OUTER_ORB and _is_applying_to_point(uranus, chart.fortuna_antiscion, 180):
                     add('Uranus', 'uranus_fortuna', 'opp Fortuna(ant)', -W_URANUS * _closeness(orb_a, OUTER_ORB), orb_a)
 
-    # Сатурн-малефик (если не Lord 1/7): «afflicting whatever it touches».
+    # Saturn as malefic (if not Lord 1/7): «afflicting whatever it touches».
     if 'Saturn' not in (chart.lords.get(1), chart.lords.get(7)):
         saturn_lon = chart.planet_lon('Saturn')
         if saturn_lon is not None:
@@ -1330,12 +1330,12 @@ def _outer_planet_testimonies(chart: EventChart, add) -> None:
                         -side * W_SATURN_MALEFIC * _closeness(orb, SATURN_ORB), orb)
 
 
-# ---------- натальная сноска (не скоринг) ----------
+# ---------- natal note (not scoring) ----------
 
 def natal_personalization_note(natal_chart: Dict[str, Any], lord1: Optional[str],
                                language: str) -> Optional[str]:
-    """Контекст: значитель фаворита совпадает с управителем натального ASC атлета.
-    Только упоминание для LLM, в скоринге не участвует."""
+    """Context: the favourite's significator matches the ruler of the athlete's natal ASC.
+    Only a mention for the LLM, not used in scoring."""
     if not lord1:
         return None
     houses = natal_chart.get('houses') or {}
@@ -1357,7 +1357,7 @@ def _chunk_text(chunk: Any) -> str:
 
 
 def _testimony_query(t: Dict[str, Any]) -> str:
-    """RAG-запрос по терминам главы 2 (event chart), не хорарным."""
+    """RAG query using ch. 2 (event chart) terms, not horary ones."""
     aspect = t['aspect']
     if aspect == 'on_cusp':
         return "planet on cusp controls that house event chart favourite underdog"
@@ -1396,21 +1396,21 @@ def _split_sides(testimonies: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]
     return fav, ud
 
 
-# ---------- детерминированный рендер карточки (без LLM) ----------
-# LLM неоднократно искажал факты листа суждения (путал дом значителя, спорил
-# с гибридными показаниями цитатами книги) — поэтому score/Показания/Вывод
-# строятся напрямую из значений расчёта. См. plans/daily-forecast-hybrid-method.md.
+# ---------- deterministic card rendering (no LLM) ----------
+# The LLM repeatedly distorted facts from the judgement sheet (confused the significator's house, argued
+# with the hybrid showings using book quotes) — so score/Showings/Conclusion
+# are built directly from the computed values. See plans/daily-forecast-hybrid-method.md.
 
 def _side_showings_list(side: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Показания значителя для карточки и короткой прозы: сперва 4 гибридных
-    (дом/достоинство/сгорание/ретро, в этом фиксированном порядке — как в
-    эталонных примерах), затем ЛЮБЫЕ книжные (гл.2) тестимонии этого же
-    значителя (куспиды on_cusp/inside_enemy_house, узлы, аспекты к Фортуне и
-    т.п. — всё, что уже смёржено в side['showings'] через _merged_showings),
-    отсортированные по весу. Раньше книжные тестимонии тут отбрасывались —
-    это было моё собственное сужение по 4 эталонным примерам пользователя, а
-    не его требование; карта события не должна терять то, что реально в ней
-    есть, только потому что в конкретных примерах это не встретилось."""
+    """Significator showings for the card and the short prose: first the 4 hybrid ones
+    (house/dignity/combustion/retro, in this fixed order — as in the
+    reference examples), then ANY book (ch. 2) testimonies of the same
+    significator (cusps on_cusp/inside_enemy_house, nodes, aspects to Fortune and
+    the like — everything already merged into side['showings'] via _merged_showings),
+    sorted by weight. Book testimonies used to be dropped here —
+    that was my own narrowing based on the user's 4 reference examples, and
+    not the user's requirement; an event chart must not lose what is actually in it
+    just because it did not occur in the specific examples."""
     by_kind = {s['kind']: s for s in side['showings']
                if s['kind'] in ('house_strength', 'dignity', 'combustion', 'retrograde')}
     ordered: List[Dict[str, Any]] = []
@@ -1472,8 +1472,8 @@ def _side_narrative(side: Optional[Dict[str, Any]], role: str, language: str) ->
 
 
 def _verdict_narrative(card: Optional[Dict[str, Any]], language: str) -> str:
-    """Короткий вердикт для поля verdict — та же карточно-скоуп-логика
-    (_card_verdict), что и в детальной карточке, не общий judgement['match_type']."""
+    """Short verdict for the verdict field — the same card-scope logic
+    (_card_verdict) as in the detailed card, not the general judgement['match_type']."""
     decisive, winner, _diff = _card_verdict(card)
     if language == 'ru':
         if winner is None:
@@ -1493,31 +1493,31 @@ def _verdict_narrative(card: Optional[Dict[str, Any]], language: str) -> str:
     return headline + " " + _verdict_paragraph(card, language)
 
 
-# ---------- детальная карточка (формат «Сигнификаторы/Планеты/Показания/Вывод») ----------
-# Точный формат по образцу пользователя (event-chart карточки). Только
-# форматирование уже посчитанных данных (significator_card/judgement) —
-# расчёт/скоринг здесь не участвует и не меняется. Хедер — только generic-
-# вариант («Event Chart · место · дата · время · Роли: Фаворит / Аутсайдер»):
-# имена игроков/спред/коэффициенты не входят в текущую схему запроса.
+# ---------- detailed card (format «Significators/Planets/Showings/Conclusion») ----------
+# Exact format following the user's example (event-chart cards). Only
+# formatting of already computed data (significator_card/judgement) —
+# calculation/scoring is not involved here and does not change. The header is only the generic
+# variant («Event Chart · place · date · time · Roles: Favourite / Underdog»):
+# player names/spread/odds are not part of the current request schema.
 
-# Пороги ИМЕННО для вывода карточки — НЕ те же, что у общего match_type
-# (judgement['match_type'], который считается по всему листу гл.2+гибрид).
-# Подобраны и проверены на 4 эталонных примерах пользователя (Båstad,
-# Arlington, Umag, Юпитер/Меркурий): |diff| >= 1.5 -> решительный исход,
-# 0.3 <= |diff| < 1.5 -> лёгкий перевес, < 0.3 -> ничья/неочевидно.
+# Thresholds SPECIFICALLY for the card conclusion — NOT the same as the general match_type
+# (judgement['match_type'], which is computed over the whole ch. 2+hybrid sheet).
+# Tuned and checked on the user's 4 reference examples (Båstad,
+# Arlington, Umag, Jupiter/Mercury): |diff| >= 1.5 -> decisive outcome,
+# 0.3 <= |diff| < 1.5 -> slight edge, < 0.3 -> draw/unclear.
 CARD_DECISIVE_THRESHOLD = 1.5
 CARD_EDGE_THRESHOLD = 0.3
 
 
 def _card_verdict(card: Optional[Dict[str, Any]]) -> Tuple[bool, Optional[str], float]:
-    """Вывод карточки считается по ВСЕМ показаниям, реально отображённым в
-    карточке: 4 гибридных фактора Lord1/Lord7 (дом/достоинство/сгорание/
-    ретро) + книжные (гл.2) тестимонии, привязанные к конкретному значителю
-    (куспиды, узлы, аспекты к Фортуне), + «Прочие показания карты» (Луна,
-    антисция Фортуны, её диспозитор, внешние планеты — chart_wide). Всё, что
-    показано в тексте, обязано учитываться и здесь — иначе вывод карточки
-    может противоречить собственным показаниям.
-    Возвращает (decisive, winner['favourite'|'underdog'|None], diff)."""
+    """The card conclusion is computed over ALL showings actually displayed in
+    the card: 4 hybrid factors of Lord1/Lord7 (house/dignity/combustion/
+    retro) + book (ch. 2) testimonies tied to a specific significator
+    (cusps, nodes, aspects to Fortune), + «Other chart showings» (Moon,
+    Fortune's antiscion, its dispositor, outer planets — chart_wide). Everything
+    shown in the text must be counted here too — otherwise the card conclusion
+    may contradict its own showings.
+    Returns (decisive, winner['favourite'|'underdog'|None], diff)."""
     if not card or not card.get('favourite') or not card.get('underdog'):
         return False, None, 0.0
 
@@ -1534,13 +1534,13 @@ def _card_verdict(card: Optional[Dict[str, Any]]) -> Tuple[bool, Optional[str], 
 
 
 def _card_match_type(card: Optional[Dict[str, Any]]) -> str:
-    """match_type СТРОГО из карточного вердикта (_card_verdict) — тем же
-    словарём значений, что и раньше (comfortable_win/advantage/draw_likely/
-    underdog_edge/underdog_win_likely), чтобы существующие потребители поля
-    не ломались. Раньше это поле бралось из judgement['match_type'] (полный
-    расчёт гл.2+гибрид) — оно могло противоречить тексту карточки/verdict,
-    т.к. считалось по другому набору тестимоний. Теперь только один источник
-    правды: 4 фактора, реально показанные в карточке."""
+    """match_type STRICTLY from the card verdict (_card_verdict) — with the same
+    set of values as before (comfortable_win/advantage/draw_likely/
+    underdog_edge/underdog_win_likely), so that existing consumers of the field
+    don't break. Previously this field was taken from judgement['match_type'] (the full
+    ch. 2+hybrid calculation) — it could contradict the card text/verdict,
+    since it was computed over a different set of testimonies. Now there is only one source
+    of truth: the 4 factors actually shown in the card."""
     decisive, winner, _diff = _card_verdict(card)
     if winner is None:
         return 'draw_likely'
@@ -1559,7 +1559,7 @@ def _render_header(transits: Dict[str, Any], language: str) -> str:
             dt = datetime.fromisoformat(target_date_str)
             date_part = dt.strftime('%d.%m.%Y')
             time_part = dt.strftime('%H:%M')
-            offset = dt.strftime('%z')  # напр. +0200
+            offset = dt.strftime('%z')  # e.g. +0200
             if offset:
                 time_part += f" UTC{offset[:3]}:{offset[3:]}"
         except ValueError:
@@ -1592,13 +1592,13 @@ def _planet_line_plain(p: Dict[str, Any], language: str) -> List[str]:
 
 
 def _showing_pairs(side: Dict[str, Any]) -> List[str]:
-    """Пары строк (описание, эффект) для блока «Показания» одного значителя:
-    дом → достоинство (если не peregrine) → сгорание (если есть) → ретро
-    (если есть), затем любые релевантные книжные (гл.2) тестимонии этого же
-    значителя (куспиды, узлы, аспекты к Фортуне и т.п.) — см.
-    _side_showings_list, единый источник и для карточки, и для короткой
-    прозы (favorite/opponent). Не принимает language — читает уже готовые
-    label_ru/effect, посчитанные с нужным языком на этапе сборки showings."""
+    """Line pairs (description, effect) for the «Showings» block of one significator:
+    house → dignity (if not peregrine) → combustion (if any) → retro
+    (if any), then any relevant book (ch. 2) testimonies of the same
+    significator (cusps, nodes, aspects to Fortune, etc.) — see
+    _side_showings_list, the single source for both the card and the short
+    prose (favorite/opponent). Does not take language — reads the ready-made
+    label_ru/effect, computed with the right language when the showings were built."""
     lines: List[str] = []
     for s in _side_showings_list(side):
         lines += [s['label_ru'], s['effect']]
@@ -1607,9 +1607,9 @@ def _showing_pairs(side: Dict[str, Any]) -> List[str]:
 
 def _retro_combust_summary(fav: Optional[Dict[str, Any]],
                             ud: Optional[Dict[str, Any]], language: str) -> List[str]:
-    """Fallback-строка «Ретро/сгорание: Нет ни у кого» — только если НИ У
-    ОДНОГО значителя нет ни ретро, ни сожжения (иначе они уже показаны
-    отдельными строками в _showing_pairs для каждого значителя)."""
+    """Fallback line «Retro/combustion: none for anyone» — only if NOT
+    A SINGLE significator has either retro or combustion (otherwise they are already shown
+    as separate lines in _showing_pairs for each significator)."""
     for side in (fav, ud):
         if side and (side['retrograde'] or side.get('combust')):
             return []
@@ -1617,10 +1617,10 @@ def _retro_combust_summary(fav: Optional[Dict[str, Any]],
 
 
 def _verdict_paragraph(card: Optional[Dict[str, Any]], language: str) -> str:
-    """Самодостаточное объяснение вывода из ЭТОЙ карты (без сравнений с
-    другими, неизвестными системе картами). Берёт готовые читаемые формулировки
-    (label_ru/effect) из показаний карточки — НЕ сырые коды тестимоний, чтобы
-    не утекали внутренние имена вроде «essential_dignity»."""
+    """Self-contained explanation of the conclusion from THIS chart (no comparisons with
+    other charts unknown to the system). Takes the ready-made readable wording
+    (label_ru/effect) from the card showings — NOT raw testimony codes, so that
+    internal names like «essential_dignity» do not leak."""
     no_evidence = "Свидетельств в карте немного, перевес не выражен явно." if language == 'ru' \
         else "There is little evidence in the chart — no clear edge either way."
     if not card or not card.get('favourite') or not card.get('underdog'):
@@ -1653,9 +1653,9 @@ def _verdict_paragraph(card: Optional[Dict[str, Any]], language: str) -> str:
 
 def _render_card_text(transits: Dict[str, Any], judgement: Dict[str, Any],
                        card: Optional[Dict[str, Any]], language: str) -> str:
-    """Полная текстовая карточка (Сигнификаторы/Планеты/Показания/Вывод) —
-    формат по образцу пользователя. Fallback на короткий нарратив, если
-    карта не построена (нет ASC/7-го куспида)."""
+    """Full text card (Significators/Planets/Showings/Conclusion) —
+    format following the user's example. Falls back to a short narrative if
+    the chart could not be built (no ASC/7th cusp)."""
     if not card:
         return _verdict_narrative(card, language)
 
@@ -1744,8 +1744,8 @@ async def daily_forecast_analysis(
     moon_range_degrees: float = MOON_RANGE_DEFAULT,
     extra_time_possible: bool = False,
 ) -> Dict[str, Any]:
-    """Полный пайплайн прогноза дня матча (метод карты события).
-    transits — результат calculate_transits (должен содержать transit_houses)."""
+    """Full pipeline of the match-day forecast (event chart method).
+    transits — the result of calculate_transits (must contain transit_houses)."""
     t_planets = transits.get('transit_planets', {}) or {}
     transit_houses = transits.get('transit_houses') or {}
 
@@ -1766,7 +1766,7 @@ async def daily_forecast_analysis(
             language=language,
         )
 
-    base = judgement['base_score']  # внутренний расчёт (влияет на match_type), наружу не отдаётся
+    base = judgement['base_score']  # internal calculation (affects match_type), not returned outside
     key_aspects = judgement['testimonies']
     fav_list, ud_list = _split_sides(key_aspects)
 
@@ -1777,7 +1777,7 @@ async def daily_forecast_analysis(
 
     personal_note = natal_personalization_note(natal_chart, judgement.get('lord1'), language)
 
-    # RAG по свидетельствам карты события
+    # RAG over the event chart testimonies
     async def search_testimony(t: Dict[str, Any]):
         query = _testimony_query(t)
         chunks = await search_chunks_priority_book(
@@ -1785,21 +1785,21 @@ async def daily_forecast_analysis(
         )
         return query, chunks
 
-    # Гибридные тестимонии (source='mixed': эссенциальное достоинство/угловатость/
-    # ретроградность Lord 1/7) намеренно НЕ ищутся в книге: книга гл.2 прямо
-    # запрещает эти понятия для карты события, RAG вернул бы противоречащие
-    # цитаты. См. plans/daily-forecast-hybrid-method.md.
+    # Hybrid testimonies (source='mixed': essential dignity/angularity/
+    # retrogradation of Lord 1/7) are deliberately NOT searched in the book: the book's ch. 2 explicitly
+    # forbids these concepts for an event chart, RAG would return contradicting
+    # quotes. See plans/daily-forecast-hybrid-method.md.
     book_testimonies = [t for t in key_aspects if t.get('source', 'book') != 'mixed']
-    # Дедуп ПО ЗАПРОСУ до похода в RAG: разные тестимонии одного типа (напр. узел
-    # задел и Lord 1, и Lord 7) дают идентичный _testimony_query — незачем искать
-    # одно и то же в книге дважды (раньше дедуп был только на уже полученных чанках).
+    # Dedup BY QUERY before going to RAG: different testimonies of the same type (e.g. a node
+    # touching both Lord 1 and Lord 7) produce an identical _testimony_query — no point searching
+    # the book twice for the same thing (previously dedup was only on already fetched chunks).
     unique_by_query: Dict[str, Dict[str, Any]] = {}
     for t in book_testimonies:
         unique_by_query.setdefault(_testimony_query(t), t)
     rag_results = await asyncio.gather(
         *[search_testimony(t) for t in unique_by_query.values()], return_exceptions=True
     )
-    # Дедуп чанков + бюджет символов: один фрагмент книги кладём в промпт один раз.
+    # Chunk dedup + character budget: each book fragment goes into the prompt once.
     CHUNK_CHARS = 1500
     RAG_CHARS_BUDGET = 40000
     rag_blocks: List[str] = []
@@ -1847,13 +1847,13 @@ async def daily_forecast_analysis(
     for note in (judgement.get('engine_notes') or []):
         print(f"[daily_forecast]   engine_note: {note}")
 
-    # Детерминированный рендер (без LLM): score/Показания/Вывод строятся
-    # напрямую из расчётного листа. LLM ранее свободным текстом искажал факты
-    # (путал дом значителя, спорил с гибридными показаниями цитатами книги) —
-    # см. plans/daily-forecast-hybrid-method.md.
-    # card_text — основной, подробный вывод (формат Сигнификаторы/Планеты/
-    # Показания/Вывод). favorite/opponent/verdict — те же данные короткой
-    # прозой, для фронтов, которые ещё читают эти отдельные поля.
+    # Deterministic rendering (no LLM): score/Showings/Conclusion are built
+    # directly from the computed sheet. The LLM's free text used to distort facts
+    # (confused the significator's house, argued with the hybrid showings using book quotes) —
+    # see plans/daily-forecast-hybrid-method.md.
+    # card_text — the main, detailed output (Significators/Planets/
+    # Showings/Conclusion format). favorite/opponent/verdict — the same data as short
+    # prose, for frontends that still read these separate fields.
     card_text = _render_card_text(transits, judgement, card, language)
     favorite_text = _side_narrative(card.get('favourite') if card else None, 'favourite', language)
     opponent_text = _side_narrative(card.get('underdog') if card else None, 'underdog', language)
@@ -1861,15 +1861,15 @@ async def daily_forecast_analysis(
     summary_text = card_text
     if personal_note:
         summary_text += f"\n\n{personal_note}"
-    # По требованию продукта score/category (числовая оценка 1-10) НЕ
-    # выводятся в ответе — только качественный вердикт (match_type) и
-    # текстовое описание. base_score остаётся внутренним расчётным
-    # значением (влияет на match_type), но наружу не отдаётся.
+    # Per the product requirement, score/category (numeric rating 1-10) are NOT
+    # returned in the response — only the qualitative verdict (match_type) and
+    # the text description. base_score remains an internal computed
+    # value (affects match_type), but is not returned outside.
     parsed = {
         'favorite': favorite_text, 'opponent': opponent_text, 'verdict': verdict_text,
         'summary': summary_text, 'card_text': card_text,
     }
-    llm_error: Optional[str] = None  # генерация детерминированная, LLM не вызывается
+    llm_error: Optional[str] = None  # generation is deterministic, the LLM is not called
 
     return {
         **parsed,
@@ -1880,13 +1880,13 @@ async def daily_forecast_analysis(
         'fortune_antiscion': judgement.get('fortuna_antiscion'),
         'lunar_phase': transits.get('lunar_phase'),
         'llm_error': llm_error,
-        'llm_provider': provider,  # эхо для фронта; генерация детерминированная, не используется
+        'llm_provider': provider,  # echo for the frontend; generation is deterministic, not used
         'llm_model': model,
         'generation_mode': 'deterministic',
         'rag_sources': rag_sources,
         'personal_note': personal_note,
-        # strength_breakdown: сохраняем ключи lord1/lord7 для фронта,
-        # total_strength = суммарные очки стороны по листу суждения.
+        # strength_breakdown: keep the lord1/lord7 keys for the frontend,
+        # total_strength = the side's total points on the judgement sheet.
         'strength_breakdown': {
             'lord1': {
                 'planet': judgement.get('lord1'),
@@ -1901,11 +1901,11 @@ async def daily_forecast_analysis(
                 'testimonies': ud_list,
             },
         },
-        # match_type — из карточного вердикта (_card_verdict), НЕ из полного
-        # judgement['match_type'] (гл.2+гибрид): иначе это поле могло
-        # противоречить тексту verdict/card_text, посчитанному по другому
-        # набору тестимоний. full_chart_match_type — старое значение, для
-        # отладки/сравнения, не для отображения пользователю.
+        # match_type — from the card verdict (_card_verdict), NOT from the full
+        # judgement['match_type'] (ch. 2+hybrid): otherwise this field could
+        # contradict the verdict/card_text text computed over a different
+        # set of testimonies. full_chart_match_type — the old value, for
+        # debugging/comparison, not for display to the user.
         'match_type': _card_match_type(card),
         'full_chart_match_type': judgement.get('match_type'),
         'moon_report': judgement.get('moon_report'),

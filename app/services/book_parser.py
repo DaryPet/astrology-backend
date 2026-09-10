@@ -43,16 +43,16 @@ def parse_file(file_path: str) -> dict:
 def parse_pdf(path: str) -> str:
     doc = fitz.open(path)
     text = ""
-    print(f"Всего страниц: {len(doc)}")
+    print(f"Total pages: {len(doc)}")
     for page_num in range(len(doc)):
         page = doc.load_page(page_num)
         pix = page.get_pixmap(dpi=300)
         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
         page_text = pytesseract.image_to_string(img, lang="eng")
         text += page_text
-        print(f"Страница {page_num+1}: {len(page_text)} символов")
+        print(f"Page {page_num+1}: {len(page_text)} symbols")
     doc.close()
-    print(f"ВСЕГО символов: {len(text)}")
+    print(f"Total symbols: {len(text)}")
     return text
 
 

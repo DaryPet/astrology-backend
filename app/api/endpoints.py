@@ -1517,23 +1517,23 @@ async def transits_analysis_endpoint(request: Request, payload: TransitsAnalysis
 @limiter.limit("5/minute")
 async def daily_forecast_endpoint(request: Request, payload: DailyForecastRequest, user = Depends(get_current_user)):
     """
-    Прогноз дня матча: ГИБРИДНЫЙ метод на основе КАРТЫ СОБЫТИЯ (Frawley, Sports
-    Astrology, гл. 2) + классических достоинств значителей 1/7 (см.
-    plans/daily-forecast-hybrid-method.md — сознательное отступление от
-    прямого запрета книги смешивать методы, по итогам эмпирических тестов).
-    ВХОД: только время (target_date, местное; transit_timezone) и место
-    (transit_place или transit_latitude/longitude) начала матча.
-    Натальные данные НЕ нужны (natal_chart опционален — лишь личная сноска для LLM).
-    Карта на время+место матча (Placidus): Lords 1/10 = фаворит, Lords 7/4 = соперник;
-    свидетельства гл.2 — положения у куспидов (2-3°), финальный аспект Луны, антисция
-    Фортуны, диспозитор Фортуны, узлы, комбустия 2°, Плутон/Уран/Сатурн;
-    гибридные свидетельства (только Lord 1/7) — эссенциальное достоинство,
-    угловатость собственного дома, ретроградность.
-    Ответ: favorite/opponent (по 3 предложения) + verdict + significator_card
-    (детерминированная карточка значителей 1/7). Числовая оценка (score/
-    category) НЕ выводится — только качественный вердикт (match_type).
-    LLM выбирается с фронта (llm_provider/llm_model, включая OpenRouter).
-    Спека: app/services/specs/daily_forecast_event_chart_plan.md
+    Match-day forecast: a HYBRID method based on the EVENT CHART (Frawley, Sports
+    Astrology, ch. 2) + classical dignities of the 1/7 significators (see
+    plans/daily-forecast-hybrid-method.md — a deliberate departure from the
+    book's explicit ban on mixing methods, based on empirical tests).
+    INPUT: only the time (target_date, local; transit_timezone) and place
+    (transit_place or transit_latitude/longitude) of the match start.
+    Natal data is NOT needed (natal_chart is optional — only a personal note for the LLM).
+    Chart for the match time+place (Placidus): Lords 1/10 = favorite, Lords 7/4 = opponent;
+    ch. 2 testimonies — positions near cusps (2-3°), the Moon's final aspect, Fortune's
+    antiscion, Fortune's dispositor, the nodes, combustion 2°, Pluto/Uranus/Saturn;
+    hybrid testimonies (Lord 1/7 only) — essential dignity, angularity of the
+    planet's own house, retrogradation.
+    Response: favorite/opponent (3 sentences each) + verdict + significator_card
+    (deterministic card of the 1/7 significators). No numeric score (score/
+    category) is output — only a qualitative verdict (match_type).
+    The LLM is chosen by the frontend (llm_provider/llm_model, including OpenRouter).
+    Spec: app/services/specs/daily_forecast_event_chart_plan.md
     """
     from app.services.daily_forecast_service import daily_forecast_analysis
     from datetime import datetime as dt
@@ -1548,19 +1548,19 @@ async def daily_forecast_endpoint(request: Request, payload: DailyForecastReques
             except Exception as e:
                 print(f"[daily-forecast] transit timezone error: {e}")
 
-    # --- Транзиты: готовые из запроса или считаем (тот же путь, что /analysis/transits) ---
+    # --- Transits: taken ready-made from the request or calculated (same path as /analysis/transits) ---
     transits = payload.transit_data
     transit_lat = payload.transit_latitude
     transit_lon = payload.transit_longitude
 
-    # ФРОУЛИ (Sports Astrology, гл. 2, «The Method»): карта СОБЫТИЯ судится
-    # по Плацидусу — «Use Placidus houses, as with any event chart».
-    # Региомонтан — только для хорарных ВОПРОСОВ (гл. 1), это другой метод.
+    # FRAWLEY (Sports Astrology, ch. 2, "The Method"): an EVENT chart is judged
+    # with Placidus — "Use Placidus houses, as with any event chart".
+    # Regiomontanus is only for horary QUESTIONS (ch. 1), which is a different method.
     effective_house_system = payload.house_system or 'Placidus'
 
-    # КАРТА СОБЫТИЯ (Frawley гл. 2): строится ТОЛЬКО на время (target_date)
-    # и место (transit_place / transit_latitude+longitude) начала матча.
-    # Натальные / birth_* данные в этом методе НЕ используются.
+    # EVENT CHART (Frawley ch. 2): cast ONLY for the time (target_date)
+    # and place (transit_place / transit_latitude+longitude) of the match start.
+    # Natal / birth_* data is NOT used in this method.
     if not transits:
         if target_date is None:
             raise HTTPException(status_code=400, detail="Either 'transit_data' or 'target_date' (event kick-off time) must be provided")
@@ -1569,35 +1569,36 @@ async def daily_forecast_endpoint(request: Request, payload: DailyForecastReques
         )
         try:
             transits = calculate_transits(
-                # calculate_transits — общая функция; передаём ей момент матча,
-                # получаем чистую карту события (transit_planets + transit_houses)
+                # calculate_transits is a shared function; we pass it the match moment
+                # and get a clean event chart back (transit_planets + transit_houses)
                 birth_date=target_date,
                 birth_place=payload.transit_place or '',
                 target_date=target_date,
                 lat=transit_lat,
                 lon=transit_lon,
                 timezone_str=payload.transit_timezone or payload.timezone,
-                house_system=effective_house_system,  # ФРОУЛИ: Placidus для карты события (гл. 2)
+                house_system=effective_house_system,  # FRAWLEY: Placidus for the event chart (ch. 2)
                 transit_lat=transit_lat,
                 transit_lon=transit_lon,
-                exact_time=True,  # точное время начала матча — не сдвигать полночь на полдень
+                exact_time=True,  # exact match start time — do not shift midnight to noon
             )
         except HTTPException:
             raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Transits calculation error: {str(e)}")
 
-    # Без домов карту события судить нечем (весь метод строится на куспидах/Lords) —
-    # расчёт домов мог тихо провалиться (calculate_transits глотает ошибку house-calc
-    # для других эндпоинтов, где дома не обязательны) или прийти пустым в transit_data.
+    # Without houses there is nothing to judge the event chart by (the whole method is built
+    # on cusps/Lords) — the house calculation may have failed silently (calculate_transits
+    # swallows house-calc errors for other endpoints, where houses are optional) or arrived
+    # empty in transit_data.
     if not transits.get('transit_houses'):
         raise HTTPException(status_code=502, detail="House calculation failed for the event chart — check coordinates/time")
 
-    # natal_chart больше не обязателен: он шёл только в натальную сноску (личный
-    # акцент для LLM) и на расчёт/скоринг карты события не влияет.
+    # natal_chart is no longer required: it only fed the natal note (a personal
+    # accent for the LLM) and does not affect the event chart calculation/scoring.
     natal_chart = payload.natal_chart or {}
 
-    # --- Кэш (тот же механизм, что /analysis/transits; ключ включает модель) ---
+    # --- Cache (same mechanism as /analysis/transits; the key includes the model) ---
     meta = transits.get('meta', {})
     period = transits.get('period', '')
     transit_loc = f"{transit_lat},{transit_lon}" if transit_lat is not None else "natal"
@@ -1709,7 +1710,7 @@ async def progressed_synastry_analysis_endpoint(request: Request, payload: Progr
 
         # Stream branch stands BEFORE the cache read/write below — same
         # reasoning as /analysis/progressions and /analysis/transits (see the
-        # comments there / the plan's step 4г): a stream:true request must
+        # comments there / the plan's step 4g): a stream:true request must
         # always get an SSE response, and the streamed result isn't written
         # back into _analysis_cache.
         return StreamingResponse(
