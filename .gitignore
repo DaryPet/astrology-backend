@@ -35,6 +35,8 @@ Thumbs.db
 
 .kilo/
 .kilocode/
+# Claude Code tooling (pr-self-review hook scripts), not project code
+scripts/
 # Ephemeris files (downloaded separately)
 ephe/
 openspec/
