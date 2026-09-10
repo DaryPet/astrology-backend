@@ -914,11 +914,32 @@ async def chat_with_astrologer_endpoint(request: Request, payload: ChatRequest, 
     - Answers in the context of the natal chart and the full analysis
     """
 
+    chart_type = payload.chart_data.get('type')
+
     if payload.stream:
         from fastapi.responses import StreamingResponse
-        if payload.chart_data.get('type') == 'synastry':
+        if chart_type == 'synastry':
             from app.services.synastry_service import chat_with_synastry_astrologer_stream
             gen = chat_with_synastry_astrologer_stream(
+                question=payload.question,
+                chart_data=payload.chart_data,
+                full_analysis=payload.summary,
+                chat_history=[msg.dict() for msg in payload.chat_history],
+                language=payload.language,
+                relationship_context=payload.relationship_context
+            )
+        elif chart_type == 'progressions':
+            from app.services.analysis_service import chat_with_progressions_astrologer_stream
+            gen = chat_with_progressions_astrologer_stream(
+                question=payload.question,
+                chart_data=payload.chart_data,
+                full_analysis=payload.summary,
+                chat_history=[msg.dict() for msg in payload.chat_history],
+                language=payload.language
+            )
+        elif chart_type == 'progressed_synastry':
+            from app.services.analysis_service import chat_with_progressed_synastry_astrologer_stream
+            gen = chat_with_progressed_synastry_astrologer_stream(
                 question=payload.question,
                 chart_data=payload.chart_data,
                 full_analysis=payload.summary,
@@ -937,9 +958,28 @@ async def chat_with_astrologer_endpoint(request: Request, payload: ChatRequest, 
             )
         return StreamingResponse(_sse(gen), media_type="text/event-stream")
 
-    if payload.chart_data.get('type') == 'synastry':
+    if chart_type == 'synastry':
         from app.services.synastry_service import chat_with_synastry_astrologer
         result = await chat_with_synastry_astrologer(
+            question=payload.question,
+            chart_data=payload.chart_data,
+            full_analysis=payload.summary,
+            chat_history=[msg.dict() for msg in payload.chat_history],
+            language=payload.language,
+            relationship_context=payload.relationship_context
+        )
+    elif chart_type == 'progressions':
+        from app.services.analysis_service import chat_with_progressions_astrologer
+        result = await chat_with_progressions_astrologer(
+            question=payload.question,
+            chart_data=payload.chart_data,
+            full_analysis=payload.summary,
+            chat_history=[msg.dict() for msg in payload.chat_history],
+            language=payload.language
+        )
+    elif chart_type == 'progressed_synastry':
+        from app.services.analysis_service import chat_with_progressed_synastry_astrologer
+        result = await chat_with_progressed_synastry_astrologer(
             question=payload.question,
             chart_data=payload.chart_data,
             full_analysis=payload.summary,
@@ -956,7 +996,7 @@ async def chat_with_astrologer_endpoint(request: Request, payload: ChatRequest, 
             chat_history=[msg.dict() for msg in payload.chat_history],
             language=payload.language
         )
- 
+
     return ChatResponse(
         answer=result["answer"],
         relevant_chunks=result["relevant_chunks"]

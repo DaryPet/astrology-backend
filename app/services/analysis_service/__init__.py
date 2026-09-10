@@ -61,6 +61,9 @@ from app.services.analysis_service.progressions import (
     _prepare_progressions_analysis,
     progressions_analysis,
     progressions_analysis_stream,
+    _prepare_chat_with_progressions_astrologer,
+    chat_with_progressions_astrologer,
+    chat_with_progressions_astrologer_stream,
 )
 from app.services.analysis_service.transits import (
     _prepare_transits_analysis,
@@ -75,6 +78,9 @@ from app.services.analysis_service.progressed_synastry import (
     _prepare_progressed_synastry_aspect_analysis,
     analyze_progressed_synastry_aspect,
     analyze_progressed_synastry_aspect_stream,
+    _prepare_chat_with_progressed_synastry_astrologer,
+    chat_with_progressed_synastry_astrologer,
+    chat_with_progressed_synastry_astrologer_stream,
 )
 from app.services.analysis_service.summary import (
     generate_summary,

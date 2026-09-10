@@ -11,9 +11,12 @@ from app.services.text_verification import (
 
 from app.services.analysis_service._shared import (
     PROGRESSIONS_PRIORITY_BOOK_ID,
+    _lang_key,
+    _localized,
     _planet_display,
     dedup_chunk_sections,
     search_chunks_priority_book,
+    stream_chat_reply,
     stream_verified_analysis,
 )
 
@@ -794,4 +797,175 @@ async def analyze_progressed_synastry_aspect_stream(
 
     yield {"event": "stage", "data": {"stage": "generating"}}
     async for event in stream_verified_analysis(prep["adapter"], prep["prompt"], language, fix_fn, finalize):
+        yield event
+
+
+# ============================================================
+# PROGRESSED SYNASTRY CHAT
+# ============================================================
+
+async def _prepare_chat_with_progressed_synastry_astrologer(
+    question: str,
+    chart_data: Dict[str, Any],
+    full_analysis: str,
+    chat_history: List[Dict[str, str]],
+    language: str = "ru",
+    relationship_context: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Shared prep for chat_with_progressed_synastry_astrologer and its
+    streaming twin: RAG search (priority book id=29, same as
+    _prepare_progressed_synastry_analysis) + messages build. Mirrors
+    synastry_service.py's _prepare_chat_with_synastry_astrologer, but reads
+    the progressed_synastry-shaped chart_data — the same dict
+    calculate_progressed_synastry/the /analysis/progressed-synastry endpoint
+    returns (person1, person2, progressed_synastry_aspects, cross_overlay,
+    dynamics) — instead of a flat two-person natal synastry chart (chart1/
+    chart2/aspects/overlays), and frames the system prompt around the
+    PROGRESSED synastry rather than "this couple's synastry".
+    """
+    from app.services.llm_adapter import get_llm_adapter
+    from app.services.prompt_templates import get_relationship_context_prompt
+
+    adapter = get_llm_adapter()
+    lang = language if language in ('ru', 'en', 'uk') else 'en'
+
+    p1 = chart_data.get("person1", {}) or {}
+    p2 = chart_data.get("person2", {}) or {}
+    _default_names = {
+        'ru': ("первый партнёр", "второй партнёр"),
+        'uk': ("перший партнер", "другий партнер"),
+        'en': ("the first partner", "the second partner"),
+    }
+    name1 = p1.get("name") or _default_names[lang][0]
+    name2 = p2.get("name") or _default_names[lang][1]
+
+    layer1 = chart_data.get("progressed_synastry_aspects", []) or []
+    cross = chart_data.get("cross_overlay", {}) or {}
+    prog1_to_natal2 = cross.get("prog1_to_natal2", []) or []
+    prog2_to_natal1 = cross.get("prog2_to_natal1", []) or []
+
+    chunks = await search_chunks_priority_book(question, PROGRESSIONS_PRIORITY_BOOK_ID, top_k_priority=6, top_k_others=4)
+
+    books_context = ""
+    if chunks:
+        books_context = "\n=== FRAGMENTS ON THE QUESTION ===\n"
+        for i, chunk in enumerate(chunks, 1):
+            text = chunk.get("text", "")[:600]
+            book_title = chunk.get("book_title", "")
+            books_context += f"[{i}] ({book_title}):\n{text}\n"
+    else:
+        books_context = {
+            'ru': "В библиотеке не найдено релевантных фрагментов по этому вопросу. Используйте общие принципы прогрессивной синастрии.",
+            'uk': "У бібліотеці не знайдено релевантних фрагментів щодо цього питання. Використовуйте загальні принципи прогресивної синастрії.",
+            'en': "No relevant fragments found in the library for this question. Use general progressed-synastry principles.",
+        }[lang]
+
+    def fmt_short(asp: Dict) -> str:
+        p_a = _planet_display(asp.get("planet1", "?"), language)
+        p_b = _planet_display(asp.get("planet2", "?"), language)
+        asp_name = _localized(asp, "aspect", language, asp.get("aspect", "?"))
+        orb_val = asp.get("orb", "?")
+        return f"{p_a} {asp_name} {p_b} — orb {orb_val}°"
+
+    def block(items: List[Dict], n: int = 8) -> str:
+        items = items[:n]
+        return "\n".join(fmt_short(a) for a in items) if items else "—"
+
+    layer1_str = block(layer1)
+    l2a_str = block(prog1_to_natal2)
+    l2b_str = block(prog2_to_natal1)
+
+    context_instruction = get_relationship_context_prompt(relationship_context, language) if relationship_context else ""
+
+    system_prompt = f"""You are a relationship astrologer. You have already done a full analysis of {name1} and {name2}'s PROGRESSED SYNASTRY and now answer questions about it.
+{context_instruction}
+=== LAYER 1 — Progressed synastry: {name1} <-> {name2} ===
+{layer1_str}
+
+=== LAYER 2 — {name1}'s progressions -> {name2}'s natal chart ===
+{l2a_str}
+
+=== LAYER 2 — {name2}'s progressions -> {name1}'s natal chart ===
+{l2b_str}
+
+=== FULL PROGRESSED SYNASTRY ANALYSIS ===
+{full_analysis}
+
+=== KNOWLEDGE FROM ASTROLOGY BOOKS ===
+{books_context}
+
+RULES:
+- Answer personally — you know this couple's progressed synastry
+- Use only {name1} / {name2} — no he/she
+- Always distinguish PROGRESSED positions from NATAL positions explicitly — never present one as the other
+- Use book fragments as knowledge source but NEVER mention them in the answer
+- Do NOT say "fragment [3]", "the book says", "the source mentions"
+- Present all insights as your own astrological expertise
+- Answer in the language of the user's question
+- Be specific, not general
+- Remember the full conversation history
+- Do NOT make up book titles or authors"""
+
+    messages = [{"role": "system", "content": system_prompt}]
+    for msg in chat_history:
+        messages.append({"role": msg["role"], "content": msg["content"]})
+    messages.append({"role": "user", "content": question})
+
+    return {
+        "adapter": adapter,
+        "messages": messages,
+        "chunks": chunks
+    }
+
+async def chat_with_progressed_synastry_astrologer(
+    question: str,
+    chart_data: Dict[str, Any],
+    full_analysis: str,
+    chat_history: List[Dict[str, str]],
+    language: str = "ru",
+    relationship_context: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Chat with the astrologer about a progressed synastry. Modeled on
+    chat_with_synastry_astrologer (synastry_service.py).
+    """
+    prep = await _prepare_chat_with_progressed_synastry_astrologer(
+        question, chart_data, full_analysis, chat_history, language, relationship_context
+    )
+    answer = await prep["adapter"].generate_with_messages(prep["messages"], language)
+
+    return {
+        "answer": answer,
+        "relevant_chunks": prep["chunks"]
+    }
+
+async def chat_with_progressed_synastry_astrologer_stream(
+    question: str,
+    chart_data: Dict[str, Any],
+    full_analysis: str,
+    chat_history: List[Dict[str, str]],
+    language: str = "ru",
+    relationship_context: Optional[str] = None
+) -> AsyncGenerator[Dict[str, Any], None]:
+    """
+    Streaming twin of chat_with_progressed_synastry_astrologer — typewriter
+    delivery for the chat modal. No anti-fabrication fix runs on chat replies
+    today (same as the other three chat variants), so this goes through
+    stream_chat_reply (raw token relay), not stream_verified_analysis.
+    """
+    yield {"event": "stage", "data": {"stage": "searching"}}
+
+    prep = await _prepare_chat_with_progressed_synastry_astrologer(
+        question, chart_data, full_analysis, chat_history, language, relationship_context
+    )
+
+    async def finalize(buffer: str) -> Dict[str, Any]:
+        return {
+            "answer": buffer,
+            "relevant_chunks": prep["chunks"]
+        }
+
+    yield {"event": "stage", "data": {"stage": "generating"}}
+    async for event in stream_chat_reply(prep["adapter"], prep["messages"], language, finalize):
         yield event
